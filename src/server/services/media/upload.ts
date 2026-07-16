@@ -170,28 +170,29 @@ export async function uploadMediaAsset(input: UploadInput) {
   const customTagIds = await resolveCustomTags(input.customTags ?? []);
   const allTagIds = [...new Set([...(input.tagIds ?? []), ...customTagIds])];
 
-  return prisma.$transaction(async (tx) => {
-    const asset = await tx.mediaAsset.create({
-      data: {
-        userId: input.userId,
-        type,
-        fileName: input.file.name,
-        originalFileName: input.file.name,
-        mimeType: mimeType || "application/octet-stream",
-        fileSizeBytes: buffer.byteLength,
-        storageProvider: "vercel-blob",
-        storagePublicId: uploaded.publicId,
-        storageUrl: uploaded.secureUrl,
-        thumbnailUrl,
-        width: width ?? null,
-        height: height ?? null,
-        aspectRatio: aspectRatio ?? null,
-        contentHash,
-      },
-    });
+  // Avoid interactive $transaction — Neon pooled connections break them.
+  const asset = await prisma.mediaAsset.create({
+    data: {
+      userId: input.userId,
+      type,
+      fileName: input.file.name,
+      originalFileName: input.file.name,
+      mimeType: mimeType || "application/octet-stream",
+      fileSizeBytes: buffer.byteLength,
+      storageProvider: "vercel-blob",
+      storagePublicId: uploaded.publicId,
+      storageUrl: uploaded.secureUrl,
+      thumbnailUrl,
+      width: width ?? null,
+      height: height ?? null,
+      aspectRatio: aspectRatio ?? null,
+      contentHash,
+    },
+  });
 
+  try {
     if (type === "PHYSIQUE_PHOTO") {
-      await tx.physiquePhotoMetadata.create({
+      await prisma.physiquePhotoMetadata.create({
         data: {
           mediaAssetId: asset.id,
           orientation: orientation ?? null,
@@ -201,7 +202,7 @@ export async function uploadMediaAsset(input: UploadInput) {
     }
 
     if (type === "THEME_IMAGE") {
-      await tx.themeImageMetadata.create({
+      await prisma.themeImageMetadata.create({
         data: {
           mediaAssetId: asset.id,
           description: input.description ?? null,
@@ -210,7 +211,7 @@ export async function uploadMediaAsset(input: UploadInput) {
     }
 
     if (type === "MUSIC") {
-      await tx.musicMetadata.create({
+      await prisma.musicMetadata.create({
         data: {
           mediaAssetId: asset.id,
           title: input.title?.trim() || input.file.name.replace(/\.[^.]+$/, ""),
@@ -220,7 +221,7 @@ export async function uploadMediaAsset(input: UploadInput) {
     }
 
     if (allTagIds.length > 0) {
-      await tx.mediaTag.createMany({
+      await prisma.mediaTag.createMany({
         data: allTagIds.map((tagId) => ({
           mediaAssetId: asset.id,
           tagId,
@@ -229,16 +230,22 @@ export async function uploadMediaAsset(input: UploadInput) {
         skipDuplicates: true,
       });
     }
+  } catch (error) {
+    // Soft-clean DB row if metadata write fails after blob upload succeeded
+    await prisma.mediaAsset
+      .delete({ where: { id: asset.id } })
+      .catch(() => undefined);
+    throw error;
+  }
 
-    return tx.mediaAsset.findUniqueOrThrow({
-      where: { id: asset.id },
-      include: {
-        physiqueMetadata: true,
-        themeMetadata: true,
-        musicMetadata: true,
-        mediaTags: { include: { tag: true } },
-      },
-    });
+  return prisma.mediaAsset.findUniqueOrThrow({
+    where: { id: asset.id },
+    include: {
+      physiqueMetadata: true,
+      themeMetadata: true,
+      musicMetadata: true,
+      mediaTags: { include: { tag: true } },
+    },
   });
 }
 

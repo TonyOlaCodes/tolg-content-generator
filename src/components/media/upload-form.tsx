@@ -44,6 +44,8 @@ export function UploadForm() {
   const [tags, setTags] = useState<TagOption[]>([]);
   const [statuses, setStatuses] = useState<FileStatus[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  // Make tags optional on upload — can tag later in Media Library
+  const [showTags, setShowTags] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -323,18 +325,31 @@ export function UploadForm() {
             </div>
           ) : null}
 
-          <TagPicker
-            tags={tags}
-            selectedIds={tagIds}
-            onChange={setTagIds}
-            categories={tagCategories}
-            allowCustom
-            customTags={customTags}
-            onCustomTagsChange={setCustomTags}
-            label={
-              mediaType === "THEME_IMAGE" ? "Mood tags" : "Tags (before save)"
-            }
-          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTags((v) => !v)}
+          >
+            {showTags ? "Hide tags" : "Add tags (optional)"}
+          </Button>
+
+          {showTags ? (
+            <TagPicker
+              tags={tags}
+              selectedIds={tagIds}
+              onChange={setTagIds}
+              categories={tagCategories}
+              allowCustom
+              customTags={customTags}
+              onCustomTagsChange={setCustomTags}
+              label={
+                mediaType === "THEME_IMAGE"
+                  ? "Mood tags"
+                  : "Tags (before save)"
+              }
+            />
+          ) : null}
         </CardContent>
       </Card>
 
