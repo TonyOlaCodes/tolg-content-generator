@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useCallback, useState } from "react";
 
 import { TagPicker } from "@/components/media/tag-picker";
@@ -25,17 +26,80 @@ type FileStatus = {
   error?: string;
 };
 
-type UploadApiResult = {
-  ok: boolean;
-  error?: string;
-  id?: string;
-};
-
 const TYPE_LABELS: Record<MediaType, string> = {
   THEME_IMAGE: "Theme image",
   PHYSIQUE_PHOTO: "Physique photo",
   MUSIC: "Music",
 };
+
+async function sha256Hex(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function getImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  if (!file.type.startsWith("image/")) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const dims = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return dims;
+  } catch {
+    return null;
+  }
+}
+
+async function makeThumbnailBlob(file: File): Promise<Blob | null> {
+  if (!file.type.startsWith("image/")) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const max = 400;
+    const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    return await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/webp", 0.82);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function getAudioDurationMs(file: File): Promise<number | null> {
+  if (!file.type.startsWith("audio/")) return null;
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const ms = Number.isFinite(audio.duration)
+        ? Math.round(audio.duration * 1000)
+        : null;
+      URL.revokeObjectURL(url);
+      resolve(ms);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
+}
 
 export function UploadForm() {
   const [mediaType, setMediaType] = useState<MediaType>("THEME_IMAGE");
@@ -129,7 +193,6 @@ export function UploadForm() {
     setGlobalError(null);
     setPending(true);
     setStatuses(files.map((f) => ({ name: f.name, status: "pending" })));
-
     const nextStatuses: FileStatus[] = [];
 
     try {
@@ -137,57 +200,105 @@ export function UploadForm() {
         nextStatuses.push({ name: file.name, status: "uploading" });
         setStatuses([...nextStatuses]);
 
-        const formData = new FormData();
-        formData.set("file", file);
-        formData.set("type", mediaType);
-        formData.set("tagIds", JSON.stringify(tagIds));
-        formData.set("customTags", JSON.stringify(customTags));
-
-        if (mediaType === "PHYSIQUE_PHOTO" && year) {
-          formData.set("year", year);
-        }
-        if (mediaType === "THEME_IMAGE" && description) {
-          formData.set("description", description);
-        }
-        if (mediaType === "MUSIC") {
-          formData.set("title", title.trim() || file.name);
-        }
-
-        let result: UploadApiResult;
         try {
-          const response = await fetch("/api/media/upload", {
-            method: "POST",
-            body: formData,
+          const folder =
+            mediaType === "THEME_IMAGE"
+              ? "tolg/theme"
+              : mediaType === "PHYSIQUE_PHOTO"
+                ? "tolg/physique"
+                : "tolg/music";
+
+          const [contentHash, dims, thumbBlob, durationMs] = await Promise.all([
+            sha256Hex(file),
+            getImageDimensions(file),
+            makeThumbnailBlob(file),
+            getAudioDurationMs(file),
+          ]);
+
+          const blob = await upload(`${folder}/${file.name}`, file, {
+            access: "public",
+            handleUploadUrl: "/api/media/blob",
+            multipart: file.size > 4 * 1024 * 1024,
           });
-          result = (await response.json()) as UploadApiResult;
-          if (!response.ok && !result.error) {
+
+          let thumbnailUrl: string | null = null;
+          if (thumbBlob) {
+            const thumb = await upload(
+              `tolg/thumbs/${contentHash.slice(0, 16)}.webp`,
+              thumbBlob,
+              {
+                access: "public",
+                handleUploadUrl: "/api/media/blob",
+              },
+            );
+            thumbnailUrl = thumb.url;
+          }
+
+          const yearParsed = year.trim() ? Number(year.trim()) : null;
+
+          const response = await fetch("/api/media/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: mediaType,
+              blobUrl: blob.url,
+              pathname: blob.pathname,
+              fileName: file.name,
+              mimeType: file.type || "application/octet-stream",
+              size: file.size,
+              contentHash,
+              width: dims?.width ?? null,
+              height: dims?.height ?? null,
+              thumbnailUrl,
+              durationMs,
+              year:
+                mediaType === "PHYSIQUE_PHOTO" &&
+                yearParsed !== null &&
+                Number.isFinite(yearParsed)
+                  ? yearParsed
+                  : null,
+              title:
+                mediaType === "MUSIC"
+                  ? title.trim() || file.name
+                  : undefined,
+              description:
+                mediaType === "THEME_IMAGE" ? description || undefined : undefined,
+              tagIds,
+              customTags,
+            }),
+          });
+
+          const text = await response.text();
+          let result: { ok?: boolean; error?: string } = {};
+          try {
+            result = JSON.parse(text) as { ok?: boolean; error?: string };
+          } catch {
             result = {
               ok: false,
-              error: `Upload failed (${response.status})`,
+              error: text.slice(0, 160) || `Upload failed (${response.status})`,
             };
           }
+
+          if (!response.ok || !result.ok) {
+            throw new Error(result.error || `Upload failed (${response.status})`);
+          }
+
+          nextStatuses[nextStatuses.length - 1] = {
+            name: file.name,
+            status: "success",
+          };
         } catch (err) {
-          result = {
-            ok: false,
-            error:
-              err instanceof Error
-                ? err.message
-                : "Network error during upload",
+          nextStatuses[nextStatuses.length - 1] = {
+            name: file.name,
+            status: "error",
+            error: err instanceof Error ? err.message : "Upload failed",
           };
         }
 
-        nextStatuses[nextStatuses.length - 1] = result.ok
-          ? { name: file.name, status: "success" }
-          : {
-              name: file.name,
-              status: "error",
-              error: result.error ?? "Upload failed",
-            };
         setStatuses([...nextStatuses]);
       }
 
-      const allOk = nextStatuses.every((s) => s.status === "success");
-      if (allOk) {
+      if (nextStatuses.every((s) => s.status === "success")) {
         setFiles([]);
         resetMeta();
         setShowTags(false);
@@ -221,8 +332,8 @@ export function UploadForm() {
           Upload
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Add theme images, physique photos, or music. You can tag later in
-          Media Library.
+          Files upload directly to storage (supports larger photos). Prefer
+          JPEG/PNG.
         </p>
       </div>
 
@@ -251,9 +362,7 @@ export function UploadForm() {
       <Card>
         <CardHeader>
           <CardTitle>Files</CardTitle>
-          <CardDescription>
-            Drag and drop or browse. Prefer JPEG or PNG.
-          </CardDescription>
+          <CardDescription>Drag and drop or browse.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div
@@ -301,7 +410,12 @@ export function UploadForm() {
                   key={`${f.name}:${f.size}`}
                   className="flex items-center justify-between gap-2"
                 >
-                  <span className="truncate">{f.name}</span>
+                  <span className="truncate">
+                    {f.name}{" "}
+                    <span className="text-zinc-600">
+                      ({(f.size / (1024 * 1024)).toFixed(1)} MB)
+                    </span>
+                  </span>
                   <Button
                     type="button"
                     size="sm"

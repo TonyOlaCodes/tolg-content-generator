@@ -1,16 +1,15 @@
 import "server-only";
 
-import sharp from "sharp";
 import { parseBuffer } from "music-metadata";
+import sharp from "sharp";
 
+import { prisma } from "@/lib/db";
+import { hashFileBuffer } from "@/lib/crypto";
 import {
-  deleteFromBlob,
   getBlobConfigStatus,
   uploadImageThumbnailToBlob,
   uploadOriginalToBlob,
 } from "@/lib/storage";
-import { prisma } from "@/lib/db";
-import { hashFileBuffer } from "@/lib/crypto";
 import {
   computeAspectRatio,
   detectOrientation,
@@ -34,6 +33,26 @@ export type UploadInput = {
   tagIds?: string[];
   customTags?: string[];
   description?: string;
+};
+
+export type RegisterUploadedInput = {
+  userId: string;
+  type: MediaType;
+  blobUrl: string;
+  pathname: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  contentHash: string;
+  width?: number | null;
+  height?: number | null;
+  thumbnailUrl?: string | null;
+  durationMs?: number | null;
+  year?: number | null;
+  title?: string;
+  description?: string;
+  tagIds?: string[];
+  customTags?: string[];
 };
 
 function inferMimeType(file: File): string {
@@ -94,6 +113,137 @@ async function resolveCustomTags(names: string[]): Promise<string[]> {
   return ids;
 }
 
+async function attachMetadata(options: {
+  assetId: string;
+  type: MediaType;
+  orientation?: Orientation | null;
+  year?: number | null;
+  description?: string | null;
+  title?: string;
+  fileName: string;
+  durationMs?: number;
+  tagIds: string[];
+}) {
+  if (options.type === "PHYSIQUE_PHOTO") {
+    await prisma.physiquePhotoMetadata.create({
+      data: {
+        mediaAssetId: options.assetId,
+        orientation: options.orientation ?? null,
+        year: options.year ?? null,
+      },
+    });
+  }
+
+  if (options.type === "THEME_IMAGE") {
+    await prisma.themeImageMetadata.create({
+      data: {
+        mediaAssetId: options.assetId,
+        description: options.description ?? null,
+      },
+    });
+  }
+
+  if (options.type === "MUSIC") {
+    await prisma.musicMetadata.create({
+      data: {
+        mediaAssetId: options.assetId,
+        title:
+          options.title?.trim() ||
+          options.fileName.replace(/\.[^.]+$/, ""),
+        durationMs: options.durationMs ?? 0,
+      },
+    });
+  }
+
+  if (options.tagIds.length > 0) {
+    await prisma.mediaTag.createMany({
+      data: options.tagIds.map((tagId) => ({
+        mediaAssetId: options.assetId,
+        tagId,
+        source: "manual",
+      })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+/** Register a file already uploaded to Vercel Blob (client-side upload). */
+export async function registerUploadedMedia(input: RegisterUploadedInput) {
+  const type = mediaTypeSchema.parse(input.type);
+  assertFileAllowed(type, input.mimeType, input.size);
+
+  const existing = await prisma.mediaAsset.findUnique({
+    where: {
+      userId_contentHash: {
+        userId: input.userId,
+        contentHash: input.contentHash,
+      },
+    },
+  });
+  if (existing && !existing.deletedAt) {
+    throw new Error("Duplicate file already exists in your library.");
+  }
+
+  const width = input.width ?? null;
+  const height = input.height ?? null;
+  const aspectRatio =
+    width && height ? computeAspectRatio(width, height) : null;
+  const orientation =
+    width && height ? detectOrientation(width, height) : null;
+
+  const customTagIds = await resolveCustomTags(input.customTags ?? []);
+  const allTagIds = [...new Set([...(input.tagIds ?? []), ...customTagIds])];
+
+  const asset = await prisma.mediaAsset.create({
+    data: {
+      userId: input.userId,
+      type,
+      fileName: input.fileName,
+      originalFileName: input.fileName,
+      mimeType: input.mimeType || "application/octet-stream",
+      fileSizeBytes: input.size,
+      storageProvider: "vercel-blob",
+      storagePublicId: input.pathname,
+      storageUrl: input.blobUrl,
+      thumbnailUrl: input.thumbnailUrl ?? (type === "MUSIC" ? null : input.blobUrl),
+      width,
+      height,
+      aspectRatio,
+      contentHash: input.contentHash,
+    },
+  });
+
+  try {
+    await attachMetadata({
+      assetId: asset.id,
+      type,
+      orientation,
+      year: input.year ?? null,
+      description: input.description ?? null,
+      title: input.title,
+      fileName: input.fileName,
+      durationMs: input.durationMs ?? 0,
+      tagIds: allTagIds,
+    });
+  } catch (error) {
+    await prisma.mediaAsset
+      .delete({ where: { id: asset.id } })
+      .catch(() => undefined);
+    throw error;
+  }
+
+  return prisma.mediaAsset.findUniqueOrThrow({
+    where: { id: asset.id },
+    include: {
+      physiqueMetadata: true,
+      themeMetadata: true,
+      musicMetadata: true,
+      mediaTags: { include: { tag: true } },
+    },
+  });
+}
+
+/** Legacy server-side upload path (small files only). */
 export async function uploadMediaAsset(input: UploadInput) {
   const type = mediaTypeSchema.parse(input.type);
   const blobStatus = getBlobConfigStatus();
@@ -170,7 +320,6 @@ export async function uploadMediaAsset(input: UploadInput) {
   const customTagIds = await resolveCustomTags(input.customTags ?? []);
   const allTagIds = [...new Set([...(input.tagIds ?? []), ...customTagIds])];
 
-  // Avoid interactive $transaction — Neon pooled connections break them.
   const asset = await prisma.mediaAsset.create({
     data: {
       userId: input.userId,
@@ -191,47 +340,18 @@ export async function uploadMediaAsset(input: UploadInput) {
   });
 
   try {
-    if (type === "PHYSIQUE_PHOTO") {
-      await prisma.physiquePhotoMetadata.create({
-        data: {
-          mediaAssetId: asset.id,
-          orientation: orientation ?? null,
-          year: input.year ?? null,
-        },
-      });
-    }
-
-    if (type === "THEME_IMAGE") {
-      await prisma.themeImageMetadata.create({
-        data: {
-          mediaAssetId: asset.id,
-          description: input.description ?? null,
-        },
-      });
-    }
-
-    if (type === "MUSIC") {
-      await prisma.musicMetadata.create({
-        data: {
-          mediaAssetId: asset.id,
-          title: input.title?.trim() || input.file.name.replace(/\.[^.]+$/, ""),
-          durationMs,
-        },
-      });
-    }
-
-    if (allTagIds.length > 0) {
-      await prisma.mediaTag.createMany({
-        data: allTagIds.map((tagId) => ({
-          mediaAssetId: asset.id,
-          tagId,
-          source: "manual",
-        })),
-        skipDuplicates: true,
-      });
-    }
+    await attachMetadata({
+      assetId: asset.id,
+      type,
+      orientation,
+      year: input.year ?? null,
+      description: input.description ?? null,
+      title: input.title,
+      fileName: input.file.name,
+      durationMs,
+      tagIds: allTagIds,
+    });
   } catch (error) {
-    // Soft-clean DB row if metadata write fails after blob upload succeeded
     await prisma.mediaAsset
       .delete({ where: { id: asset.id } })
       .catch(() => undefined);
@@ -249,4 +369,4 @@ export async function uploadMediaAsset(input: UploadInput) {
   });
 }
 
-export { deleteFromBlob };
+export { deleteFromBlob } from "@/lib/storage";
