@@ -28,10 +28,12 @@ export async function uploadMediaAction(formData: FormData) {
 
   const type = mediaTypeSchema.parse(typeRaw);
   const yearRaw = formData.get("year");
-  const year =
-    yearRaw && String(yearRaw).length
-      ? Number(yearRaw)
+  const yearParsed =
+    yearRaw && String(yearRaw).trim().length
+      ? Number(String(yearRaw).trim())
       : null;
+  const year =
+    yearParsed !== null && Number.isFinite(yearParsed) ? yearParsed : null;
   const title = formData.get("title");
   const description = formData.get("description");
   const tagIdsRaw = formData.get("tagIds");
@@ -64,7 +66,13 @@ export async function uploadMediaAction(formData: FormData) {
     revalidatePath("/media");
     revalidatePath("/dashboard");
     revalidatePath("/upload");
-    return { ok: true as const, asset };
+    // Return a lean payload — full Prisma graphs can break the client action
+    return {
+      ok: true as const,
+      id: asset.id,
+      fileName: asset.fileName,
+      type: asset.type,
+    };
   } catch (error) {
     const message =
       error instanceof Error
@@ -84,16 +92,38 @@ export async function uploadMediaAction(formData: FormData) {
 }
 
 export async function listMediaAction(input: unknown) {
-  const user = await requireUser();
-  const parsed = mediaListQuerySchema.parse(input);
-  if (!parsed.type) {
-    throw new Error("Media type is required");
+  try {
+    const user = await requireUser();
+    const parsed = mediaListQuerySchema.parse(input);
+    if (!parsed.type) {
+      return { ok: false as const, error: "Media type is required" };
+    }
+    const result = await listMedia({
+      ...parsed,
+      type: parsed.type,
+      userId: user.id!,
+    });
+
+    // Ensure dates are plain strings for the client
+    const items = result.items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      lastUsedAt: item.lastUsedAt ? item.lastUsedAt.toISOString() : null,
+      deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
+    }));
+
+    return {
+      ok: true as const,
+      ...result,
+      items,
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Failed to load media",
+    };
   }
-  return listMedia({
-    ...parsed,
-    type: parsed.type,
-    userId: user.id!,
-  });
 }
 
 export async function updateMediaTagsAction(input: unknown) {

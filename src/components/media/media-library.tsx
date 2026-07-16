@@ -72,6 +72,10 @@ export function MediaLibrary({ initialTags }: MediaLibraryProps) {
           page,
           pageSize: 24,
         });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         setList({
           items: result.items as unknown as MediaAssetItem[],
           total: result.total,
