@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Clapperboard,
   FolderOpen,
   LayoutDashboard,
@@ -17,7 +20,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/server/actions/auth";
 
@@ -78,20 +80,63 @@ const NAV_ITEMS = [
   },
 ] as const;
 
+const STORAGE_KEY = "tolg-sidebar-open";
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(true);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "0") {
+      setOpen(false);
+    } else if (stored === "1") {
+      setOpen(true);
+    } else {
+      // Default: closed on small screens for more content space
+      setOpen(window.matchMedia("(min-width: 768px)").matches);
+    }
+    setReady(true);
+  }, []);
+
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
+
+  if (!ready) {
+    return <aside className="w-0 shrink-0 md:w-60" aria-hidden />;
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        title="Open toolbar"
+        aria-label="Open toolbar"
+        className="fixed left-2 top-2 z-50 flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950 text-zinc-300 shadow-lg hover:bg-zinc-900 hover:text-white"
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <aside
       className={cn(
-        "flex h-dvh shrink-0 flex-col border-r border-zinc-800 bg-zinc-950",
+        "relative flex h-dvh shrink-0 flex-col border-r border-zinc-800 bg-zinc-950",
         "w-14 md:w-60",
       )}
     >
-      {/* Brand */}
+      {/* Brand + close arrow */}
       <div
         className={cn(
-          "flex items-center border-b border-zinc-800",
+          "relative flex items-center border-b border-zinc-800",
           "justify-center px-2 py-4 md:justify-start md:gap-3 md:px-5 md:py-6",
         )}
       >
@@ -104,6 +149,16 @@ export function AppSidebar() {
             Content Generator
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={toggle}
+          title="Close toolbar"
+          aria-label="Close toolbar"
+          className="absolute right-0 top-1/2 z-10 flex h-7 w-5 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-900 hover:text-white"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+        </button>
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-1.5 md:p-3">
