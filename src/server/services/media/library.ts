@@ -2,7 +2,7 @@ import "server-only";
 
 import type { MediaType, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import { deleteFromCloudinary } from "@/lib/cloudinary";
+import { deleteFromBlob } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 import type { z } from "zod";
 import type {
@@ -220,10 +220,10 @@ export async function bulkDeleteMedia(
 
   for (const asset of assets) {
     try {
-      await deleteFromCloudinary(
-        asset.storagePublicId,
-        asset.type === "MUSIC" ? "video" : "image",
-      );
+      await deleteFromBlob(asset.storageUrl);
+      if (asset.thumbnailUrl) {
+        await deleteFromBlob(asset.thumbnailUrl);
+      }
     } catch {
       // Soft-delete even if remote delete fails
     }

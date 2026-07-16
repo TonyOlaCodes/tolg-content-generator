@@ -76,15 +76,6 @@ export async function uploadMediaAction(formData: FormData) {
           ? (error as { message: string }).message
           : "Upload failed";
 
-    // Friendlier Cloudinary account errors
-    if (/disabled customer/i.test(message)) {
-      return {
-        ok: false as const,
-        error:
-          "Cloudinary account is disabled. Open cloudinary.com, verify your email / activate the free plan, then try again.",
-      };
-    }
-
     return {
       ok: false as const,
       error: message,

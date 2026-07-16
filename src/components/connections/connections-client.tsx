@@ -32,7 +32,7 @@ type ConnectionRow = {
 type ConnectionsClientProps = {
   connections: ConnectionRow[];
   envStatus: {
-    cloudinary: EnvStatus;
+    blob: EnvStatus;
     openai: EnvStatus;
     tiktok: EnvStatus;
     renderWorker: EnvStatus;
@@ -200,26 +200,27 @@ export function ConnectionsClient({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
-              <CardTitle>Cloudinary</CardTitle>
+              <CardTitle>Vercel Blob</CardTitle>
               <Badge
-                variant={envStatus.cloudinary.configured ? "success" : "danger"}
+                variant={envStatus.blob.configured ? "success" : "danger"}
               >
-                {envStatus.cloudinary.configured ? "Configured" : "Required"}
+                {envStatus.blob.configured ? "Configured" : "Required"}
               </Badge>
             </div>
             <CardDescription>
-              Media storage is configured via environment variables only.
+              Media storage for theme images, physique photos, and music.
+              Originals are stored without cropping.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {envStatus.cloudinary.configured ? (
+            {envStatus.blob.configured ? (
               <p className="text-sm text-emerald-400/90">
-                Cloudinary env vars are present. Uploads can use Cloudinary.
+                BLOB_READ_WRITE_TOKEN is present. Uploads use Vercel Blob.
               </p>
             ) : (
               <p className="text-sm text-red-300">
-                Missing: {envStatus.cloudinary.missing.join(", ")}. Set these in
-                your environment before uploading media.
+                Missing: {envStatus.blob.missing.join(", ")}. Create a Blob
+                store in the Vercel project Storage tab.
               </p>
             )}
           </CardContent>

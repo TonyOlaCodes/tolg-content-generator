@@ -13,7 +13,7 @@ import {
   updateSettings,
   upsertConnection,
 } from "@/server/services/settings";
-import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import { getBlobConfigStatus } from "@/lib/storage";
 
 export async function getSettingsAction() {
   const user = await requireUser();
@@ -31,11 +31,11 @@ export async function updateSettingsAction(input: unknown) {
 export async function getConnectionsAction() {
   const user = await requireUser();
   const connections = await listConnections(user.id!);
-  const cloudinaryEnv = getCloudinaryConfigStatus();
+  const blobEnv = getBlobConfigStatus();
   return {
     connections,
     envStatus: {
-      cloudinary: cloudinaryEnv,
+      blob: blobEnv,
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
         missing: process.env.OPENAI_API_KEY ? [] : ["OPENAI_API_KEY"],
