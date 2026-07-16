@@ -66,9 +66,28 @@ export async function uploadMediaAction(formData: FormData) {
     revalidatePath("/upload");
     return { ok: true as const, asset };
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" &&
+            error &&
+            "message" in error &&
+            typeof (error as { message: unknown }).message === "string"
+          ? (error as { message: string }).message
+          : "Upload failed";
+
+    // Friendlier Cloudinary account errors
+    if (/disabled customer/i.test(message)) {
+      return {
+        ok: false as const,
+        error:
+          "Cloudinary account is disabled. Open cloudinary.com, verify your email / activate the free plan, then try again.",
+      };
+    }
+
     return {
       ok: false as const,
-      error: error instanceof Error ? error.message : "Upload failed",
+      error: message,
     };
   }
 }
