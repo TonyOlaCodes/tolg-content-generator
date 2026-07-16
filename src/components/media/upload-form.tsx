@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useState } from "react";
 
 import { TagPicker } from "@/components/media/tag-picker";
 import type { TagOption } from "@/components/media/types";
@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { uploadMediaAction } from "@/server/actions/media";
 import { getTagsAction } from "@/server/actions/tags";
 
 type MediaType = "THEME_IMAGE" | "PHYSIQUE_PHOTO" | "MUSIC";
@@ -24,6 +23,12 @@ type FileStatus = {
   name: string;
   status: "pending" | "uploading" | "success" | "error";
   error?: string;
+};
+
+type UploadApiResult = {
+  ok: boolean;
+  error?: string;
+  id?: string;
 };
 
 const TYPE_LABELS: Record<MediaType, string> = {
@@ -42,25 +47,11 @@ export function UploadForm() {
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [tags, setTags] = useState<TagOption[]>([]);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
   const [statuses, setStatuses] = useState<FileStatus[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  // Make tags optional on upload — can tag later in Media Library
   const [showTags, setShowTags] = useState(false);
-  const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    void getTagsAction().then((rows) => {
-      setTags(
-        rows.map((t) => ({
-          id: t.id,
-          name: t.name,
-          slug: t.slug,
-          category: t.category,
-          isSystem: t.isSystem,
-        })),
-      );
-    });
-  }, []);
+  const [pending, setPending] = useState(false);
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
     const list = Array.from(incoming);
@@ -96,7 +87,36 @@ export function UploadForm() {
     resetMeta();
   }
 
-  function handleUpload() {
+  async function ensureTagsLoaded() {
+    if (tagsLoaded) return;
+    const rows = await getTagsAction();
+    setTags(
+      rows.map((t) => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        category: t.category,
+        isSystem: t.isSystem,
+      })),
+    );
+    setTagsLoaded(true);
+  }
+
+  async function toggleTags() {
+    const next = !showTags;
+    setShowTags(next);
+    if (next) {
+      try {
+        await ensureTagsLoaded();
+      } catch (err) {
+        setGlobalError(
+          err instanceof Error ? err.message : "Could not load tags",
+        );
+      }
+    }
+  }
+
+  async function handleUpload() {
     if (files.length === 0) {
       setGlobalError("Select at least one file to upload.");
       return;
@@ -107,11 +127,12 @@ export function UploadForm() {
     }
 
     setGlobalError(null);
+    setPending(true);
     setStatuses(files.map((f) => ({ name: f.name, status: "pending" })));
 
-    startTransition(async () => {
-      const nextStatuses: FileStatus[] = [];
+    const nextStatuses: FileStatus[] = [];
 
+    try {
       for (const file of files) {
         nextStatuses.push({ name: file.name, status: "uploading" });
         setStatuses([...nextStatuses]);
@@ -132,13 +153,35 @@ export function UploadForm() {
           formData.set("title", title.trim() || file.name);
         }
 
-        const result = await uploadMediaAction(formData);
+        let result: UploadApiResult;
+        try {
+          const response = await fetch("/api/media/upload", {
+            method: "POST",
+            body: formData,
+          });
+          result = (await response.json()) as UploadApiResult;
+          if (!response.ok && !result.error) {
+            result = {
+              ok: false,
+              error: `Upload failed (${response.status})`,
+            };
+          }
+        } catch (err) {
+          result = {
+            ok: false,
+            error:
+              err instanceof Error
+                ? err.message
+                : "Network error during upload",
+          };
+        }
+
         nextStatuses[nextStatuses.length - 1] = result.ok
           ? { name: file.name, status: "success" }
           : {
               name: file.name,
               status: "error",
-              error: result.error,
+              error: result.error ?? "Upload failed",
             };
         setStatuses([...nextStatuses]);
       }
@@ -147,8 +190,11 @@ export function UploadForm() {
       if (allOk) {
         setFiles([]);
         resetMeta();
+        setShowTags(false);
       }
-    });
+    } finally {
+      setPending(false);
+    }
   }
 
   const tagCategories =
@@ -175,8 +221,8 @@ export function UploadForm() {
           Upload
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Add theme images, physique photos, or music. AI tag suggestions arrive
-          in Phase 2 — Phase 1 uses manual tagging.
+          Add theme images, physique photos, or music. You can tag later in
+          Media Library.
         </p>
       </div>
 
@@ -205,7 +251,9 @@ export function UploadForm() {
       <Card>
         <CardHeader>
           <CardTitle>Files</CardTitle>
-          <CardDescription>Drag and drop or browse. Multiple files supported.</CardDescription>
+          <CardDescription>
+            Drag and drop or browse. Prefer JPEG or PNG.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div
@@ -237,7 +285,7 @@ export function UploadForm() {
               accept={
                 mediaType === "MUSIC"
                   ? "audio/*,.mp3,.wav,.m4a"
-                  : "image/*,.heic,.heif"
+                  : "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
               }
               onChange={(e) => {
                 if (e.target.files) addFiles(e.target.files);
@@ -277,11 +325,8 @@ export function UploadForm() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Metadata & tags</CardTitle>
-          <CardDescription>
-            Required fields depend on media type. Tags are applied to every file
-            in this batch.
-          </CardDescription>
+          <CardTitle>Details</CardTitle>
+          <CardDescription>Optional fields for this batch.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {mediaType === "PHYSIQUE_PHOTO" ? (
@@ -329,7 +374,7 @@ export function UploadForm() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setShowTags((v) => !v)}
+            onClick={() => void toggleTags()}
           >
             {showTags ? "Hide tags" : "Add tags (optional)"}
           </Button>
@@ -385,7 +430,7 @@ export function UploadForm() {
         className="w-full"
         disabled={pending || files.length === 0}
         title={files.length === 0 ? "Add files first" : undefined}
-        onClick={handleUpload}
+        onClick={() => void handleUpload()}
       >
         {pending
           ? "Uploading…"

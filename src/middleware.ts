@@ -10,8 +10,12 @@ export default auth((req) => {
   const isLoggedIn = Boolean(req.auth);
   const isLoginPage = pathname === "/login";
   const isAuthApi = pathname.startsWith("/api/auth");
+  // Server Actions POST to the page URL — never redirect those (breaks the page)
+  const isServerAction =
+    req.method === "POST" &&
+    (req.headers.has("next-action") || req.headers.has("Next-Action"));
 
-  if (isAuthApi) {
+  if (isAuthApi || isServerAction) {
     return NextResponse.next();
   }
 
