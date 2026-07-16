@@ -1,0 +1,483 @@
+// TOLG Content Generator — Prisma schema
+// Neon PostgreSQL via Prisma 7 + @prisma/adapter-pg
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MediaType {
+  THEME_IMAGE
+  PHYSIQUE_PHOTO
+  MUSIC
+}
+
+enum Orientation {
+  PORTRAIT
+  LANDSCAPE
+  SQUARE
+}
+
+enum TagCategory {
+  TIME
+  PHASE
+  QUALITY
+  PHYSIQUE
+  POSE
+  ANGLE
+  LOCATION
+  EXPRESSION
+  THEME_MOOD
+  THEME_STYLE
+  THEME_CONCEPT
+  MUSIC_MOOD
+  CUSTOM
+}
+
+enum DraftStatus {
+  GENERATED
+  EDITING
+  APPROVED
+  REJECTED
+  EXPORTED
+}
+
+enum GenerationMode {
+  AUTO
+  MANUAL
+}
+
+enum ExportPlatform {
+  TIKTOK_CAROUSEL
+  INSTAGRAM_REEL
+  APPROVED_BUNDLE
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum RenderJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ConnectionProvider {
+  OPENAI
+  TIKTOK
+  CLOUDINARY
+  RENDER_WORKER
+}
+
+enum TextPosition {
+  TOP
+  UPPER_MIDDLE
+  CENTER
+  LOWER_MIDDLE
+  BOTTOM
+  CUSTOM
+}
+
+enum TextAlignment {
+  LEFT
+  CENTER
+  RIGHT
+}
+
+// ─── Auth.js models ──────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  mediaAssets        MediaAsset[]
+  drafts             Draft[]
+  exportRecords      ExportRecord[]
+  renderJobs         RenderJob[]
+  appSettings        AppSetting[]
+  externalConnections ExternalConnection[]
+  photoPairHistories PhotoPairHistory[]
+  generatedHooks     GeneratedHook[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Media ───────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id               String    @id @default(cuid())
+  userId           String
+  type             MediaType
+  fileName         String
+  originalFileName String
+  mimeType         String
+  fileSizeBytes    Int
+  storageProvider  String    @default("cloudinary")
+  storagePublicId  String
+  storageUrl       String
+  thumbnailUrl     String?
+  width            Int?
+  height           Int?
+  aspectRatio      Float?
+  contentHash      String
+  usageCount       Int       @default(0)
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  physiqueMetadata  PhysiquePhotoMetadata?
+  themeMetadata     ThemeImageMetadata?
+  musicMetadata     MusicMetadata?
+  mediaTags         MediaTag[]
+  draftMediaItems   DraftMediaItem[]
+  exportRecords     ExportRecord[]
+
+  pairHistoryAsA PhotoPairHistory[] @relation("PairPhotoA")
+  pairHistoryAsB PhotoPairHistory[] @relation("PairPhotoB")
+
+  @@unique([userId, contentHash])
+  @@index([userId, type, deletedAt])
+  @@index([userId, createdAt])
+  @@index([usageCount])
+  @@index([lastUsedAt])
+}
+
+model PhysiquePhotoMetadata {
+  id            String       @id @default(cuid())
+  mediaAssetId  String       @unique
+  orientation   Orientation?
+  year          Int?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@index([year])
+}
+
+model ThemeImageMetadata {
+  id               String   @id @default(cuid())
+  mediaAssetId     String   @unique
+  description      String?  @db.Text
+  contentStyles    String[] @default([])
+  progressionConcepts String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+}
+
+model MusicMetadata {
+  id           String   @id @default(cuid())
+  mediaAssetId String   @unique
+  title        String
+  durationMs   Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@index([durationMs])
+}
+
+model Tag {
+  id        String      @id @default(cuid())
+  name      String
+  slug      String
+  category  TagCategory
+  isSystem  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  mediaTags MediaTag[]
+
+  @@unique([slug, category])
+  @@index([category])
+  @@index([name])
+}
+
+model MediaTag {
+  id           String   @id @default(cuid())
+  mediaAssetId String
+  tagId        String
+  source       String   @default("manual") // manual | ai | accepted_ai
+  createdAt    DateTime @default(now())
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  tag        Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaAssetId, tagId])
+  @@index([tagId])
+}
+
+// ─── Drafts & generation ─────────────────────────────────────────────────────
+
+model Draft {
+  id                   String         @id @default(cuid())
+  userId               String
+  draftNumber          Int
+  name                 String
+  status               DraftStatus    @default(GENERATED)
+  generationMode       GenerationMode
+  hookText             String         @db.Text
+  socialCaption        String         @db.Text
+  hashtags             String         @default("#Gym #Fyp #TOLG")
+  textPosition         TextPosition  @default(TOP)
+  textAlignment        TextAlignment @default(CENTER)
+  textSize             Int            @default(48)
+  outlineThickness     Float          @default(2)
+  customTextX          Float?
+  customTextY          Float?
+  showHookOnPhysique   Boolean        @default(false)
+  selectedSongId       String?
+  aiGenerationData     Json?
+  hiddenSelectionRules Json?
+  selectedTagsSnapshot Json?
+  tiktokExportStatus   ExportStatus   @default(PENDING)
+  instagramExportStatus ExportStatus  @default(PENDING)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaItems      DraftMediaItem[]
+  generatedHooks  GeneratedHook[]
+  selectionRules  SelectionRule[]
+  exportRecords   ExportRecord[]
+  renderJobs      RenderJob[]
+
+  @@unique([userId, draftNumber])
+  @@unique([userId, name])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+model DraftMediaItem {
+  id           String    @id @default(cuid())
+  draftId      String
+  mediaAssetId String
+  position     Int
+  role         String    @default("physique") // theme | physique
+  createdAt    DateTime  @default(now())
+
+  draft      Draft      @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([draftId, position])
+  @@index([mediaAssetId])
+}
+
+model HookTemplate {
+  id                   String   @id @default(cuid())
+  category             String
+  hookText             String   @db.Text
+  themeMoodTags        String[] @default([])
+  requiredPhotoCount   Int      @default(2)
+  photoRules           Json
+  photoOrder           String[] @default([])
+  preferredMatching    Json?
+  captionStyle         String?
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  generatedHooks GeneratedHook[]
+
+  @@index([category, isActive])
+}
+
+model GeneratedHook {
+  id             String   @id @default(cuid())
+  userId         String
+  draftId        String?
+  hookTemplateId String?
+  hookText       String   @db.Text
+  source         String   // openai | fallback
+  tone           String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draft        Draft?        @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  hookTemplate HookTemplate? @relation(fields: [hookTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([draftId])
+}
+
+model SelectionRule {
+  id        String   @id @default(cuid())
+  draftId   String
+  photoIndex Int
+  requiredTags String[] @default([])
+  preferredTags String[] @default([])
+  yearNear     Int?
+  yearTolerance Int?
+  preferPoseMatch Boolean @default(false)
+  preferBodyPartMatch Boolean @default(false)
+  preferYearGap Boolean @default(false)
+  rawRules  Json?
+  createdAt DateTime @default(now())
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId])
+}
+
+model PhotoPairHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  photoAId  String
+  photoBId  String
+  usedCount Int      @default(1)
+  lastUsedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photoA MediaAsset @relation("PairPhotoA", fields: [photoAId], references: [id], onDelete: Cascade)
+  photoB MediaAsset @relation("PairPhotoB", fields: [photoBId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, photoAId, photoBId])
+  @@index([userId, lastUsedAt])
+}
+
+// ─── Export & render ─────────────────────────────────────────────────────────
+
+model ExportRecord {
+  id           String         @id @default(cuid())
+  userId       String
+  draftId      String?
+  mediaAssetId String?
+  platform     ExportPlatform
+  status       ExportStatus   @default(PENDING)
+  outputPath   String?
+  outputUrl    String?
+  caption      String?        @db.Text
+  metadata     Json?
+  errorMessage String?        @db.Text
+  createdAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draft      Draft?      @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  mediaAsset MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([draftId, platform])
+  @@index([status])
+}
+
+model RenderJob {
+  id            String          @id @default(cuid())
+  userId        String
+  draftId       String
+  status        RenderJobStatus @default(QUEUED)
+  workerTarget  String          @default("local") // local | railway | render | fly
+  renderSettings Json?
+  outputUrl     String?
+  errorMessage  String?         @db.Text
+  retryCount    Int             @default(0)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([draftId])
+  @@index([status, createdAt])
+}
+
+// ─── Settings & connections ──────────────────────────────────────────────────
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     Json
+  group     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, group])
+}
+
+model ExternalConnection {
+  id                 String             @id @default(cuid())
+  userId             String
+  provider           ConnectionProvider
+  isEnabled          Boolean            @default(false)
+  configPublic       Json?
+  /// Encrypted secrets only — never return to the client
+  secretsEncrypted   String?            @db.Text
+  statusMessage      String?
+  lastVerifiedAt     DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([provider])
+}
