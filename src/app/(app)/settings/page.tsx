@@ -118,7 +118,7 @@ export default function SettingsPage() {
         className="w-full"
         onClick={() => {
           localStorage.clear();
-          window.location.href = "/onboarding";
+          window.location.href = "/home";
         }}
       >
         Reset local data
