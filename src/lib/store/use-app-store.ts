@@ -12,7 +12,6 @@ import type {
   UserProfile,
   UserVocabulary,
 } from "@/lib/types";
-import { BUILT_IN_BEATS } from "@/lib/data/beats";
 import { ACHIEVEMENTS } from "@/lib/data/achievements";
 import {
   defaultProfile,
@@ -31,7 +30,15 @@ import {
   saveProgress,
   saveVocab,
 } from "@/lib/storage/local";
-import { idbDeleteRecording, idbListRecordings, idbPutBlob, idbPutRecording } from "@/lib/storage/db";
+import {
+  idbDeleteBeat,
+  idbDeleteRecording,
+  idbListBeats,
+  idbListRecordings,
+  idbPutBeat,
+  idbPutBlob,
+  idbPutRecording,
+} from "@/lib/storage/db";
 import { awardXp, applySkillDeltas, touchStreak } from "@/lib/progression";
 import { buildDailyChallenge, buildDailyPlan, skillInsights } from "@/lib/training/daily-plan";
 import { SKILL_KEYS } from "@/lib/data/skills";
@@ -68,7 +75,9 @@ interface AppState {
   deleteRecording: (id: string) => Promise<void>;
   completeChallenge: () => void;
   addCoachMessage: (role: "user" | "assistant", content: string) => void;
-  addCustomBeat: (beat: Beat) => void;
+  importBeatFile: (file: File) => Promise<Beat>;
+  removeCustomBeat: (id: string) => Promise<void>;
+  setLastBeatId: (id: string | null) => void;
   trackAssociations: (subject: string, concepts: string[]) => void;
   getDailyPlan: () => ReturnType<typeof buildDailyPlan>;
   getInsights: () => ReturnType<typeof skillInsights>;
@@ -119,7 +128,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       recordings = [];
     }
-    const customBeats = BUILT_IN_BEATS.filter(() => false);
+    let customBeats: Beat[] = [];
+    try {
+      customBeats = await idbListBeats();
+    } catch {
+      customBeats = [];
+    }
     set({
       hydrated: true,
       profile,
@@ -254,7 +268,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ coach });
   },
 
-  addCustomBeat: (beat) => set({ customBeats: [...get().customBeats, beat] }),
+  importBeatFile: async (file) => {
+    const id = uid("beat");
+    const durationSec = await probeAudioDuration(file).catch(() => 180);
+    const beat: Beat = {
+      id,
+      title: file.name.replace(/\.[^.]+$/, "") || "My beat",
+      category: "experimental",
+      bpm: get().profile.settings.preferredBpm,
+      durationSec: Math.round(durationSec) || 180,
+      style: "Your music",
+      src: URL.createObjectURL(file),
+      isCustom: true,
+    };
+    await idbPutBeat(beat, file);
+    const customBeats = [beat, ...get().customBeats.filter((b) => b.id !== id)];
+    const profile = {
+      ...get().profile,
+      settings: { ...get().profile.settings, lastBeatId: id },
+    };
+    saveProfile(profile);
+    set({ customBeats, profile });
+    return beat;
+  },
+
+  removeCustomBeat: async (id) => {
+    const existing = get().customBeats.find((b) => b.id === id);
+    if (existing?.src.startsWith("blob:")) URL.revokeObjectURL(existing.src);
+    await idbDeleteBeat(id);
+    const customBeats = get().customBeats.filter((b) => b.id !== id);
+    const lastBeatId = get().profile.settings.lastBeatId === id ? customBeats[0]?.id ?? null : get().profile.settings.lastBeatId;
+    const profile = {
+      ...get().profile,
+      settings: { ...get().profile.settings, lastBeatId },
+    };
+    saveProfile(profile);
+    set({ customBeats, profile });
+  },
+
+  setLastBeatId: (id) => {
+    const profile = {
+      ...get().profile,
+      settings: { ...get().profile.settings, lastBeatId: id },
+    };
+    saveProfile(profile);
+    set({ profile });
+  },
 
   trackAssociations: (subject, concepts) => {
     const vocab = { ...get().vocab, associationEdges: [...get().vocab.associationEdges] };
@@ -279,3 +338,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   getDailyPlan: () => buildDailyPlan(get().profile),
   getInsights: () => skillInsights(get().profile),
 }));
+
+function probeAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const d = audio.duration;
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(d) ? d : 180);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read audio duration"));
+    };
+    audio.src = url;
+  });
+}

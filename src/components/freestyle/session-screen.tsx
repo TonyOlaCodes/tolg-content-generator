@@ -26,20 +26,24 @@ export function SessionScreen() {
   const completeChallenge = useAppStore((s) => s.completeChallenge);
 
   const config = pending ?? {
-    beatId: "boom-bap-92",
-    durationSec: 60,
+    beatId: profile.settings.lastBeatId,
+    durationSec: 180,
     mode: "free" as const,
     promptFrequencySec: profile.settings.promptFrequencySec,
     difficulty: profile.settings.difficulty,
     aiFeedback: true,
-    livePrompts: true,
+    livePrompts: false,
     distractionFree: false,
   };
 
-  const beat = useMemo(
-    () => [...BUILT_IN_BEATS, ...customBeats].find((b) => b.id === config.beatId) ?? BUILT_IN_BEATS[1]!,
-    [config.beatId, customBeats],
-  );
+  const beat = useMemo(() => {
+    if (!config.beatId) return null;
+    return (
+      customBeats.find((b) => b.id === config.beatId) ??
+      BUILT_IN_BEATS.find((b) => b.id === config.beatId) ??
+      null
+    );
+  }, [config.beatId, customBeats]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recorderRef = useRef<MicRecorder | null>(null);
@@ -80,13 +84,13 @@ export function SessionScreen() {
       }
       wakeRef.current = await keepAwake();
       const audio = audioRef.current;
-      if (audio) {
+      if (audio && beat?.src) {
         audio.volume = volume;
         audio.loop = true;
         try {
           await audio.play();
         } catch {
-          toast.message("Tap play on the beat if autoplay is blocked.");
+          toast.message("Tap the beat controls if playback is blocked.");
         }
       }
       setPhase("live");
@@ -94,7 +98,7 @@ export function SessionScreen() {
       setMicError("Microphone permission denied. Enable mic access to record.");
       setPhase("paused");
     }
-  }, [volume]);
+  }, [volume, beat?.src]);
 
   useEffect(() => {
     if (phase !== "countdown") return;
@@ -242,8 +246,8 @@ export function SessionScreen() {
         id,
         createdAt: new Date().toISOString(),
         durationSec,
-        beatId: beat.id,
-        beatTitle: beat.title,
+        beatId: beat?.id ?? null,
+        beatTitle: beat?.title ?? "Acapella",
         mode: config.mode,
         difficulty: config.difficulty,
         prompts: promptsRef.current,
@@ -292,22 +296,25 @@ export function SessionScreen() {
         if (touch && touch.clientY > window.innerHeight * 0.8) setShowControls(true);
       }}
     >
-      <audio
-        ref={audioRef}
-        src={beat.src}
-        preload="auto"
-        loop
-        onCanPlay={() => setBeatReady(true)}
-      />
+      {beat?.src && (
+        <audio
+          ref={audioRef}
+          src={beat.src}
+          preload="auto"
+          loop
+          onCanPlay={() => setBeatReady(true)}
+        />
+      )}
 
       <div className="mx-auto flex h-full w-full max-w-lg flex-col px-5 pb-8 pt-10">
         {!distraction && (
           <div className="mb-6 flex items-center justify-between text-sm text-[var(--text-secondary)]">
             <div>
-              <p className="font-medium text-white">{beat.title}</p>
+              <p className="font-medium text-white">{beat?.title ?? "Acapella"}</p>
               <p>
-                {beat.bpm} BPM · {config.mode.replace(/_/g, " ")}
-                {beatReady ? "" : " · loading beat"}
+                {beat ? `${beat.bpm} BPM · ` : ""}
+                {config.mode.replace(/_/g, " ")}
+                {beat && !beatReady ? " · loading beat" : ""}
               </p>
             </div>
             <div className="flex items-center gap-2">

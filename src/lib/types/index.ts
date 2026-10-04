@@ -91,6 +91,7 @@ export interface UserSettings {
   aiFeedback: boolean;
   livePrompts: boolean;
   distractionFree: boolean;
+  lastBeatId: string | null;
 }
 
 export interface UserProfile {

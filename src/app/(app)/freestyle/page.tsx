@@ -1,75 +1,85 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Music2, Trash2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BUILT_IN_BEATS, BEAT_CATEGORY_LABELS } from "@/lib/data/beats";
-import { EXERCISES } from "@/lib/data/exercises";
 import { useAppStore } from "@/lib/store/use-app-store";
-import type { Beat, Difficulty, PracticeModeId } from "@/lib/types";
-import { cn, uid } from "@/lib/utils";
-import { Upload } from "lucide-react";
+import type { Difficulty, PracticeModeId } from "@/lib/types";
+import { cn, formatDuration } from "@/lib/utils";
 
 const DURATIONS = [
   { label: "60s", value: 60 },
   { label: "2m", value: 120 },
   { label: "5m", value: 300 },
   { label: "10m", value: 600 },
-  { label: "15m", value: 900 },
   { label: "∞", value: null },
 ];
 
-const DIFFS: Difficulty[] = ["beginner", "intermediate", "advanced", "elite", "endless"];
-const FREQS = [3, 5, 10, 15, 20, 30];
-
 export default function FreestyleSetupPage() {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const profile = useAppStore((s) => s.profile);
   const pending = useAppStore((s) => s.pendingSession);
-  const setPendingSession = useAppStore((s) => s.setPendingSession);
-  const addCustomBeat = useAppStore((s) => s.addCustomBeat);
   const customBeats = useAppStore((s) => s.customBeats);
+  const setPendingSession = useAppStore((s) => s.setPendingSession);
+  const importBeatFile = useAppStore((s) => s.importBeatFile);
+  const removeCustomBeat = useAppStore((s) => s.removeCustomBeat);
+  const setLastBeatId = useAppStore((s) => s.setLastBeatId);
 
-  const beats = useMemo(() => [...BUILT_IN_BEATS, ...customBeats], [customBeats]);
-  const [beatId, setBeatId] = useState(pending?.beatId ?? "boom-bap-92");
-  const [durationSec, setDurationSec] = useState<number | null>(pending?.durationSec ?? 60);
+  const lastId = profile.settings.lastBeatId;
+  const [beatId, setBeatId] = useState<string | null>(
+    pending?.beatId ?? lastId ?? customBeats[0]?.id ?? null,
+  );
+  const [durationSec, setDurationSec] = useState<number | null>(pending?.durationSec ?? 180);
   const [mode, setMode] = useState<PracticeModeId>(pending?.mode ?? "free");
-  const [freq, setFreq] = useState(pending?.promptFrequencySec ?? profile.settings.promptFrequencySec);
-  const [difficulty, setDifficulty] = useState<Difficulty>(pending?.difficulty ?? profile.settings.difficulty);
+  const [livePrompts, setLivePrompts] = useState(pending?.livePrompts ?? false);
   const [aiFeedback, setAiFeedback] = useState(pending?.aiFeedback ?? true);
-  const [livePrompts, setLivePrompts] = useState(pending?.livePrompts ?? mode !== "blind");
-  const [distractionFree, setDistractionFree] = useState(false);
-  const [category, setCategory] = useState<string>("all");
+  const [showMore, setShowMore] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showBuiltIns, setShowBuiltIns] = useState(false);
 
-  const filtered = beats.filter((b) => category === "all" || b.category === category);
+  const selected =
+    beatId === null
+      ? null
+      : customBeats.find((b) => b.id === beatId) ?? BUILT_IN_BEATS.find((b) => b.id === beatId) ?? null;
 
-  async function onUploadBeat(file: File) {
-    const url = URL.createObjectURL(file);
-    const beat: Beat = {
-      id: uid("beat"),
-      title: file.name.replace(/\.[^.]+$/, ""),
-      category: "experimental",
-      bpm: profile.settings.preferredBpm,
-      durationSec: 180,
-      style: "Imported",
-      src: url,
-      isCustom: true,
-    };
-    addCustomBeat(beat);
-    setBeatId(beat.id);
+  const yourMusic = useMemo(() => customBeats, [customBeats]);
+
+  async function onFiles(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !/\.(mp3|wav|m4a|aac|ogg|flac|webm)$/i.test(file.name)) {
+      toast.error("Pick an audio file (mp3, wav, m4a, etc.)");
+      return;
+    }
+    setImporting(true);
+    try {
+      const beat = await importBeatFile(file);
+      setBeatId(beat.id);
+      toast.success(`Loaded “${beat.title}”`);
+    } catch {
+      toast.error("Couldn't import that file. Try mp3 or wav.");
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   function start() {
+    if (beatId) setLastBeatId(beatId);
     setPendingSession({
       beatId,
       durationSec,
       mode,
-      promptFrequencySec: freq,
-      difficulty,
+      promptFrequencySec: profile.settings.promptFrequencySec,
+      difficulty: profile.settings.difficulty as Difficulty,
       aiFeedback,
       livePrompts: mode === "blind" ? false : livePrompts,
-      distractionFree,
+      distractionFree: false,
     });
     router.push("/freestyle/session");
   }
@@ -78,63 +88,143 @@ export default function FreestyleSetupPage() {
     <div className="space-y-6">
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl">Freestyle</h1>
-        <p className="mt-1 text-[var(--text-secondary)]">Two taps from here. Beat, duration, go.</p>
+        <p className="mt-1 text-[var(--text-secondary)]">
+          Drop in your own instrumental — then hit start.
+        </p>
       </header>
 
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.webm"
+        className="hidden"
+        onChange={(e) => void onFiles(e.target.files)}
+      />
+
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={importing}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          void onFiles(e.dataTransfer.files);
+        }}
+        className="card-surface flex w-full flex-col items-center justify-center gap-3 border-dashed border-[var(--accent)]/40 !p-8 text-center transition hover:border-[var(--accent)] hover:bg-[var(--card-hover)]"
+      >
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-black">
+          <Upload className="h-7 w-7" />
+        </span>
+        <div>
+          <p className="font-display text-xl">{importing ? "Importing…" : "Add your music"}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            MP3, WAV, M4A from Files / Downloads — stays on this device
+          </p>
+        </div>
+      </button>
+
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl">Choose Beat</h2>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[var(--accent)]">
-            <Upload className="h-4 w-4" />
-            Upload
-            <input
-              type="file"
-              accept="audio/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onUploadBeat(f);
-              }}
-            />
-          </label>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <Chip active={category === "all"} onClick={() => setCategory("all")}>
-            All
-          </Chip>
-          {Object.entries(BEAT_CATEGORY_LABELS).map(([k, label]) => (
-            <Chip key={k} active={category === k} onClick={() => setCategory(k)}>
-              {label}
-            </Chip>
-          ))}
-        </div>
-        <div className="space-y-2">
-          {filtered.map((beat) => (
-            <button
-              key={beat.id}
-              type="button"
-              onClick={() => setBeatId(beat.id)}
-              className={cn(
-                "card-surface w-full p-4 text-left transition",
-                beatId === beat.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
-              )}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{beat.title}</p>
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {BEAT_CATEGORY_LABELS[beat.category]} · {beat.style}
-                  </p>
-                </div>
-                <div className="text-right text-xs text-[var(--text-muted)]">
-                  <p>{beat.bpm} BPM</p>
-                  {beat.key && <p>{beat.key}</p>}
-                </div>
+        <h2 className="font-display text-xl">Your library</h2>
+        {yourMusic.length === 0 ? (
+          <Card className="!p-5 text-sm text-[var(--text-secondary)]">
+            No tracks yet. Import a real beat or instrumental above — the built-in placeholders are only backups.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {yourMusic.map((beat) => (
+              <div
+                key={beat.id}
+                className={cn(
+                  "card-surface flex items-center gap-3 p-3",
+                  beatId === beat.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
+                )}
+              >
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  onClick={() => {
+                    setBeatId(beat.id);
+                    setLastBeatId(beat.id);
+                  }}
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5">
+                    <Music2 className="h-5 w-5 text-[var(--accent)]" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{beat.title}</span>
+                    <span className="block text-xs text-[var(--text-muted)]">
+                      {formatDuration(beat.durationSec)} · saved on device
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl p-2 text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--danger)]"
+                  aria-label={`Delete ${beat.title}`}
+                  onClick={() => void removeCustomBeat(beat.id).then(() => {
+                    if (beatId === beat.id) setBeatId(customBeats.find((b) => b.id !== beat.id)?.id ?? null);
+                  })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
-            </button>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className={cn(
+            "card-surface w-full p-4 text-left",
+            beatId === null && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
+          )}
+          onClick={() => setBeatId(null)}
+        >
+          <p className="font-medium">No beat — acapella</p>
+          <p className="text-sm text-[var(--text-secondary)]">Just mic + timer</p>
+        </button>
       </section>
+
+      <section className="space-y-2">
+        <button
+          type="button"
+          className="text-sm text-[var(--text-muted)] underline-offset-4 hover:underline"
+          onClick={() => setShowBuiltIns((v) => !v)}
+        >
+          {showBuiltIns ? "Hide" : "Show"} backup demo beats
+        </button>
+        {showBuiltIns && (
+          <div className="space-y-2">
+            {BUILT_IN_BEATS.map((beat) => (
+              <button
+                key={beat.id}
+                type="button"
+                onClick={() => setBeatId(beat.id)}
+                className={cn(
+                  "card-surface w-full p-3 text-left",
+                  beatId === beat.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
+                )}
+              >
+                <p className="font-medium">{beat.title}</p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Demo · {BEAT_CATEGORY_LABELS[beat.category]} · {beat.bpm} BPM
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {selected && (
+        <Card className="!p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Selected</p>
+          <p className="mt-1 font-display text-xl">{selected.title}</p>
+          <audio controls src={selected.src} className="mt-3 w-full" preload="metadata" />
+        </Card>
+      )}
 
       <section className="space-y-3">
         <h2 className="font-display text-xl">Duration</h2>
@@ -147,59 +237,48 @@ export default function FreestyleSetupPage() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Training Mode</h2>
-        <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-          {EXERCISES.map((ex) => (
-            <button
-              key={ex.id}
-              type="button"
-              onClick={() => {
-                setMode(ex.id);
-                if (ex.id === "blind") setLivePrompts(false);
-              }}
-              className={cn(
-                "card-surface w-full p-3 text-left",
-                mode === ex.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
-              )}
-            >
-              <p className="font-medium">{ex.title}</p>
-              <p className="text-xs text-[var(--text-secondary)]">{ex.subtitle}</p>
-            </button>
-          ))}
-        </div>
-      </section>
+      <button
+        type="button"
+        className="text-sm text-[var(--text-secondary)] underline-offset-4 hover:underline"
+        onClick={() => setShowMore((v) => !v)}
+      >
+        {showMore ? "Hide options" : "More options"}
+      </button>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Prompt frequency</h2>
-        <div className="flex flex-wrap gap-2">
-          {FREQS.map((f) => (
-            <Chip key={f} active={freq === f} onClick={() => setFreq(f)}>
-              {f}s
-            </Chip>
-          ))}
-        </div>
-      </section>
+      {showMore && (
+        <Card className="space-y-4 !p-5">
+          <ToggleRow label="Live word prompts" value={livePrompts} onChange={setLivePrompts} />
+          <ToggleRow label="AI feedback after" value={aiFeedback} onChange={setAiFeedback} />
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--text-secondary)]">Mode</p>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["free", "Free"],
+                  ["blind", "Blind"],
+                  ["random_word", "Random word"],
+                  ["survival_60", "60s survival"],
+                ] as const
+              ).map(([id, label]) => (
+                <Chip
+                  key={id}
+                  active={mode === id}
+                  onClick={() => {
+                    setMode(id);
+                    if (id === "blind") setLivePrompts(false);
+                    if (id === "survival_60") setDurationSec(60);
+                  }}
+                >
+                  {label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
 
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Difficulty</h2>
-        <div className="flex flex-wrap gap-2">
-          {DIFFS.map((d) => (
-            <Chip key={d} active={difficulty === d} onClick={() => setDifficulty(d)}>
-              {d}
-            </Chip>
-          ))}
-        </div>
-      </section>
-
-      <Card className="space-y-3 !p-5">
-        <ToggleRow label="AI feedback" value={aiFeedback} onChange={setAiFeedback} />
-        <ToggleRow label="Live prompts" value={livePrompts} onChange={setLivePrompts} />
-        <ToggleRow label="Distraction-free mode" value={distractionFree} onChange={setDistractionFree} />
-      </Card>
-
-      <Button size="lg" variant="accent" className="w-full" onClick={start}>
-        Start Freestyle
+      <Button size="lg" variant="accent" className="w-full" onClick={start} disabled={importing}>
+        {selected ? `Start with “${selected.title}”` : "Start acapella"}
       </Button>
     </div>
   );

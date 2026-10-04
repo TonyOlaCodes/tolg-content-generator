@@ -66,6 +66,7 @@ export function defaultProfile(): UserProfile {
       aiFeedback: true,
       livePrompts: true,
       distractionFree: false,
+      lastBeatId: null,
     },
     unlockedAchievements: [],
     createdAt: new Date().toISOString(),
@@ -73,14 +74,20 @@ export function defaultProfile(): UserProfile {
 }
 
 export function loadProfile(): UserProfile {
-  const profile = read(KEYS.profile, defaultProfile());
-  // Single-user app: never block on onboarding / login.
-  if (!profile.onboarded) {
-    const unlocked = { ...profile, onboarded: true };
-    write(KEYS.profile, unlocked);
-    return unlocked;
+  const fallback = defaultProfile();
+  const profile = read(KEYS.profile, fallback);
+  // Migrate older profiles missing newer settings fields.
+  const settings = { ...fallback.settings, ...profile.settings };
+  const merged: UserProfile = {
+    ...fallback,
+    ...profile,
+    settings,
+    onboarded: true,
+  };
+  if (!profile.onboarded || profile.settings?.lastBeatId === undefined) {
+    write(KEYS.profile, merged);
   }
-  return profile;
+  return merged;
 }
 
 export function saveProfile(profile: UserProfile): void {

@@ -97,8 +97,8 @@ export default function HomePage() {
               href="/freestyle"
               onClick={() =>
                 setPendingSession({
-                  beatId: "boom-bap-92",
-                  durationSec: 60,
+                  beatId: profile.settings.lastBeatId,
+                  durationSec: 180,
                   mode: "free",
                   promptFrequencySec: profile.settings.promptFrequencySec,
                   difficulty: profile.settings.difficulty,
