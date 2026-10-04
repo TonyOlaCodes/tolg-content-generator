@@ -43,7 +43,7 @@ export function defaultProfile(): UserProfile {
     experience: "beginner",
     struggles: [],
     focusSkills: ["references", "rhyming", "continuity"],
-    onboarded: false,
+    onboarded: true,
     level: 1,
     xp: 0,
     streak: 0,
@@ -73,7 +73,14 @@ export function defaultProfile(): UserProfile {
 }
 
 export function loadProfile(): UserProfile {
-  return read(KEYS.profile, defaultProfile());
+  const profile = read(KEYS.profile, defaultProfile());
+  // Single-user app: never block on onboarding / login.
+  if (!profile.onboarded) {
+    const unlocked = { ...profile, onboarded: true };
+    write(KEYS.profile, unlocked);
+    return unlocked;
+  }
+  return profile;
 }
 
 export function saveProfile(profile: UserProfile): void {
