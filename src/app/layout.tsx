@@ -1,34 +1,46 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Outfit, Syne } from "next/font/google";
+import { Toaster } from "sonner";
+import { AppProviders } from "@/components/providers/app-providers";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const body = Outfit({
   subsets: ["latin"],
+  variable: "--font-body",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const display = Syne({
   subsets: ["latin"],
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
-  title: "TOLG Content Generator",
-  description: "Media library and content generation for TOLG",
+  title: "Freestyle Lab",
+  description: "Train elite off-the-top freestyle skills — association, rhyme chains, references, flow, and endurance.",
+  applicationName: "Freestyle Lab",
+  appleWebApp: {
+    capable: true,
+    title: "Freestyle Lab",
+    statusBarStyle: "black-translucent",
+  },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#070708",
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+    <html lang="en" className={`${body.variable} ${display.variable} h-full`}>
+      <body className="min-h-full antialiased">
+        <AppProviders>
+          {children}
+          <Toaster theme="dark" position="top-center" richColors />
+        </AppProviders>
       </body>
     </html>
   );

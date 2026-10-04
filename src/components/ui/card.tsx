@@ -1,53 +1,28 @@
-import * as React from "react";
-
 import { cn } from "@/lib/utils";
 
 export function Card({
   className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+  children,
+  interactive,
+  onClick,
+}: {
+  className?: string;
+  children: React.ReactNode;
+  interactive?: boolean;
+  onClick?: () => void;
+}) {
+  const Comp = onClick ? "button" : "div";
   return (
-    <div
+    <Comp
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
       className={cn(
-        "rounded-xl border border-zinc-800 bg-zinc-950/80 text-zinc-100",
+        "card-surface w-full text-left p-4",
+        interactive && "transition hover:bg-[var(--card-hover)] active:scale-[0.99]",
         className,
       )}
-      {...props}
-    />
+    >
+      {children}
+    </Comp>
   );
-}
-
-export function CardHeader({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-col gap-1.5 p-5", className)} {...props} />;
-}
-
-export function CardTitle({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) {
-  return (
-    <h3
-      className={cn("text-base font-semibold tracking-tight", className)}
-      {...props}
-    />
-  );
-}
-
-export function CardDescription({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p className={cn("text-sm text-zinc-400", className)} {...props} />
-  );
-}
-
-export function CardContent({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-5 pt-0", className)} {...props} />;
 }

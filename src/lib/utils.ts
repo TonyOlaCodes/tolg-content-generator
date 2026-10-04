@@ -5,55 +5,42 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
-export function formatAspectRatio(ratio: number | null | undefined): string {
-  if (!ratio || !Number.isFinite(ratio)) return "—";
-  const common: [number, string][] = [
-    [1, "1:1"],
-    [4 / 5, "4:5"],
-    [3 / 4, "3:4"],
-    [2 / 3, "2:3"],
-    [9 / 16, "9:16"],
-    [16 / 9, "16:9"],
-    [3 / 2, "3:2"],
-    [4 / 3, "4:3"],
-  ];
-  for (const [value, label] of common) {
-    if (Math.abs(ratio - value) < 0.03) return label;
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return `${h}:${String(rm).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
   }
-  return ratio.toFixed(2);
+  return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-export function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+export function formatXp(xp: number): string {
+  if (xp >= 10000) return `${(xp / 1000).toFixed(1)}k`;
+  return xp.toLocaleString();
 }
 
-export function computeAspectRatio(width: number, height: number): number {
-  if (!width || !height) return 1;
-  return width / height;
+export function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
 }
 
-export function detectOrientation(
-  width: number,
-  height: number,
-): "PORTRAIT" | "LANDSCAPE" | "SQUARE" {
-  if (width === height) return "SQUARE";
-  return width > height ? "LANDSCAPE" : "PORTRAIT";
+export function uid(prefix = "id"): string {
+  return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
 }
 
-export function formatDraftName(draftNumber: number): string {
-  return `post_${String(draftNumber).padStart(3, "0")}`;
+export function todayKey(d = new Date()): string {
+  return d.toISOString().slice(0, 10);
 }
 
-export const FIXED_HASHTAGS = "#Gym #Fyp #TOLG";
+export function hashDay(seed: string, day = todayKey()): number {
+  let h = 0;
+  const s = `${seed}:${day}`;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+export function pickDaily<T>(items: T[], seed: string, day = todayKey()): T {
+  return items[hashDay(seed, day) % items.length]!;
+}
