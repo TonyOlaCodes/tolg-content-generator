@@ -16,7 +16,7 @@
   --warning: #f0b429;
   --success: #3ddea8;
   --radius: 1.25rem;
-  --nav-height: 4.5rem;
+  --nav-height: 5rem;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -131,7 +131,7 @@ h3,
 }
 
 .scroll-pb-nav {
-  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 1.5rem);
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 2.5rem);
 }
 
 .card-surface {
