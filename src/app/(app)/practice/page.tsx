@@ -13,6 +13,8 @@ export default function PracticePage() {
   const rest = EXERCISES.filter((e) => !e.featured);
 
   function launch(mode: PracticeModeId) {
+    // Dedicated lab UIs manage their own flow — only preconfigure freestyle modes.
+    if (labHref(mode) !== "/freestyle") return;
     setPendingSession({
       beatId: "boom-bap-92",
       durationSec: mode === "survival_60" ? 60 : mode === "endurance" ? 300 : 180,
