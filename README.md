@@ -9,7 +9,8 @@ Not a rhyme dictionary. Not related to any prior TOLG project.
 - Next.js App Router + TypeScript + Tailwind CSS 4
 - Zustand + localStorage / IndexedDB (progress + recordings)
 - Mock transcription + mock AI providers (swap-in OpenAI server-side)
-- Royalty-free generated placeholder beats in `public/beats`
+- Built-in library: real Mixkit royalty-free type-beats (trap / hip-hop / melodic) in `public/beats`
+- Plus on-device import for your own instrumentals
 
 ## Quick start
 

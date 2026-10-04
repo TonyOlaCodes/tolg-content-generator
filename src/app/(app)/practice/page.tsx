@@ -16,7 +16,7 @@ export default function PracticePage() {
     // Dedicated lab UIs manage their own flow — only preconfigure freestyle modes.
     if (labHref(mode) !== "/freestyle") return;
     setPendingSession({
-      beatId: "boom-bap-92",
+      beatId: profile.settings.lastBeatId ?? "mixkit-403",
       durationSec: mode === "survival_60" ? 60 : mode === "endurance" ? 300 : 180,
       mode,
       promptFrequencySec: profile.settings.promptFrequencySec,

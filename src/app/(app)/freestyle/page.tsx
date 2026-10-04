@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BUILT_IN_BEATS, BEAT_CATEGORY_LABELS } from "@/lib/data/beats";
 import { useAppStore } from "@/lib/store/use-app-store";
-import type { Difficulty, PracticeModeId } from "@/lib/types";
+import type { BeatCategory, Difficulty, PracticeModeId } from "@/lib/types";
 import { cn, formatDuration } from "@/lib/utils";
 
 const DURATIONS = [
@@ -18,6 +18,8 @@ const DURATIONS = [
   { label: "10m", value: 600 },
   { label: "∞", value: null },
 ];
+
+const MAIN_CATS: Array<"all" | BeatCategory> = ["all", "trap", "boom_bap", "melodic", "dark", "upbeat"];
 
 export default function FreestyleSetupPage() {
   const router = useRouter();
@@ -30,24 +32,30 @@ export default function FreestyleSetupPage() {
   const removeCustomBeat = useAppStore((s) => s.removeCustomBeat);
   const setLastBeatId = useAppStore((s) => s.setLastBeatId);
 
-  const lastId = profile.settings.lastBeatId;
-  const [beatId, setBeatId] = useState<string | null>(
-    pending?.beatId ?? lastId ?? customBeats[0]?.id ?? null,
-  );
+  const defaultBeat =
+    pending?.beatId ??
+    profile.settings.lastBeatId ??
+    customBeats[0]?.id ??
+    "mixkit-403";
+
+  const [beatId, setBeatId] = useState<string | null>(defaultBeat);
   const [durationSec, setDurationSec] = useState<number | null>(pending?.durationSec ?? 180);
   const [mode, setMode] = useState<PracticeModeId>(pending?.mode ?? "free");
   const [livePrompts, setLivePrompts] = useState(pending?.livePrompts ?? false);
   const [aiFeedback, setAiFeedback] = useState(pending?.aiFeedback ?? true);
   const [showMore, setShowMore] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [showBuiltIns, setShowBuiltIns] = useState(false);
+  const [category, setCategory] = useState<"all" | BeatCategory>("all");
 
   const selected =
     beatId === null
       ? null
       : customBeats.find((b) => b.id === beatId) ?? BUILT_IN_BEATS.find((b) => b.id === beatId) ?? null;
 
-  const yourMusic = useMemo(() => customBeats, [customBeats]);
+  const typeBeats = useMemo(
+    () => BUILT_IN_BEATS.filter((b) => category === "all" || b.category === category),
+    [category],
+  );
 
   async function onFiles(files: FileList | null) {
     const file = files?.[0];
@@ -67,6 +75,11 @@ export default function FreestyleSetupPage() {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  function pickBeat(id: string | null) {
+    setBeatId(id);
+    if (id) setLastBeatId(id);
   }
 
   function start() {
@@ -89,7 +102,7 @@ export default function FreestyleSetupPage() {
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl">Freestyle</h1>
         <p className="mt-1 text-[var(--text-secondary)]">
-          Drop in your own instrumental — then hit start.
+          Real type-beats — trap, boom bap, melodic. Or drop your own.
         </p>
       </header>
 
@@ -113,28 +126,22 @@ export default function FreestyleSetupPage() {
           e.preventDefault();
           void onFiles(e.dataTransfer.files);
         }}
-        className="card-surface flex w-full flex-col items-center justify-center gap-3 border-dashed border-[var(--accent)]/40 !p-8 text-center transition hover:border-[var(--accent)] hover:bg-[var(--card-hover)]"
+        className="card-surface flex w-full flex-col items-center justify-center gap-3 border-dashed border-[var(--accent)]/40 !p-7 text-center transition hover:border-[var(--accent)] hover:bg-[var(--card-hover)]"
       >
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-black">
           <Upload className="h-7 w-7" />
         </span>
         <div>
-          <p className="font-display text-xl">{importing ? "Importing…" : "Add your music"}</p>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            MP3, WAV, M4A from Files / Downloads — stays on this device
-          </p>
+          <p className="font-display text-xl">{importing ? "Importing…" : "Add your own beat"}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">MP3 / WAV / M4A — stays on this device</p>
         </div>
       </button>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Your library</h2>
-        {yourMusic.length === 0 ? (
-          <Card className="!p-5 text-sm text-[var(--text-secondary)]">
-            No tracks yet. Import a real beat or instrumental above — the built-in placeholders are only backups.
-          </Card>
-        ) : (
+      {customBeats.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-xl">Your uploads</h2>
           <div className="space-y-2">
-            {yourMusic.map((beat) => (
+            {customBeats.map((beat) => (
               <div
                 key={beat.id}
                 className={cn(
@@ -145,10 +152,7 @@ export default function FreestyleSetupPage() {
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  onClick={() => {
-                    setBeatId(beat.id);
-                    setLastBeatId(beat.id);
-                  }}
+                  onClick={() => pickBeat(beat.id)}
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5">
                     <Music2 className="h-5 w-5 text-[var(--accent)]" />
@@ -156,7 +160,7 @@ export default function FreestyleSetupPage() {
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{beat.title}</span>
                     <span className="block text-xs text-[var(--text-muted)]">
-                      {formatDuration(beat.durationSec)} · saved on device
+                      {formatDuration(beat.durationSec)} · on device
                     </span>
                   </span>
                 </button>
@@ -164,65 +168,79 @@ export default function FreestyleSetupPage() {
                   type="button"
                   className="rounded-xl p-2 text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--danger)]"
                   aria-label={`Delete ${beat.title}`}
-                  onClick={() => void removeCustomBeat(beat.id).then(() => {
-                    if (beatId === beat.id) setBeatId(customBeats.find((b) => b.id !== beat.id)?.id ?? null);
-                  })}
+                  onClick={() =>
+                    void removeCustomBeat(beat.id).then(() => {
+                      if (beatId === beat.id) pickBeat(customBeats.find((b) => b.id !== beat.id)?.id ?? "mixkit-403");
+                    })
+                  }
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             ))}
           </div>
-        )}
+        </section>
+      )}
 
-        <button
-          type="button"
-          className={cn(
-            "card-surface w-full p-4 text-left",
-            beatId === null && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
-          )}
-          onClick={() => setBeatId(null)}
-        >
-          <p className="font-medium">No beat — acapella</p>
-          <p className="text-sm text-[var(--text-secondary)]">Just mic + timer</p>
-        </button>
-      </section>
-
-      <section className="space-y-2">
-        <button
-          type="button"
-          className="text-sm text-[var(--text-muted)] underline-offset-4 hover:underline"
-          onClick={() => setShowBuiltIns((v) => !v)}
-        >
-          {showBuiltIns ? "Hide" : "Show"} backup demo beats
-        </button>
-        {showBuiltIns && (
-          <div className="space-y-2">
-            {BUILT_IN_BEATS.map((beat) => (
-              <button
-                key={beat.id}
-                type="button"
-                onClick={() => setBeatId(beat.id)}
-                className={cn(
-                  "card-surface w-full p-3 text-left",
-                  beatId === beat.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
-                )}
-              >
-                <p className="font-medium">{beat.title}</p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  Demo · {BEAT_CATEGORY_LABELS[beat.category]} · {beat.bpm} BPM
-                </p>
-              </button>
-            ))}
+      <section className="space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl">Type beats</h2>
+            <p className="text-sm text-[var(--text-secondary)]">Real instrumentals — Mixkit free license</p>
           </div>
-        )}
+          <span className="text-xs text-[var(--text-muted)]">{typeBeats.length}</span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {MAIN_CATS.map((c) => (
+            <Chip key={c} active={category === c} onClick={() => setCategory(c)}>
+              {c === "all" ? "All" : BEAT_CATEGORY_LABELS[c]}
+            </Chip>
+          ))}
+        </div>
+        <div className="space-y-2">
+          {typeBeats.map((beat) => (
+            <button
+              key={beat.id}
+              type="button"
+              onClick={() => pickBeat(beat.id)}
+              className={cn(
+                "card-surface w-full p-4 text-left transition",
+                beatId === beat.id && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{beat.title}</p>
+                  <p className="text-sm text-[var(--text-secondary)]">{beat.style}</p>
+                </div>
+                <div className="shrink-0 text-right text-xs text-[var(--text-muted)]">
+                  <p>{BEAT_CATEGORY_LABELS[beat.category]}</p>
+                  <p>{formatDuration(beat.durationSec)}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
       </section>
+
+      <button
+        type="button"
+        className={cn(
+          "card-surface w-full p-4 text-left",
+          beatId === null && "border-[var(--accent)] ring-1 ring-[var(--accent)]",
+        )}
+        onClick={() => pickBeat(null)}
+      >
+        <p className="font-medium">No beat — acapella</p>
+        <p className="text-sm text-[var(--text-secondary)]">Just mic + timer</p>
+      </button>
 
       {selected && (
         <Card className="!p-4">
           <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Selected</p>
           <p className="mt-1 font-display text-xl">{selected.title}</p>
-          <audio controls src={selected.src} className="mt-3 w-full" preload="metadata" />
+          <p className="text-sm text-[var(--text-secondary)]">{selected.style}</p>
+          <audio key={selected.id} controls src={selected.src} className="mt-3 w-full" preload="metadata" />
         </Card>
       )}
 
@@ -278,7 +296,7 @@ export default function FreestyleSetupPage() {
       )}
 
       <Button size="lg" variant="accent" className="w-full" onClick={start} disabled={importing}>
-        {selected ? `Start with “${selected.title}”` : "Start acapella"}
+        {selected ? `Start — ${selected.title}` : "Start acapella"}
       </Button>
     </div>
   );

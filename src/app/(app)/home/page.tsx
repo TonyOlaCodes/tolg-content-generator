@@ -118,7 +118,7 @@ export default function HomePage() {
               onClick={() => {
                 if (!challenge) return;
                 setPendingSession({
-                  beatId: "trap-140",
+                  beatId: profile.settings.lastBeatId ?? "mixkit-262",
                   durationSec: challenge.targetSec,
                   mode: challenge.mode,
                   promptFrequencySec: 10,
