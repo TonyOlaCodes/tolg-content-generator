@@ -89,6 +89,18 @@ Without `STRIPE_SECRET_KEY`, billing UI shows plan status only (no charges). Wit
 - `resetDemoBusiness` only deletes/recreates businesses with `isDemo: true` for the demo slug.
 - Public booking pages are keyed by slug; requests never auto-confirm appointments.
 
+## Phase 1 status
+
+See [PHASE1.md](./PHASE1.md) for the acceptance checklist.
+
+## Tests
+
+```bash
+npm run typecheck
+npm test          # Vitest unit tests
+npm run test:e2e  # Playwright smoke (needs DB seeded; reuses running dev server)
+```
+
 ## Legal
 
 Privacy and Terms pages are templates flagged for legal review — not production legal documents.

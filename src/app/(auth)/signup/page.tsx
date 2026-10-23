@@ -55,7 +55,7 @@ export default function SignupPage() {
               <Label htmlFor="password">Password (min 8 characters)</Label>
               <Input id="password" name="password" type="password" minLength={8} required />
             </div>
-            <Button className="w-full" disabled={loading}>{loading ? "Creating…" : "Sign up"}</Button>
+            <Button type="submit" className="w-full" disabled={loading}>{loading ? "Creating…" : "Sign up"}</Button>
           </form>
           <p className="mt-4 text-sm text-white/55">
             Already have an account? <Link className="text-[var(--accent)]" href="/login">Log in</Link>

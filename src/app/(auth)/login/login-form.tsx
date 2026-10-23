@@ -55,7 +55,7 @@ export function LoginForm() {
                 autoComplete="current-password"
               />
             </div>
-            <Button className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Log in"}
             </Button>
           </form>
