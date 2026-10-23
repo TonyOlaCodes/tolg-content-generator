@@ -1,82 +1,94 @@
-# Freestyle Lab
+# DetailFlow
 
-Mobile-first training app for elite **off-the-top freestyle** skills: rapid association, rhyme chains, reference-heavy punchlines, topic transitions, flow, recovery, and endurance.
+Turn enquiries into bookings. DetailFlow helps Irish appointment-based service businesses (starting with car detailing) organise customer enquiries, manage appointments, and configure follow-up automations.
 
-Not a rhyme dictionary. Not related to any prior TOLG project.
+Phase 1 MVP: booking-request pages, enquiry inbox, appointments/calendar, customers, services, analytics estimates, demo workspace, platform admin.
 
 ## Stack
 
-- Next.js App Router + TypeScript + Tailwind CSS 4
-- Zustand + localStorage / IndexedDB (progress + recordings)
-- Mock transcription + mock AI providers (swap-in OpenAI server-side)
-- Built-in library: real Mixkit royalty-free type-beats (trap / hip-hop / melodic) in `public/beats`
-- Plus on-device import for your own instrumentals
+- Next.js 15 (App Router) + React 19
+- Auth.js (NextAuth v5) credentials
+- Prisma + PostgreSQL (Neon recommended)
+- Tailwind CSS 4
+- Vitest for unit tests
+- Optional: Resend (email), Stripe test mode (billing)
 
-## Quick start
+## Local setup
+
+1. Copy env and fill values:
+
+```bash
+cp .env.example .env
+```
+
+Required:
+
+- `DATABASE_URL` — Postgres connection string
+- `AUTH_SECRET` — `openssl rand -base64 32`
+- `AUTH_URL` / `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` — e.g. `http://localhost:3000`
+- `DEMO_BUSINESS_SLUG` — default `cleancar-demo`
+
+2. Install and migrate:
 
 ```bash
 npm install
-cp .env.example .env
+npx prisma migrate deploy
+npm run db:seed
+```
+
+3. Run:
+
+```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Optional:
+### Seed accounts (fictional demo)
 
-```bash
-OPENAI_API_KEY=...   # enables server-side coach/analysis enrichment
-```
+| Email | Password | Role |
+|-------|----------|------|
+| `demo@cleancar.ie` | `password123` | Demo business owner |
+| `admin@detailflow.ie` | `password123` | Platform admin |
 
-Without an API key, structured mock analysis still powers results.
+Demo customers and enquiries are fictional.
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Dev server |
-| `npm run build` | Production build |
-| `npm run start` | Start production server |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript |
+| `npm run dev` | Local Next.js |
+| `npm run build` | `prisma generate` + production build |
+| `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest |
+| `npm run db:migrate` | Dev migrations |
+| `npm run db:seed` | Seed admin + demo business |
 
-## Architecture
+## Deploy on Vercel + Neon
 
+1. Create a Neon project; copy the pooled connection string into `DATABASE_URL`.
+2. Import the GitHub repo into Vercel.
+3. Set environment variables from `.env.example` (production URLs, `AUTH_SECRET`, Neon URL, optional Resend/Stripe).
+4. Build command: `npm run build` (already runs `prisma generate`).
+5. After first deploy, run migrations against Neon:
+
+```bash
+DATABASE_URL="…" npx prisma migrate deploy
+DATABASE_URL="…" npm run db:seed
 ```
-src/
-  app/                 # routes (Home, Learn, Practice, Freestyle, Progress, Library, Coach, Settings)
-  components/          # UI + feature screens
-  lib/
-    ai/                # AIProvider interface, mock + OpenAI
-    audio/             # mic recorder, waveform helpers
-    data/              # seed lessons, references, words, beats, exercises
-    storage/           # localStorage + IndexedDB
-    transcription/     # TranscriptionProvider + mock
-    training/          # prompts, daily plans
-    store/             # Zustand app state
-```
 
-### Providers
+Or add a Vercel build/release step that runs `prisma migrate deploy`.
 
-- `AIProvider`: `analyzeFreestyle`, `generateExercise`, `generateAssociations`, `evaluateWordplay`, `coach`, `improveSection`
-- `TranscriptionProvider`: `transcribe(blob)`
+6. Point `AUTH_URL`, `NEXTAUTH_URL`, and `NEXT_PUBLIC_APP_URL` at your Vercel domain.
 
-Secret keys stay server-side via `/api/ai/*` routes with Zod validation and simple rate limiting.
+Without `STRIPE_SECRET_KEY`, billing UI shows plan status only (no charges). Without `RESEND_API_KEY`, emails are preview-logged.
 
-### Recording model
+## Tenant & demo isolation
 
-Microphone audio is recorded separately from beat playback (beat is not baked into the take). Sessions store audio blob, metadata, prompts, transcript segments, and analysis JSON in IndexedDB / localStorage.
+- Dashboard queries always scope by `businessId` from membership (`assertBusinessAccess` / `getUserPrimaryBusiness`).
+- `resetDemoBusiness` only deletes/recreates businesses with `isDemo: true` for the demo slug.
+- Public booking pages are keyed by slug; requests never auto-confirm appointments.
 
-## Product map
+## Legal
 
-- **Home** — level, XP, streak, today’s session, quick freestyle, daily challenge, skills
-- **Learn** — 10 modules with interactive steps
-- **Practice** — 20+ drills (Association Lab, Reference Lab, Connection Game, …)
-- **Freestyle** — beat library/upload, live prompts, distraction-free / blind modes, results
-- **Progress** — charts, limiter recommendations, personal dictionary & association map
-- **Library / Coach / Settings** — knowledge base, chat coach, preferences
-
-## License
-
-Private
+Privacy and Terms pages are templates flagged for legal review — not production legal documents.

@@ -1,28 +1,29 @@
 import { cn } from "@/lib/utils";
 
-export function Card({
-  className,
-  children,
-  interactive,
-  onClick,
-}: {
-  className?: string;
-  children: React.ReactNode;
-  interactive?: boolean;
-  onClick?: () => void;
-}) {
-  const Comp = onClick ? "button" : "div";
+export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <Comp
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
+    <div
       className={cn(
-        "card-surface w-full text-left p-4",
-        interactive && "transition hover:bg-[var(--card-hover)] active:scale-[0.99]",
+        "rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_40%),#141416] shadow-[0_10px_40px_rgba(0,0,0,0.35)]",
         className,
       )}
-    >
-      {children}
-    </Comp>
+      {...props}
+    />
   );
+}
+
+export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("p-5 pb-2", className)} {...props} />;
+}
+
+export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn("font-semibold tracking-tight text-white", className)} {...props} />;
+}
+
+export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("text-sm text-white/55", className)} {...props} />;
+}
+
+export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("p-5 pt-2", className)} {...props} />;
 }
