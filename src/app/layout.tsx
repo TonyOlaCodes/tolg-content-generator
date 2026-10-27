@@ -1,46 +1,29 @@
-import type { Metadata, Viewport } from "next";
-import { Outfit, Syne } from "next/font/google";
+import type { Metadata } from "next";
+import { DM_Sans, Fraunces } from "next/font/google";
 import { Toaster } from "sonner";
-import { AppProviders } from "@/components/providers/app-providers";
+import { SessionProvider } from "@/components/providers/session-provider";
 import "./globals.css";
 
-const body = Outfit({
-  subsets: ["latin"],
-  variable: "--font-body",
-});
-
-const display = Syne({
-  subsets: ["latin"],
-  variable: "--font-display",
-});
+const sans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const display = Fraunces({ subsets: ["latin"], variable: "--font-display" });
 
 export const metadata: Metadata = {
-  title: "Freestyle Lab",
-  description: "Train elite off-the-top freestyle skills — association, rhyme chains, references, flow, and endurance.",
-  applicationName: "Freestyle Lab",
-  appleWebApp: {
-    capable: true,
-    title: "Freestyle Lab",
-    statusBarStyle: "black-translucent",
+  title: {
+    default: "DetailFlow — Turn enquiries into bookings",
+    template: "%s · DetailFlow",
   },
+  description:
+    "DetailFlow helps service businesses organise customer enquiries, manage appointments and automate follow-ups from one simple dashboard.",
 };
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  themeColor: "#070708",
-  viewportFit: "cover",
-};
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${body.variable} ${display.variable} h-full`}>
-      <body className="min-h-full antialiased">
-        <AppProviders>
+    <html lang="en-IE" className={`${sans.variable} ${display.variable}`}>
+      <body className="min-h-dvh antialiased">
+        <SessionProvider>
           {children}
           <Toaster theme="dark" position="top-center" richColors />
-        </AppProviders>
+        </SessionProvider>
       </body>
     </html>
   );
