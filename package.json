@@ -1,18 +1,25 @@
 {
-  "name": "tolg-content-generator",
+  "name": "elephant-in-the-room",
   "version": "0.1.0",
   "private": true,
+  "description": "Elephant in the Room - a real-time social deduction game about hiding an enormous elephant from hotel guests.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx main.ts",
+    "dev:web": "next dev",
+    "dev:game": "tsx server/index.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx main.ts",
+    "server": "tsx server/index.ts",
+    "test": "tsx tests/integration.ts",
+    "probe": "node tests/probe.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "15.3.9",
     "react": "19.1.10",
-    "react-dom": "19.1.10"
+    "react-dom": "19.1.10",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -20,9 +27,11 @@
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "@types/ws": "^8.5.13",
     "eslint": "^9.28.0",
     "eslint-config-next": "15.3.9",
     "tailwindcss": "^4.1.8",
+    "tsx": "^4.19.2",
     "typescript": "^5.8.3"
   }
 }

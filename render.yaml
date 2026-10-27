@@ -1,0 +1,15 @@
+# One-click deployment for the all-in-one game server (web client + game socket).
+# Render supports WebSocket upgrades; note that free instance types sleep when idle.
+services:
+  - type: web
+    name: elephant-in-the-room
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
