@@ -293,8 +293,10 @@ export function calibrateHeightRange(frames: PoseFrame[]): {
   // Top = low percentile (shoulders high on screen), hang = high percentile
   const topY = sorted[Math.floor(sorted.length * 0.08)];
   const hangY = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.92))];
-  if (hangY - topY < 0.05) {
-    return { hangY: hangY + 0.05, topY: topY - 0.02 };
+  // Keep a meaningful vertical span so small camera noise cannot look like full reps.
+  if (hangY - topY < 0.12) {
+    const mid = (hangY + topY) / 2;
+    return { hangY: mid + 0.08, topY: mid - 0.08 };
   }
   return { hangY, topY };
 }

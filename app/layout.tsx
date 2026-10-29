@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Apps — Elephant & Pull Up Analysis",
   description:
-    "Choose Elephant in the Room or Pull Up Analysis by Fable and DyeAllPies.",
+    "Choose Elephant in the Room or AI Pull-Up Analysis (MediaPipe pose tracking on your video).",
   applicationName: "Apps",
 };
 

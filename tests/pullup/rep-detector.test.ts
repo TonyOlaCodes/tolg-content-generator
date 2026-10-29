@@ -106,6 +106,29 @@ function run(): void {
     console.log("  ✓ no false reps on static hang");
   }
 
+  {
+    const frames = syntheticSet(4);
+    const { hangY, topY } = calibrateHeightRange(frames);
+    const reps = detectReps(frames, hangY, topY, cal);
+    assert.ok(reps.every((r) => r.autoGrade === r.grade));
+    assert.ok(reps.every((r) => r.quality >= 0 && r.quality <= 100));
+    assert.ok(reps.every((r) => r.index === reps.indexOf(r) + 1));
+    console.log("  ✓ quality scores and auto grades stay in range");
+  }
+
+  {
+    // Tiny bounce should not create a rep
+    const bounce: PoseFrame[] = [];
+    for (let i = 0; i < 30; i++) {
+      const y = 0.5 - Math.sin(i / 3) * 0.03;
+      bounce.push(frame(i * 0.05, y));
+    }
+    const { hangY, topY } = calibrateHeightRange(bounce);
+    const reps = detectReps(bounce, hangY, topY, cal);
+    assert.equal(reps.length, 0);
+    console.log("  ✓ ignores small shoulder bounce");
+  }
+
   console.log("\nAll pull-up unit tests passed.");
 }
 

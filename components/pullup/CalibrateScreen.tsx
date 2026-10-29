@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PoseTracker, suggestBarYFromLandmarks } from "@/lib/pullup/pose-service";
 import { computeContainBox, canvasToLandmark } from "@/lib/pullup/video-layout";
 
 export default function CalibrateScreen({
@@ -12,11 +13,14 @@ export default function CalibrateScreen({
   fileUrl: string;
   initialBarY: number;
   onBack: () => void;
-  onConfirm: (barY: number) => void;
+  onConfirm: (barY: number, mirrored: boolean) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [barY, setBarY] = useState(initialBarY);
+  const [mirrored, setMirrored] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestNote, setSuggestNote] = useState<string | null>(null);
   const [size, setSize] = useState({ w: 1, h: 1, vw: 1, vh: 1 });
 
   useEffect(() => {
@@ -42,11 +46,43 @@ export default function CalibrateScreen({
     };
   }, [fileUrl]);
 
-  const box = useMemo(
-    () => computeContainBox(size.w, size.h, size.vw, size.vh),
-    [size],
-  );
+  // Auto-suggest bar from first detectable wrist height
+  useEffect(() => {
+    let cancelled = false;
+    const run = async (): Promise<void> => {
+      const video = videoRef.current;
+      if (!video) return;
+      setSuggesting(true);
+      try {
+        if (video.readyState < 1) {
+          await new Promise<void>((res) => video.addEventListener("loadedmetadata", () => res(), { once: true }));
+        }
+        video.currentTime = Math.min(0.3, (video.duration || 1) * 0.05);
+        await new Promise<void>((res) => video.addEventListener("seeked", () => res(), { once: true }));
+        const tracker = new PoseTracker({ segmentation: false });
+        tracker.reset();
+        const det = await tracker.detect(video, 1);
+        if (cancelled) return;
+        const suggested = suggestBarYFromLandmarks(det.landmarks);
+        if (suggested != null) {
+          setBarY(suggested);
+          setSuggestNote("Bar suggested from wrist height — drag to fine-tune.");
+        } else {
+          setSuggestNote("Could not auto-detect bar. Drag the line onto the pull-up bar.");
+        }
+      } catch {
+        if (!cancelled) setSuggestNote("Auto-suggest unavailable. Set the bar manually.");
+      } finally {
+        if (!cancelled) setSuggesting(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [fileUrl]);
 
+  const box = useMemo(() => computeContainBox(size.w, size.h, size.vw, size.vh), [size]);
   const barTop = box.offsetY + barY * box.drawH;
 
   const onPointer = (clientY: number): void => {
@@ -56,6 +92,7 @@ export default function CalibrateScreen({
     const py = clientY - rect.top;
     const { y } = canvasToLandmark(0, py, box);
     setBarY(Math.max(0.05, Math.min(0.55, y)));
+    setSuggestNote("Manual bar position.");
   };
 
   return (
@@ -64,8 +101,10 @@ export default function CalibrateScreen({
         ← Back
       </button>
       <header className="pu-hero compact">
-        <h1>Calibrate bar</h1>
-        <p className="pu-sub">Drag the dashed line onto the pull-up bar. This anchors chin classification.</p>
+        <h1>Calibrate</h1>
+        <p className="pu-sub">
+          Align the dashed BAR guide with the pull-up bar. Flip if the recording is mirrored.
+        </p>
       </header>
 
       <div
@@ -80,7 +119,15 @@ export default function CalibrateScreen({
           onPointer(e.clientY);
         }}
       >
-        <video ref={videoRef} src={fileUrl} className="pu-cal-video" playsInline muted controls />
+        <video
+          ref={videoRef}
+          src={fileUrl}
+          className="pu-cal-video"
+          style={mirrored ? { transform: "scaleX(-1)" } : undefined}
+          playsInline
+          muted
+          controls
+        />
         <div className="pu-bar-line" style={{ top: barTop }}>
           <span>BAR</span>
         </div>
@@ -93,11 +140,21 @@ export default function CalibrateScreen({
           min={5}
           max={55}
           value={Math.round(barY * 100)}
-          onChange={(e) => setBarY(Number(e.target.value) / 100)}
+          onChange={(e) => {
+            setBarY(Number(e.target.value) / 100);
+            setSuggestNote("Manual bar position.");
+          }}
         />
       </label>
 
-      <button type="button" className="pu-primary" onClick={() => onConfirm(barY)}>
+      <label className="pu-check">
+        <input type="checkbox" checked={mirrored} onChange={(e) => setMirrored(e.target.checked)} />
+        Mirrored recording (front camera)
+      </label>
+
+      <p className="pu-note">{suggesting ? "Suggesting bar from pose…" : suggestNote}</p>
+
+      <button type="button" className="pu-primary" onClick={() => onConfirm(barY, mirrored)}>
         Analyse video
       </button>
     </div>

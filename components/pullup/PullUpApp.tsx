@@ -8,6 +8,7 @@ import type { AnalysisResult, RepGrade, UserCalibration } from "@/lib/pullup/typ
 import UploadScreen from "./UploadScreen";
 import CalibrateScreen from "./CalibrateScreen";
 import AnalysisView from "./AnalysisView";
+import ExportPanel, { type ExportSettings } from "./ExportPanel";
 
 type Step = "upload" | "calibrate" | "analyzing" | "results" | "exporting";
 
@@ -15,13 +16,20 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [meta, setMeta] = useState({ weightKg: null as number | null, heightCm: null as number | null, addedKg: 0 });
+  const [meta, setMeta] = useState({
+    weightKg: null as number | null,
+    heightCm: null as number | null,
+    addedKg: 0,
+  });
   const [barY, setBarY] = useState(0.18);
+  const [mirrored, setMirrored] = useState(false);
   const [progress, setProgress] = useState<AnalyzeProgress | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [showExportPanel, setShowExportPanel] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cacheKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -48,6 +56,8 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     setProgress(null);
     setError(null);
     setExportMsg(null);
+    setShowExportPanel(false);
+    cacheKeyRef.current = null;
     setStep("upload");
   }, [fileUrl]);
 
@@ -58,19 +68,27 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     setMeta(m);
     setAnalysis(null);
     setError(null);
+    cacheKeyRef.current = null;
     setStep("calibrate");
   };
 
-  const runAnalysis = async (nextBarY: number): Promise<void> => {
+  const runAnalysis = async (nextBarY: number, nextMirrored: boolean): Promise<void> => {
     setBarY(nextBarY);
+    setMirrored(nextMirrored);
     setStep("analyzing");
     setError(null);
     setProgress({ phase: "loading", progress: 0, message: "Starting…" });
 
     const video = videoRef.current;
-    if (!video || !fileUrl) {
+    if (!video || !fileUrl || !file) {
       setError("Video element missing.");
       setStep("calibrate");
+      return;
+    }
+
+    const cacheKey = `${file.name}:${file.size}:${file.lastModified}:${nextBarY.toFixed(3)}:${nextMirrored}:${meta.weightKg}:${meta.heightCm}:${meta.addedKg}`;
+    if (cacheKeyRef.current === cacheKey && analysis) {
+      setStep("results");
       return;
     }
 
@@ -92,8 +110,9 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
         metersPerImageHeight: null,
       };
 
-      const result = await analyzePullUpVideo(video, cal, setProgress, { sampleFps: 12 });
+      const result = await analyzePullUpVideo(video, cal, setProgress, { sampleFps: 14 });
       setAnalysis(result);
+      cacheKeyRef.current = cacheKey;
       setStep("results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
@@ -109,8 +128,9 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     });
   };
 
-  const doExport = async (): Promise<void> => {
+  const doExport = async (settings: ExportSettings): Promise<void> => {
     if (!analysis || !fileUrl) return;
+    setShowExportPanel(false);
     setStep("exporting");
     setExportMsg("Preparing export…");
     const video = videoRef.current;
@@ -127,9 +147,11 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
 
     try {
       const result = await exportAnalysedVideo(video, analysis, {
-        includeAudio: true,
-        aspect: "9:16",
-        heatmap: true,
+        includeAudio: settings.includeAudio,
+        aspect: settings.aspect,
+        heatmap: settings.heatmap,
+        appendSummary: settings.appendSummary,
+        mirrored,
         onProgress: (pct, message) => setExportMsg(`${message} (${Math.round(pct * 100)}%)`),
       });
       const url = URL.createObjectURL(result.blob);
@@ -149,7 +171,6 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="pu-root">
-      {/* Shared hidden video used for analysis + export decoding */}
       <video ref={videoRef} className="pu-hidden-video" playsInline preload="auto" muted />
 
       {step === "upload" ? <UploadScreen onBack={onBack} onReady={onUploadReady} /> : null}
@@ -159,7 +180,7 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
           fileUrl={fileUrl}
           initialBarY={barY}
           onBack={() => setStep("upload")}
-          onConfirm={(y) => void runAnalysis(y)}
+          onConfirm={(y, m) => void runAnalysis(y, m)}
         />
       ) : null}
 
@@ -171,7 +192,8 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
             <div style={{ width: `${Math.round((progress?.progress ?? 0) * 100)}%` }} />
           </div>
           <p className="pu-note">
-            Running MediaPipe Pose Landmarker on your video locally. This can take a bit on longer clips.
+            Running MediaPipe Pose Landmarker on your video locally. Results are measured from your
+            footage — not a simulation.
           </p>
         </div>
       ) : null}
@@ -187,14 +209,20 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {step === "results" && analysis && fileUrl ? (
-        <AnalysisView
-          fileUrl={fileUrl}
-          analysis={analysis}
-          onBack={onBack}
-          onAnother={resetAll}
-          onOverrideGrade={overrideGrade}
-          onExport={() => void doExport()}
-        />
+        <>
+          <AnalysisView
+            fileUrl={fileUrl}
+            analysis={analysis}
+            mirrored={mirrored}
+            onBack={onBack}
+            onAnother={resetAll}
+            onOverrideGrade={overrideGrade}
+            onExport={() => setShowExportPanel(true)}
+          />
+          {showExportPanel ? (
+            <ExportPanel onCancel={() => setShowExportPanel(false)} onStart={(s) => void doExport(s)} />
+          ) : null}
+        </>
       ) : null}
 
       {error ? (
@@ -210,7 +238,7 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
 
       {file ? (
         <p className="sr-only">
-          Loaded {file.name} ({Math.round(file.size / 1024)} KB) calibration bar {calibration.barY}
+          Loaded {file.name} calibration bar {calibration.barY} mirrored {String(mirrored)}
         </p>
       ) : null}
     </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { findFrameAt, heightNorm, estimatePhase, verticalSpeed } from "@/lib/pullup/biomechanics";
+import { PoseTracker, type SegmentationMaskData } from "@/lib/pullup/pose-service";
 import { drawAnalysisFrame } from "@/lib/pullup/render-overlays";
 import type { AnalysisResult, RepGrade, RepRecord } from "@/lib/pullup/types";
 import SetSummary from "./SetSummary";
@@ -11,6 +12,7 @@ const SPEEDS = [0.5, 1, 1.5, 2] as const;
 export default function AnalysisView({
   fileUrl,
   analysis,
+  mirrored = false,
   onBack,
   onAnother,
   onOverrideGrade,
@@ -18,6 +20,7 @@ export default function AnalysisView({
 }: {
   fileUrl: string;
   analysis: AnalysisResult;
+  mirrored?: boolean;
   onBack: () => void;
   onAnother: () => void;
   onOverrideGrade: (repIndex: number, grade: RepGrade) => void;
@@ -26,14 +29,32 @@ export default function AnalysisView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const maskRef = useRef<SegmentationMaskData | null>(null);
+  const segTrackerRef = useRef<PoseTracker | null>(null);
+  const lastMaskBucket = useRef(-1);
+
   const [playing, setPlaying] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(1);
   const [t, setT] = useState(0);
   const [heatmap, setHeatmap] = useState(true);
+  const [metricsOpen, setMetricsOpen] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [selectedRep, setSelectedRep] = useState<number | null>(null);
 
   const speed = SPEEDS[speedIdx];
+
+  useEffect(() => {
+    if (!heatmap) {
+      maskRef.current = null;
+      return;
+    }
+    segTrackerRef.current = new PoseTracker({ segmentation: true });
+    segTrackerRef.current.reset();
+    return () => {
+      segTrackerRef.current = null;
+      maskRef.current = null;
+    };
+  }, [heatmap]);
 
   const syncCanvas = useCallback(() => {
     const video = videoRef.current;
@@ -55,12 +76,14 @@ export default function AnalysisView({
       height: h,
       t: video.currentTime,
       heatmap,
-      showHud: true,
+      showHud: metricsOpen,
       showGraph: true,
       showSummary: false,
       selectedRepIndex: selectedRep,
+      segmentationMask: maskRef.current,
+      mirrored,
     });
-  }, [analysis, heatmap, selectedRep]);
+  }, [analysis, heatmap, metricsOpen, mirrored, selectedRep]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -71,10 +94,25 @@ export default function AnalysisView({
   useEffect(() => {
     let raf = 0;
     let rvfc = 0;
+    let cancelled = false;
     const video = videoRef.current;
 
     const tick = (): void => {
-      if (video) setT(video.currentTime);
+      if (cancelled) return;
+      if (video) {
+        setT(video.currentTime);
+        // Throttled live segmentation for silhouette heatmap
+        if (heatmap && segTrackerRef.current && video.readyState >= 2) {
+          const bucket = Math.floor(video.currentTime * 5);
+          if (bucket !== lastMaskBucket.current) {
+            lastMaskBucket.current = bucket;
+            const stamp = Math.round(video.currentTime * 1000) + 2;
+            void segTrackerRef.current.detect(video, stamp).then((det) => {
+              maskRef.current = det.mask;
+            });
+          }
+        }
+      }
       syncCanvas();
       const anyVideo = video as HTMLVideoElement & {
         requestVideoFrameCallback?: (cb: () => void) => number;
@@ -88,13 +126,14 @@ export default function AnalysisView({
     };
     tick();
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       const anyVideo = video as HTMLVideoElement & {
         cancelVideoFrameCallback?: (id: number) => void;
       };
       anyVideo?.cancelVideoFrameCallback?.(rvfc);
     };
-  }, [playing, syncCanvas]);
+  }, [playing, syncCanvas, heatmap]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -105,11 +144,15 @@ export default function AnalysisView({
   }, [syncCanvas]);
 
   const frame = useMemo(() => findFrameAt(analysis.frames, t), [analysis.frames, t]);
-  const height = heightNorm(frame?.shoulderY ?? null, analysis.hangShoulderY, analysis.bestTopShoulderY);
+  const height = heightNorm(
+    frame?.shoulderY ?? null,
+    analysis.hangShoulderY,
+    analysis.bestTopShoulderY,
+  );
   const activeRep: RepRecord | null =
     selectedRep != null
-      ? analysis.reps.find((r) => r.index === selectedRep) ?? null
-      : analysis.reps.find((r) => t >= r.startT && t <= r.endT + 0.2) ?? null;
+      ? (analysis.reps.find((r) => r.index === selectedRep) ?? null)
+      : (analysis.reps.find((r) => t >= r.startT && t <= r.endT + 0.2) ?? null);
 
   const togglePlay = async (): Promise<void> => {
     const video = videoRef.current;
@@ -143,7 +186,6 @@ export default function AnalysisView({
   return (
     <div className="pu-analysis">
       <div ref={wrapRef} className="pu-stage">
-        {/* Hidden video element drives timing; canvas shows composited frames */}
         <video
           ref={videoRef}
           src={fileUrl}
@@ -167,14 +209,22 @@ export default function AnalysisView({
           <span className="pu-title-chip">Pull Up Analysis</span>
           <button
             type="button"
+            className={`pu-chip ${metricsOpen ? "on" : ""}`}
+            onClick={() => setMetricsOpen((v) => !v)}
+          >
+            Metrics
+          </button>
+          <button
+            type="button"
             className={`pu-chip ${heatmap ? "on" : ""}`}
             onClick={() => setHeatmap((v) => !v)}
+            title="Estimated effort heatmap (not EMG)"
           >
             Heatmap
           </button>
         </div>
 
-        {activeRep ? (
+        {activeRep && metricsOpen ? (
           <div className="pu-rep-card" key={activeRep.index}>
             <div className="pu-rep-card-head">
               <strong>REP {activeRep.index}</strong>
@@ -290,7 +340,6 @@ export default function AnalysisView({
         />
       ) : null}
 
-      {/* Keep height in DOM for debugging accessibility */}
       <span className="sr-only">
         phase {estimatePhase(height, 0, Boolean(frame?.landmarks), height > 0.8)} height{" "}
         {Math.round(height * 100)}

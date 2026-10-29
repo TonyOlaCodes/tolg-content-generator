@@ -2,12 +2,14 @@
 
 import type { AnalysisResult } from "./types";
 import { drawAnalysisFrame } from "./render-overlays";
+import { PoseTracker, type SegmentationMaskData } from "./pose-service";
 
 export type ExportOptions = {
   includeAudio: boolean;
-  /** Target output: 'contain' keeps source AR letterboxed into 9:16. */
   aspect: "source" | "9:16";
   heatmap: boolean;
+  appendSummary: boolean;
+  mirrored?: boolean;
   onProgress?: (pct: number, message: string) => void;
 };
 
@@ -44,9 +46,6 @@ function pickRecorderMime(): { mimeType: string; extension: string; warning?: st
   };
 }
 
-/**
- * Re-render the analysed video with overlays burned in via canvas + MediaRecorder.
- */
 export async function exportAnalysedVideo(
   video: HTMLVideoElement,
   analysis: AnalysisResult,
@@ -66,7 +65,6 @@ export async function exportAnalysedVideo(
     outH = Math.max(srcH, 1280);
     outW = Math.round((outH * 9) / 16);
   }
-  // Cap resolution for performance
   const maxSide = 1280;
   if (Math.max(outW, outH) > maxSide) {
     const s = maxSide / Math.max(outW, outH);
@@ -128,6 +126,11 @@ export async function exportAnalysedVideo(
     );
   });
 
+  const segTracker = options.heatmap ? new PoseTracker({ segmentation: true }) : null;
+  segTracker?.reset();
+  let mask: SegmentationMaskData | null = null;
+  let maskStamp = 0;
+
   recorder.start(250);
   options.onProgress?.(0.02, "Recording…");
 
@@ -135,34 +138,68 @@ export async function exportAnalysedVideo(
   let stopped = false;
 
   await new Promise<void>((resolve, reject) => {
+    const finishRecording = async (): Promise<void> => {
+      if (options.appendSummary) {
+        options.onProgress?.(0.96, "Appending set summary…");
+        const holdFrames = Math.round(fps * 2.2);
+        for (let i = 0; i < holdFrames; i++) {
+          drawAnalysisFrame(ctx, video, analysis, {
+            width: outW,
+            height: outH,
+            t: duration,
+            heatmap: false,
+            showHud: false,
+            showGraph: false,
+            showSummary: true,
+            mirrored: options.mirrored,
+          });
+          await new Promise((r) => setTimeout(r, 1000 / fps));
+        }
+      }
+      try {
+        recorder.stop();
+      } catch {
+        /* ignore */
+      }
+      resolve();
+    };
+
     const onEnded = (): void => {
       if (stopped) return;
       stopped = true;
       video.removeEventListener("ended", onEnded);
-      window.setTimeout(() => {
-        try {
-          recorder.stop();
-        } catch {
-          /* ignore */
-        }
-        resolve();
-      }, 200);
+      void finishRecording();
     };
     video.addEventListener("ended", onEnded);
 
     const draw = (): void => {
       if (stopped) return;
-      drawAnalysisFrame(ctx, video, analysis, {
-        width: outW,
-        height: outH,
-        t: video.currentTime,
-        heatmap: options.heatmap,
-        showHud: true,
-        showGraph: true,
-        showSummary: false,
-      });
-      const pct = duration > 0 ? video.currentTime / duration : 0;
-      options.onProgress?.(Math.min(0.95, pct), "Recording analysed video…");
+      const t = video.currentTime;
+      void (async () => {
+        if (segTracker && options.heatmap && Math.floor(t * 4) !== Math.floor(maskStamp * 4)) {
+          maskStamp = t;
+          try {
+            const det = await segTracker.detect(video, Math.round(t * 1000) + 1);
+            mask = det.mask;
+          } catch {
+            mask = null;
+          }
+        }
+        if (stopped) return;
+        drawAnalysisFrame(ctx, video, analysis, {
+          width: outW,
+          height: outH,
+          t,
+          heatmap: options.heatmap,
+          showHud: true,
+          showGraph: true,
+          showSummary: false,
+          segmentationMask: mask,
+          mirrored: options.mirrored,
+        });
+      })();
+      const pct = duration > 0 ? t / duration : 0;
+      options.onProgress?.(Math.min(0.94, pct), "Recording analysed video…");
       if (!video.paused && !video.ended) {
         requestAnimationFrame(draw);
       }
@@ -184,8 +221,9 @@ export async function exportAnalysedVideo(
     blob,
     mimeType: pick.mimeType,
     extension: pick.extension,
-    warning: !audioTracksAdded && options.includeAudio
-      ? `${pick.warning ? pick.warning + " " : ""}Audio could not be captured in this browser.`
-      : pick.warning,
+    warning:
+      !audioTracksAdded && options.includeAudio
+        ? `${pick.warning ? pick.warning + " " : ""}Audio could not be captured in this browser.`
+        : pick.warning,
   };
 }

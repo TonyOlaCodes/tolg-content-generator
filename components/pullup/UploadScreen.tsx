@@ -125,7 +125,7 @@ export default function UploadScreen({
       {error ? <p className="pu-error">{error}</p> : null}
 
       <button type="button" className="pu-primary" disabled={!file} onClick={continueNext}>
-        Continue to calibration
+        Analyse video
       </button>
     </div>
   );
