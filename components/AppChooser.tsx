@@ -1,6 +1,6 @@
 "use client";
 
-export type AppId = "elephant" | "pullup";
+export type AppId = "elephant" | "pullup" | "museum";
 
 const APPS: Array<{
   id: AppId;
@@ -30,6 +30,16 @@ const APPS: Array<{
     accent: "#2ec4b6",
     icon: "🏋️",
   },
+  {
+    id: "museum",
+    title: "The Impossible Museum",
+    subtitle: "Extradimensional exploration",
+    blurb:
+      "A cinematic void museum of twelve impossible exhibits, living architecture, artifacts, and endings that remember you.",
+    tags: ["3D atrium", "12 exhibits", "Mystery"],
+    accent: "#e879f9",
+    icon: "◇",
+  },
 ];
 
 export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void }) {
@@ -39,7 +49,7 @@ export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void
         <p className="chooser-kicker">Start screen</p>
         <h1 className="chooser-title">Choose an application</h1>
         <p className="chooser-sub">
-          Open the hotel game or the AI gym exercise analysis platform.
+          Open the hotel game, AI gym analysis, or The Impossible Museum.
         </p>
       </header>
 

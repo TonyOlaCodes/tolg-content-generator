@@ -1679,6 +1679,13 @@ p {
   background: #050505;
 }
 
+.app-shell.is-museum {
+  padding: 0;
+  max-width: none;
+  background: #030308;
+  min-height: 100dvh;
+}
+
 
 /* ---------------------------------------------------------------- pull-up analysis (real video) */
 
