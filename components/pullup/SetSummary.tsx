@@ -1,54 +1,137 @@
 "use client";
 
-import { SET_SUMMARY } from "@/lib/pullup-sim";
+import { QUALITY_METHOD } from "@/lib/pullup/quality";
+import type { AnalysisResult } from "@/lib/pullup/types";
 
-export default function SetSummary() {
+export default function SetSummary({
+  analysis,
+  onReplay,
+  onClose,
+  onExport,
+  onAnother,
+}: {
+  analysis: AnalysisResult;
+  onReplay: () => void;
+  onClose: () => void;
+  onExport: () => void;
+  onAnother: () => void;
+}) {
+  const reps = analysis.reps;
+  const valid = reps.filter((r) => r.grade === "valid").length;
+  const partial = reps.filter((r) => r.grade === "partial").length;
+  const failed = reps.filter((r) => r.grade === "failed").length;
+  const lockouts = reps.filter((r) => r.lockOut).length;
+  const avgRom =
+    reps.length && reps.every((r) => r.romCm != null)
+      ? `${(reps.reduce((s, r) => s + (r.romCm || 0), 0) / reps.length).toFixed(0)} cm`
+      : reps.length
+        ? `${Math.round((reps.reduce((s, r) => s + r.romNorm, 0) / reps.length) * 100)}% of set range`
+        : "—";
+  const avgUp = reps.length
+    ? `${(reps.reduce((s, r) => s + r.upDuration, 0) / reps.length).toFixed(2)} s`
+    : "—";
+  const avgDown = reps.length
+    ? `${(reps.reduce((s, r) => s + r.downDuration, 0) / reps.length).toFixed(2)} s`
+    : "—";
+  const fastest = reps.length
+    ? `#${[...reps].sort((a, b) => b.peakSpeedNorm - a.peakSpeedNorm)[0].index}`
+    : "—";
+  const slowest = reps.length
+    ? `#${[...reps].sort((a, b) => a.peakSpeedNorm - b.peakSpeedNorm)[0].index}`
+    : "—";
+  const avgSway =
+    reps.length && reps.every((r) => r.swayCm != null)
+      ? `${(reps.reduce((s, r) => s + (r.swayCm || 0), 0) / reps.length).toFixed(1)} cm`
+      : reps.length
+        ? `${((reps.reduce((s, r) => s + r.swayNorm, 0) / reps.length) * 100).toFixed(1)}% frame`
+        : "—";
+  const elbowsL = reps.map((r) => r.elbowAtTopL).filter((n): n is number => n != null);
+  const elbowsR = reps.map((r) => r.elbowAtTopR).filter((n): n is number => n != null);
+  const work = reps.map((r) => r.workJ).filter((n): n is number => n != null);
+  const power = reps.map((r) => r.peakPowerW).filter((n): n is number => n != null);
+
   const rows: Array<[string, string]> = [
-    ["chin above bar · at bar · short", `${SET_SUMMARY.chinAbove} · ${SET_SUMMARY.atBar} · ${SET_SUMMARY.short}`],
-    ["full lock-out at bottom", SET_SUMMARY.lockOut],
-    ["range of motion", `${SET_SUMMARY.romCm} cm per rep`],
-    ["tempo up / down", `${SET_SUMMARY.tempoUp.toFixed(1)} s / ${SET_SUMMARY.tempoDown.toFixed(1)} s`],
+    ["valid · borderline · failed", `${valid} · ${partial} · ${failed}`],
+    ["full lock-out at bottom", `${lockouts} / ${reps.length || 0}`],
+    ["avg range of motion", avgRom],
+    ["avg tempo up / down", `${avgUp} / ${avgDown}`],
+    ["fastest · slowest rep", `${fastest} · ${slowest}`],
     [
-      "peak speed best → last",
-      `${SET_SUMMARY.peakBest.toFixed(2)} → ${SET_SUMMARY.peakLast.toFixed(2)} m/s (−${SET_SUMMARY.peakDropPct} %)`,
+      "velocity loss (early→late)",
+      analysis.velocityLossPct != null ? `${analysis.velocityLossPct} %` : "Not enough reps",
     ],
-    ["hip sway", `${SET_SUMMARY.hipSway} cm avg`],
-    ["elbow at top L / R", `${SET_SUMMARY.elbowL}° / ${SET_SUMMARY.elbowR}°`],
-    ["work · peak power", `${SET_SUMMARY.workKj} kJ · ${SET_SUMMARY.peakPowerW} W`],
-    ["energy, rough estimate", `≈ ${SET_SUMMARY.energyKcal} kcal for the set`],
-    ["last rep vs best", `effort ×${SET_SUMMARY.lastEffort.toFixed(1)} · ~${SET_SUMMARY.repsLeft} reps left`],
+    ["avg body sway", avgSway],
+    [
+      "elbow at top L / R",
+      elbowsL.length && elbowsR.length
+        ? `${Math.round(elbowsL.reduce((a, b) => a + b, 0) / elbowsL.length)}° / ${Math.round(elbowsR.reduce((a, b) => a + b, 0) / elbowsR.length)}°`
+        : "Low confidence",
+    ],
+    [
+      "mechanical work · peak power",
+      work.length && power.length
+        ? `${(work.reduce((a, b) => a + b, 0) / 1000).toFixed(2)} kJ · ${Math.round(Math.max(...power))} W`
+        : "Not calibrated",
+    ],
+    ["tracking confidence", `${Math.round(analysis.trackingConfidence * 100)} %`],
   ];
 
   return (
-    <div className="pullup-summary" role="dialog" aria-label="Set summary">
-      <div className="pullup-summary-card">
-        <h2 className="pullup-summary-title">SET SUMMARY</h2>
-        <p className="pullup-summary-by">Pull Up Analysis by Fable and DyeAllPies</p>
+    <div className="pu-summary" role="dialog" aria-label="Set summary">
+      <div className="pu-summary-card">
+        <div className="pu-summary-top">
+          <h2>SET SUMMARY</h2>
+          <button type="button" className="pu-icon-btn" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <p className="pu-summary-by">Pull Up Analysis</p>
 
-        <div className="pullup-summary-heroes">
+        <div className="pu-summary-heroes">
           <div>
-            <div className="pullup-summary-hero-num">{SET_SUMMARY.reps}</div>
-            <div className="pullup-summary-hero-label">reps</div>
+            <div className="pu-hero-num">{reps.length}</div>
+            <div className="pu-hero-label">total reps</div>
           </div>
           <div>
-            <div className="pullup-summary-hero-num is-teal">{SET_SUMMARY.avgEfficiency}</div>
-            <div className="pullup-summary-hero-label">avg efficiency / 100</div>
+            <div className="pu-hero-num teal">{analysis.avgQuality}</div>
+            <div className="pu-hero-label">avg quality / 100</div>
           </div>
         </div>
 
-        <dl className="pullup-summary-rows">
-          {rows.map(([label, value]) => (
-            <div key={label} className="pullup-summary-row">
-              <dt>{label}</dt>
-              <dd>{value}</dd>
+        <dl className="pu-summary-rows">
+          {rows.map(([k, v]) => (
+            <div key={k} className="pu-summary-row">
+              <dt>{k}</dt>
+              <dd>{v}</dd>
             </div>
           ))}
         </dl>
 
-        <p className="pullup-summary-foot">
-          MediaPipe 33-pt pose · YOLOv8 cross-check: {SET_SUMMARY.yoloReps} reps · {SET_SUMMARY.heightCm}{" "}
-          cm, {SET_SUMMARY.weightKg} kg
-        </p>
+        <div className="pu-coach">
+          <strong>Coaching notes</strong>
+          <ul>
+            {analysis.coachingNotes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="pu-summary-foot">{QUALITY_METHOD}</p>
+
+        <div className="pu-summary-actions">
+          <button type="button" onClick={onReplay}>
+            Replay set
+          </button>
+          <button type="button" onClick={onClose}>
+            View reps
+          </button>
+          <button type="button" className="is-accent" onClick={onExport}>
+            Export video
+          </button>
+          <button type="button" onClick={onAnother}>
+            Analyse another
+          </button>
+        </div>
       </div>
     </div>
   );

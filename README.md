@@ -123,11 +123,27 @@ Turn the phone sideways: the hotel is wider than it is tall, and the game shows 
 
 ---
 
+## Pull Up Analysis (second app)
+
+The start screen also opens **AI Pull-Up Analysis**: upload a real pull-up video
+(MP4/MOV/WebM), calibrate the bar line, then run **MediaPipe Pose Landmarker** entirely
+in the browser. Rep counting, biomechanics, the shoulder-height graph, set summary, and
+export are derived from tracked landmarks (plus optional weight/height you enter) — not
+from a canned simulation.
+
+Limitations worth knowing: chin-over-bar depends on your bar guide and camera angle;
+metres/calories need calibration inputs; export uses `MediaRecorder` (MP4 when the
+browser supports it, otherwise WebM with a clear notice); the effort heatmap is a
+movement-based visualisation, not EMG.
+
+---
+
 ## Architecture
 
 ```
 app/            Next.js App Router pages (menu, /join/[code])
-components/     React UI: menu, lobby, canvas renderer, HUD, minigames, overlays
+components/     React UI: menu, lobby, canvas renderer, HUD, minigames, overlays, pull-up analysis
+lib/pullup/     Pose tracking, rep detection, biomechanics, overlay render, export
 game/           Shared, data-driven content + protocol used by BOTH sides
   config.ts       tuning constants (speeds, meters, timers)
   content.ts      hotel layout, stations, tasks, roles, sabotages, incidents, modifiers
