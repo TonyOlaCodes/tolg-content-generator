@@ -23,9 +23,9 @@ const APPS: Array<{
   {
     id: "pullup",
     title: "Pull Up Analysis",
-    subtitle: "by Fable and DyeAllPies",
-    blurb: "MediaPipe pose tracking with live biomechanics, muscle heat, and set summary.",
-    tags: ["Pose CV", "Live HUD", "Set summary"],
+    subtitle: "AI video analysis",
+    blurb: "Upload a real pull-up video for MediaPipe pose tracking, rep detection, and export.",
+    tags: ["Upload video", "Pose CV", "Export"],
     accent: "#2ec4b6",
     icon: "🏋️",
   },
