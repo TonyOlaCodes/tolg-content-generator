@@ -2292,3 +2292,115 @@ p {
   color: #fff;
   padding: 0.55rem 0.65rem;
 }
+
+/* ---------------------------------------------------------------- exercise library */
+
+.pu-ex-toolbar {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pu-ex-search {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.95rem;
+}
+
+.pu-ex-filters {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.pu-ex-filters button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d7dbe6;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pu-ex-filters button.on {
+  background: rgba(46, 196, 182, 0.22);
+  border-color: rgba(46, 196, 182, 0.55);
+  color: #fff;
+}
+
+.pu-ex-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pu-ex-section h2 {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b93a7;
+  font-weight: 700;
+}
+
+.pu-ex-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pu-ex-card {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(155deg, rgba(46, 196, 182, 0.1), rgba(255, 255, 255, 0.03));
+  border-radius: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.pu-ex-card:disabled,
+.pu-ex-card.is-planned {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pu-ex-status {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2ec4b6;
+}
+
+.pu-ex-card.is-planned .pu-ex-status {
+  color: #f59e0b;
+}
+
+.pu-ex-card strong {
+  font-size: 1.02rem;
+}
+
+.pu-ex-blurb {
+  font-size: 0.82rem;
+  color: #a7adbb;
+  line-height: 1.35;
+}
+
+.pu-ex-cam {
+  font-size: 0.72rem;
+  color: #8b93a7;
+}
+
+.pu-cam-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #2ec4b6;
+  font-weight: 650;
+}

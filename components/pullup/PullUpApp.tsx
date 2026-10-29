@@ -1,30 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { analyzePullUpVideo, type AnalyzeProgress } from "@/lib/pullup/analyze-video";
-import { exportAnalysedVideo } from "@/lib/pullup/export-video";
-import { averageQuality } from "@/lib/pullup/quality";
-import type { AnalysisResult, RepGrade, UserCalibration } from "@/lib/pullup/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { analyzeExerciseVideo, type GymAnalyzeProgress } from "@/lib/gym/analyze-exercise";
+import { exportGymAnalysedVideo } from "@/lib/gym/export-video";
+import { getExercise } from "@/lib/gym/registry";
+import { avgQuality } from "@/lib/gym/signal-reps";
+import type { ExerciseDefinition, GymAnalysisResult, GymCalibration } from "@/lib/gym/types";
+import type { RepGrade } from "@/lib/pullup/types";
+import ExerciseSelect from "./ExerciseSelect";
 import UploadScreen from "./UploadScreen";
 import CalibrateScreen from "./CalibrateScreen";
 import AnalysisView from "./AnalysisView";
 import ExportPanel, { type ExportSettings } from "./ExportPanel";
 
-type Step = "upload" | "calibrate" | "analyzing" | "results" | "exporting";
+type Step = "select" | "upload" | "calibrate" | "analyzing" | "results" | "exporting";
 
 export default function PullUpApp({ onBack }: { onBack: () => void }) {
-  const [step, setStep] = useState<Step>("upload");
+  const [step, setStep] = useState<Step>("select");
+  const [exercise, setExercise] = useState<ExerciseDefinition | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [meta, setMeta] = useState({
-    weightKg: null as number | null,
-    heightCm: null as number | null,
-    addedKg: 0,
+  const [meta, setMeta] = useState<{
+    weightKg: number | null;
+    heightCm: number | null;
+    externalLoadKg: number | null;
+  }>({
+    weightKg: null,
+    heightCm: null,
+    externalLoadKg: null,
   });
-  const [barY, setBarY] = useState(0.18);
+  const [referenceY, setReferenceY] = useState<number | null>(0.18);
   const [mirrored, setMirrored] = useState(false);
-  const [progress, setProgress] = useState<AnalyzeProgress | null>(null);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [progress, setProgress] = useState<GymAnalyzeProgress | null>(null);
+  const [analysis, setAnalysis] = useState<GymAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [showExportPanel, setShowExportPanel] = useState(false);
@@ -37,17 +45,6 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     };
   }, [fileUrl]);
 
-  const calibration: UserCalibration = useMemo(
-    () => ({
-      barY,
-      bodyWeightKg: meta.weightKg,
-      heightCm: meta.heightCm,
-      addedWeightKg: meta.addedKg,
-      metersPerImageHeight: null,
-    }),
-    [barY, meta],
-  );
-
   const resetAll = useCallback(() => {
     if (fileUrl) URL.revokeObjectURL(fileUrl);
     setFile(null);
@@ -58,10 +55,22 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     setExportMsg(null);
     setShowExportPanel(false);
     cacheKeyRef.current = null;
-    setStep("upload");
+    setStep("select");
   }, [fileUrl]);
 
-  const onUploadReady = (f: File, m: typeof meta): void => {
+  const onPickExercise = (ex: ExerciseDefinition): void => {
+    setExercise(ex);
+    setAnalysis(null);
+    setError(null);
+    cacheKeyRef.current = null;
+    setReferenceY(ex.id === "pull_up" ? 0.18 : ex.id === "squat" ? 0.55 : null);
+    setStep("upload");
+  };
+
+  const onUploadReady = (
+    f: File,
+    m: { weightKg: number | null; heightCm: number | null; externalLoadKg: number | null },
+  ): void => {
     if (fileUrl) URL.revokeObjectURL(fileUrl);
     setFile(f);
     setFileUrl(URL.createObjectURL(f));
@@ -72,8 +81,20 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     setStep("calibrate");
   };
 
-  const runAnalysis = async (nextBarY: number, nextMirrored: boolean): Promise<void> => {
-    setBarY(nextBarY);
+  const runAnalysis = async (nextRefY: number | null, nextMirrored: boolean): Promise<void> => {
+    if (!exercise) {
+      setError("Select an exercise first.");
+      setStep("select");
+      return;
+    }
+    const def = getExercise(exercise.id);
+    if (!def || def.status !== "ready") {
+      setError(`“${exercise.name}” is not implemented yet.`);
+      setStep("select");
+      return;
+    }
+
+    setReferenceY(nextRefY);
     setMirrored(nextMirrored);
     setStep("analyzing");
     setError(null);
@@ -86,7 +107,7 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    const cacheKey = `${file.name}:${file.size}:${file.lastModified}:${nextBarY.toFixed(3)}:${nextMirrored}:${meta.weightKg}:${meta.heightCm}:${meta.addedKg}`;
+    const cacheKey = `${exercise.id}:${file.name}:${file.size}:${file.lastModified}:${nextRefY}:${nextMirrored}:${meta.weightKg}:${meta.heightCm}:${meta.externalLoadKg}`;
     if (cacheKeyRef.current === cacheKey && analysis) {
       setStep("results");
       return;
@@ -102,15 +123,18 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
         video.load();
       });
 
-      const cal: UserCalibration = {
-        barY: nextBarY,
+      const cal: GymCalibration = {
+        exerciseId: exercise.id,
         bodyWeightKg: meta.weightKg,
         heightCm: meta.heightCm,
-        addedWeightKg: meta.addedKg,
+        externalLoadKg: meta.externalLoadKg,
+        mirrored: nextMirrored,
+        referenceY: nextRefY,
         metersPerImageHeight: null,
+        cameraView: exercise.cameraHint,
       };
 
-      const result = await analyzePullUpVideo(video, cal, setProgress, { sampleFps: 14 });
+      const result = await analyzeExerciseVideo(video, cal, setProgress, { sampleFps: 14 });
       setAnalysis(result);
       cacheKeyRef.current = cacheKey;
       setStep("results");
@@ -124,7 +148,7 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     setAnalysis((prev) => {
       if (!prev) return prev;
       const reps = prev.reps.map((r) => (r.index === repIndex ? { ...r, grade } : r));
-      return { ...prev, reps, avgQuality: averageQuality(reps) };
+      return { ...prev, reps, avgQuality: avgQuality(reps) };
     });
   };
 
@@ -146,18 +170,19 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     });
 
     try {
-      const result = await exportAnalysedVideo(video, analysis, {
+      const result = await exportGymAnalysedVideo(video, analysis, {
         includeAudio: settings.includeAudio,
         aspect: settings.aspect,
         heatmap: settings.heatmap,
         appendSummary: settings.appendSummary,
+        showBarPath: true,
         mirrored,
         onProgress: (pct, message) => setExportMsg(`${message} (${Math.round(pct * 100)}%)`),
       });
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pullup-analysis.${result.extension}`;
+      a.download = `${analysis.exerciseId}-analysis.${result.extension}`;
       a.click();
       URL.revokeObjectURL(url);
       setExportMsg(result.warning ? `Saved. Note: ${result.warning}` : "Saved analysed video.");
@@ -173,12 +198,23 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
     <div className="pu-root">
       <video ref={videoRef} className="pu-hidden-video" playsInline preload="auto" muted />
 
-      {step === "upload" ? <UploadScreen onBack={onBack} onReady={onUploadReady} /> : null}
+      {step === "select" ? (
+        <ExerciseSelect onBack={onBack} onPick={onPickExercise} />
+      ) : null}
 
-      {step === "calibrate" && fileUrl ? (
+      {step === "upload" && exercise ? (
+        <UploadScreen
+          exercise={exercise}
+          onBack={() => setStep("select")}
+          onReady={onUploadReady}
+        />
+      ) : null}
+
+      {step === "calibrate" && fileUrl && exercise ? (
         <CalibrateScreen
+          exercise={exercise}
           fileUrl={fileUrl}
-          initialBarY={barY}
+          initialReferenceY={referenceY}
           onBack={() => setStep("upload")}
           onConfirm={(y, m) => void runAnalysis(y, m)}
         />
@@ -192,8 +228,9 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
             <div style={{ width: `${Math.round((progress?.progress ?? 0) * 100)}%` }} />
           </div>
           <p className="pu-note">
-            Running MediaPipe Pose Landmarker on your video locally. Results are measured from your
-            footage — not a simulation.
+            Running MediaPipe Pose Landmarker on your video locally with the{" "}
+            {exercise?.name ?? "exercise"} detector. Results are measured from your footage — not a
+            simulation.
           </p>
         </div>
       ) : null}
@@ -235,12 +272,6 @@ export default function PullUpApp({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {exportMsg && step === "results" ? <div className="pu-toast-ok">{exportMsg}</div> : null}
-
-      {file ? (
-        <p className="sr-only">
-          Loaded {file.name} calibration bar {calibration.barY} mirrored {String(mirrored)}
-        </p>
-      ) : null}
     </div>
   );
 }
