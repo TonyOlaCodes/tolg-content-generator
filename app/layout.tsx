@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Elephant in the Room",
+  title: "Apps — Elephant & Pull Up Analysis",
   description:
-    "A real-time social deduction game: everyone has a job, someone is sabotaging it, and nobody talks about the elephant.",
-  applicationName: "Elephant in the Room",
+    "Choose Elephant in the Room or Pull Up Analysis by Fable and DyeAllPies.",
+  applicationName: "Apps",
 };
 
 export const viewport: Viewport = {
