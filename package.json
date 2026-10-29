@@ -10,8 +10,9 @@
     "build": "next build",
     "start": "NODE_ENV=production tsx main.ts",
     "server": "tsx server/index.ts",
-    "test": "tsx tests/integration.ts && tsx tests/pullup/rep-detector.test.ts",
+    "test": "tsx tests/integration.ts && tsx tests/pullup/rep-detector.test.ts && tsx tests/gym/signal-reps.test.ts",
     "test:pullup": "tsx tests/pullup/rep-detector.test.ts",
+    "test:gym": "tsx tests/gym/signal-reps.test.ts",
     "probe": "node tests/probe.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"

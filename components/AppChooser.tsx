@@ -22,10 +22,11 @@ const APPS: Array<{
   },
   {
     id: "pullup",
-    title: "Pull Up Analysis",
-    subtitle: "AI video analysis",
-    blurb: "Upload a real pull-up video for MediaPipe pose tracking, rep detection, and export.",
-    tags: ["Upload video", "Pose CV", "Export"],
+    title: "AI Exercise Analysis",
+    subtitle: "Gym video tracking",
+    blurb:
+      "Upload real lift footage for MediaPipe pose tracking across bench, deadlift, squat, pull-ups, crunches, and more.",
+    tags: ["Multi-exercise", "Pose CV", "Export"],
     accent: "#2ec4b6",
     icon: "🏋️",
   },
@@ -37,7 +38,9 @@ export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void
       <header className="chooser-header">
         <p className="chooser-kicker">Start screen</p>
         <h1 className="chooser-title">Choose an application</h1>
-        <p className="chooser-sub">Open either the hotel game or the pull-up analysis overlay.</p>
+        <p className="chooser-sub">
+          Open the hotel game or the AI gym exercise analysis platform.
+        </p>
       </header>
 
       <div className="chooser-grid">

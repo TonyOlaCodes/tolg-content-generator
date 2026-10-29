@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { findFrameAt, heightNorm, estimatePhase, verticalSpeed } from "@/lib/pullup/biomechanics";
+import { findFrameAt } from "@/lib/pullup/biomechanics";
 import { PoseTracker, type SegmentationMaskData } from "@/lib/pullup/pose-service";
-import { drawAnalysisFrame } from "@/lib/pullup/render-overlays";
-import type { AnalysisResult, RepGrade, RepRecord } from "@/lib/pullup/types";
+import { drawGymAnalysisFrame } from "@/lib/gym/render-overlays";
+import { getExercise } from "@/lib/gym/registry";
+import type { GenericRep, GymAnalysisResult } from "@/lib/gym/types";
+import type { RepGrade } from "@/lib/pullup/types";
 import SetSummary from "./SetSummary";
 
 const SPEEDS = [0.5, 1, 1.5, 2] as const;
@@ -19,7 +21,7 @@ export default function AnalysisView({
   onExport,
 }: {
   fileUrl: string;
-  analysis: AnalysisResult;
+  analysis: GymAnalysisResult;
   mirrored?: boolean;
   onBack: () => void;
   onAnother: () => void;
@@ -37,11 +39,14 @@ export default function AnalysisView({
   const [speedIdx, setSpeedIdx] = useState(1);
   const [t, setT] = useState(0);
   const [heatmap, setHeatmap] = useState(true);
+  const [barPath, setBarPath] = useState(true);
   const [metricsOpen, setMetricsOpen] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [selectedRep, setSelectedRep] = useState<number | null>(null);
 
   const speed = SPEEDS[speedIdx];
+  const def = getExercise(analysis.exerciseId);
+  const showEquipmentToggle = analysis.equipmentPath.length > 2;
 
   useEffect(() => {
     if (!heatmap) {
@@ -71,7 +76,7 @@ export default function AnalysisView({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawAnalysisFrame(ctx, video, analysis, {
+    drawGymAnalysisFrame(ctx, video, analysis, {
       width: w,
       height: h,
       t: video.currentTime,
@@ -79,11 +84,12 @@ export default function AnalysisView({
       showHud: metricsOpen,
       showGraph: true,
       showSummary: false,
+      showBarPath: barPath,
       selectedRepIndex: selectedRep,
       segmentationMask: maskRef.current,
       mirrored,
     });
-  }, [analysis, heatmap, metricsOpen, mirrored, selectedRep]);
+  }, [analysis, heatmap, metricsOpen, mirrored, selectedRep, barPath]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -101,7 +107,6 @@ export default function AnalysisView({
       if (cancelled) return;
       if (video) {
         setT(video.currentTime);
-        // Throttled live segmentation for silhouette heatmap
         if (heatmap && segTrackerRef.current && video.readyState >= 2) {
           const bucket = Math.floor(video.currentTime * 5);
           if (bucket !== lastMaskBucket.current) {
@@ -144,12 +149,7 @@ export default function AnalysisView({
   }, [syncCanvas]);
 
   const frame = useMemo(() => findFrameAt(analysis.frames, t), [analysis.frames, t]);
-  const height = heightNorm(
-    frame?.shoulderY ?? null,
-    analysis.hangShoulderY,
-    analysis.bestTopShoulderY,
-  );
-  const activeRep: RepRecord | null =
+  const activeRep: GenericRep | null =
     selectedRep != null
       ? (analysis.reps.find((r) => r.index === selectedRep) ?? null)
       : (analysis.reps.find((r) => t >= r.startT && t <= r.endT + 0.2) ?? null);
@@ -166,7 +166,7 @@ export default function AnalysisView({
     }
   };
 
-  const seekRep = (rep: RepRecord): void => {
+  const seekRep = (rep: GenericRep): void => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = rep.startT;
@@ -206,7 +206,7 @@ export default function AnalysisView({
           <button type="button" className="pu-back ghost" onClick={onBack}>
             ←
           </button>
-          <span className="pu-title-chip">Pull Up Analysis</span>
+          <span className="pu-title-chip">AI Exercise Analysis</span>
           <button
             type="button"
             className={`pu-chip ${metricsOpen ? "on" : ""}`}
@@ -222,6 +222,15 @@ export default function AnalysisView({
           >
             Heatmap
           </button>
+          {showEquipmentToggle ? (
+            <button
+              type="button"
+              className={`pu-chip ${barPath ? "on" : ""}`}
+              onClick={() => setBarPath((v) => !v)}
+            >
+              Path
+            </button>
+          ) : null}
         </div>
 
         {activeRep && metricsOpen ? (
@@ -238,8 +247,11 @@ export default function AnalysisView({
               </select>
             </div>
             <div className="pu-rep-grid">
-              <span>up {activeRep.upDuration.toFixed(2)} s</span>
-              <span>down {activeRep.downDuration.toFixed(2)} s</span>
+              <span>conc {activeRep.concentricSec.toFixed(2)} s</span>
+              <span>ecc {activeRep.eccentricSec.toFixed(2)} s</span>
+              {activeRep.pauseSec > 0.05 ? (
+                <span>pause {activeRep.pauseSec.toFixed(2)} s</span>
+              ) : null}
               <span>
                 peak{" "}
                 {activeRep.peakSpeedMs != null
@@ -252,15 +264,18 @@ export default function AnalysisView({
                   ? `${activeRep.romCm.toFixed(0)} cm`
                   : `${Math.round(activeRep.romNorm * 100)}%`}
               </span>
-              <span>chin {activeRep.chinClass}</span>
               <span>quality {activeRep.quality}/100</span>
+              {activeRep.depthClass ? <span>depth {activeRep.depthClass}</span> : null}
               <span>lockout {activeRep.lockOut ? "yes" : "no"}</span>
-              <span>
-                elbows{" "}
-                {activeRep.elbowAtTopL != null || activeRep.elbowAtTopR != null
-                  ? `${activeRep.elbowAtTopL != null ? Math.round(activeRep.elbowAtTopL) : "—"}° / ${activeRep.elbowAtTopR != null ? Math.round(activeRep.elbowAtTopR) : "—"}°`
-                  : "—"}
-              </span>
+              {(activeRep.elbowL != null || activeRep.elbowR != null) && (
+                <span>
+                  elbows{" "}
+                  {`${activeRep.elbowL != null ? Math.round(activeRep.elbowL) : "—"}° / ${activeRep.elbowR != null ? Math.round(activeRep.elbowR) : "—"}°`}
+                </span>
+              )}
+              {activeRep.torsoAngle != null ? (
+                <span>torso ~{Math.round(activeRep.torsoAngle)}°</span>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -308,6 +323,9 @@ export default function AnalysisView({
           <button type="button" onClick={onExport}>
             Export
           </button>
+          <button type="button" onClick={onAnother}>
+            New
+          </button>
         </div>
 
         <div className="pu-seek">
@@ -341,11 +359,7 @@ export default function AnalysisView({
       ) : null}
 
       <span className="sr-only">
-        phase {estimatePhase(height, 0, Boolean(frame?.landmarks), height > 0.8)} height{" "}
-        {Math.round(height * 100)}
-        {frame && analysis.frames.indexOf(frame) > 0
-          ? ` speed ${verticalSpeed(analysis.frames, analysis.frames.indexOf(frame), analysis.hangShoulderY, analysis.bestTopShoulderY, analysis.calibration).normPerSec.toFixed(2)}`
-          : ""}
+        {def?.name} phase {analysis.phaseAt(t)} gauge {Math.round(analysis.gaugeAt(t) * 100)}
       </span>
     </div>
   );
