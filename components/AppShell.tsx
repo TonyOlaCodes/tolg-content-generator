@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import AppChooser, { type AppId } from "./AppChooser";
 import GameApp from "./GameApp";
 import PullUpApp from "./pullup/PullUpApp";
+import WeatherApp from "@/app/weather/WeatherApp";
 
 const MuseumApp = dynamic(() => import("./museum/MuseumApp"), {
   ssr: false,
@@ -34,6 +35,14 @@ export default function AppShell({ initialCode }: { initialCode?: string }) {
     return (
       <main className="app-shell is-pullup">
         <PullUpApp onBack={backToChooser} />
+      </main>
+    );
+  }
+
+  if (app === "weather") {
+    return (
+      <main className="app-shell is-weather">
+        <WeatherApp onBack={backToChooser} />
       </main>
     );
   }

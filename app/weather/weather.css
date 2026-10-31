@@ -1,0 +1,163 @@
+.wx {
+  --wx-bg: #0d1424;
+  --wx-card: rgba(255, 255, 255, 0.08);
+  --wx-border: rgba(255, 255, 255, 0.14);
+  --wx-text: #f4f7ff;
+  --wx-muted: #a9b6d1;
+  --wx-accent: #7cc7ff;
+  --wx-focus: #ffd166;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  color: var(--wx-text);
+  background: linear-gradient(180deg, #13203a 0%, var(--wx-bg) 60%);
+  transition: background 0.6s ease;
+}
+.wx[data-wx="clear"] { background: linear-gradient(180deg, #1f5fa8 0%, #0d1f3d 70%); }
+.wx[data-wx="partly-cloudy"],
+.wx[data-wx="cloudy"] { background: linear-gradient(180deg, #3b4a63 0%, #161d2b 70%); }
+.wx[data-wx="rain"],
+.wx[data-wx="drizzle"],
+.wx[data-wx="showers"] { background: linear-gradient(180deg, #2c3b50 0%, #0e1622 70%); }
+.wx[data-wx="snow"],
+.wx[data-wx="snow-showers"] { background: linear-gradient(180deg, #5a6f8f 0%, #1a2433 70%); }
+.wx[data-wx="thunderstorm"] { background: linear-gradient(180deg, #2a2440 0%, #090b14 70%); }
+.wx[data-wx="fog"] { background: linear-gradient(180deg, #4a5566 0%, #1b2129 70%); }
+
+.wx:focus-visible,
+.wx button:focus-visible,
+.wx input:focus-visible,
+.wx a:focus-visible { outline: 3px solid var(--wx-focus); outline-offset: 2px; }
+
+.wx-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+.wx-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+.wx-back { color: var(--wx-accent); background: none; border: none; font: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; }
+.wx-spacer { min-width: 44px; }
+
+.wx-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
+.wx-tab, .wx-btn, .wx-save, .wx-link, .wx-list-actions button {
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--wx-border);
+  background: var(--wx-card);
+  color: var(--wx-text);
+  padding: 0 14px;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wx-tab.is-active { background: var(--wx-accent); color: #07111f; border-color: transparent; }
+.wx-link { border: none; background: none; color: var(--wx-accent); padding: 0 4px; }
+
+.wx-body { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; padding-bottom: 32px; max-width: 640px; margin: 0 auto; }
+.wx-stack { display: flex; flex-direction: column; gap: 12px; }
+.wx-card {
+  background: var(--wx-card);
+  border: 1px solid var(--wx-border);
+  border-radius: 20px;
+  padding: 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.wx-card h2, .wx-card h3 { margin: 0 0 8px; }
+.wx-card h3 { font-size: 1rem; }
+.wx-note, .wx-sub, .wx-disclaimer, .wx-clock { color: var(--wx-muted); font-size: 0.9rem; margin: 4px 0; }
+.wx-stale { color: #ffd166; }
+.wx-error-text { color: #ff9b9b; }
+.wx-meta { display: flex; justify-content: space-between; align-items: center; color: var(--wx-muted); font-size: 0.85rem; }
+
+.wx-hero { position: relative; text-align: center; }
+.wx-place { text-align: center; }
+.wx-place p { margin: 2px 0; }
+.wx-save { position: absolute; top: 12px; right: 12px; }
+.wx-temp-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; }
+.wx-icon { font-size: 4rem; line-height: 1; }
+.wx-temp { font-size: 5.5rem; font-weight: 200; letter-spacing: -0.04em; line-height: 1; }
+.wx-cond { font-size: 1.2rem; margin: 6px 0 0; }
+
+.wx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; }
+.wx-stat dt { font-size: 0.78rem; color: var(--wx-muted); }
+.wx-stat dd { margin: 2px 0 0; font-weight: 600; }
+.wx-day-detail { margin-top: 8px; }
+
+.wx-days, .wx-list, .wx-hours { list-style: none; margin: 0; padding: 0; }
+.wx-days > li + li, .wx-list > li + li { border-top: 1px solid var(--wx-border); }
+.wx-day {
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--wx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wx-day-name small { color: var(--wx-muted); }
+.wx-day-range { font-variant-numeric: tabular-nums; text-align: right; }
+.wx-range { position: relative; height: 6px; border-radius: 3px; background: var(--wx-border); }
+.wx-range > span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+
+.wx-hours { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+.wx-hours > li { flex: 0 0 auto; min-width: 72px; }
+.wx-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 6px;
+  border-radius: 16px;
+  border: 1px solid var(--wx-border);
+  background: var(--wx-card);
+  color: var(--wx-text);
+  font: inherit;
+  cursor: pointer;
+}
+.wx-hour-temp { font-weight: 600; }
+.wx-hour-pop { color: var(--wx-accent); font-size: 0.8rem; }
+
+.wx-list > li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wx-list > li.is-current .wx-list-main { color: var(--wx-accent); }
+.wx-list-main {
+  flex: 1;
+  min-height: 48px;
+  background: none;
+  border: none;
+  color: var(--wx-text);
+  font: inherit;
+  text-align: left;
+  padding: 8px 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+.wx-list-main.is-active { color: var(--wx-accent); }
+.wx-list-actions { display: flex; gap: 4px; }
+.wx-list-actions button { padding: 0 10px; }
+.wx-list-actions button:disabled { opacity: 0.4; }
+
+.wx-label { display: block; font-weight: 600; margin-bottom: 8px; }
+.wx-input {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--wx-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--wx-text);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px;
+}
+.wx-fieldset { border: 1px solid var(--wx-border); }
+.wx-fieldset legend { font-weight: 600; padding: 0 6px; }
+.wx-radio { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.wx-radio input { width: 20px; height: 20px; accent-color: var(--wx-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wx, .wx * { transition: none !important; animation: none !important; }
+}

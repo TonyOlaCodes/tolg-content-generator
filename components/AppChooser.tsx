@@ -1,6 +1,6 @@
 "use client";
 
-export type AppId = "elephant" | "pullup" | "museum";
+export type AppId = "elephant" | "pullup" | "museum" | "weather";
 
 const APPS: Array<{
   id: AppId;
@@ -40,6 +40,16 @@ const APPS: Array<{
     accent: "#e879f9",
     icon: "◇",
   },
+  {
+    id: "weather",
+    title: "Weather",
+    subtitle: "Forecasts worldwide",
+    blurb:
+      "Current conditions, hourly and 16-day forecasts, rain summaries, air quality, and saved places from Open-Meteo.",
+    tags: ["Worldwide", "16 days", "Air quality"],
+    accent: "#7cc7ff",
+    icon: "☁️",
+  },
 ];
 
 export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void }) {
@@ -49,7 +59,7 @@ export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void
         <p className="chooser-kicker">Start screen</p>
         <h1 className="chooser-title">Choose an application</h1>
         <p className="chooser-sub">
-          Open the hotel game, AI gym analysis, or The Impossible Museum.
+          Open the hotel game, AI gym analysis, The Impossible Museum, or Weather.
         </p>
       </header>
 

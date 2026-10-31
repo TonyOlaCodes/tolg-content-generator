@@ -1,0 +1,744 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useForecast } from "@/weather/useForecast";
+import { FALLBACK_PLACE, loadRecent, loadSaved, loadSelected, loadUnits, placeKey, pushRecent, saveRecent, saveSaved, saveSelected, saveUnits } from "@/weather/storage";
+import { describeWeatherCode, isWetCode } from "@/weather/codes";
+import {
+  formatPercent,
+  formatPrecip,
+  formatPressure,
+  formatTemp,
+  formatUv,
+  formatVisibility,
+  formatWind,
+  windDirectionLabel,
+} from "@/weather/units";
+import type { Forecast, Place, Units } from "@/weather/types";
+import { DEFAULT_UNITS } from "@/weather/types";
+import "./weather.css";
+
+type Section = "today" | "hourly" | "forecast" | "saved" | "settings";
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "hourly", label: "Hourly" },
+  { id: "forecast", label: "16 days" },
+  { id: "saved", label: "Places" },
+  { id: "settings", label: "Settings" },
+];
+
+/** Formats an Open-Meteo local ISO time ("2026-10-31T14:00") without touching the device time zone. */
+function localClock(iso: string | null, clock: Units["clock"]): string {
+  if (!iso) return "—";
+  const m = /T(\d{2}):(\d{2})/.exec(iso);
+  if (!m) return "—";
+  const h = Number(m[1]);
+  const min = m[2];
+  if (clock === "24h") return `${String(h).padStart(2, "0")}:${min}`;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${min} ${suffix}`;
+}
+
+function localDayLabel(iso: string): string {
+  const [y, mo, d] = iso.split("-").map(Number);
+  if (!y || !mo || !d) return iso;
+  return new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+}
+
+function localDateLabel(iso: string): string {
+  const [y, mo, d] = iso.split("-").map(Number);
+  if (!y || !mo || !d) return iso;
+  return new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function uvLabel(uv: number | null): string {
+  if (uv === null) return "Unavailable";
+  if (uv < 3) return "Low";
+  if (uv < 6) return "Moderate";
+  if (uv < 8) return "High";
+  if (uv < 11) return "Very high";
+  return "Extreme";
+}
+
+function aqiLabel(eu: number | null): string {
+  if (eu === null) return "Unavailable";
+  if (eu <= 20) return "Good";
+  if (eu <= 40) return "Fair";
+  if (eu <= 60) return "Moderate";
+  if (eu <= 80) return "Poor";
+  if (eu <= 100) return "Very poor";
+  return "Extremely poor";
+}
+
+function placeLabel(p: Place): string {
+  return [p.name, p.admin1, p.country].filter(Boolean).join(", ");
+}
+
+/** Plain-language summary built only from real hourly precipitation probabilities. */
+function rainSummary(forecast: Forecast): string {
+  const next = forecast.hourly.slice(0, 24);
+  const wet = next.filter((h) => (h.precipitationProbability ?? 0) >= 50);
+  if (wet.length === 0) {
+    const known = next.filter((h) => h.precipitationProbability !== null);
+    if (known.length === 0) return "Rain probability is unavailable for this location.";
+    return "No significant rain is forecast in the next 24 hours.";
+  }
+  const first = wet[0];
+  const hour = localClock(first.time, "24h");
+  return `Rain is likely from around ${hour} (${wet.length} of the next 24 hours at 50% or higher).`;
+}
+
+export default function WeatherApp({ onBack }: { onBack: () => void }) {
+  const [section, setSection] = useState<Section>("today");
+  const [units, setUnits] = useState<Units>(DEFAULT_UNITS);
+  const [saved, setSaved] = useState<Place[]>([]);
+  const [recent, setRecent] = useState<Place[]>([]);
+  const [selected, setSelected] = useState<Place>(FALLBACK_PLACE);
+  const [ready, setReady] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [openHour, setOpenHour] = useState<string | null>(null);
+
+  // Load local preferences only after mount, so server rendering never touches storage.
+  useEffect(() => {
+    setUnits(loadUnits());
+    setSaved(loadSaved());
+    setRecent(loadRecent());
+    const sel = loadSelected();
+    if (sel) setSelected(sel);
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (ready) saveSelected(selected);
+  }, [selected, ready]);
+
+  const weather = useForecast(ready ? selected : null, refreshToken);
+
+  const choosePlace = useCallback((place: Place) => {
+    setSelected(place);
+    setRecent((list) => {
+      const next = pushRecent(list, place);
+      saveRecent(next);
+      return next;
+    });
+    setOpenDay(null);
+    setOpenHour(null);
+    setSection("today");
+  }, []);
+
+  const isSaved = saved.some((p) => placeKey(p) === placeKey(selected));
+  const toggleSaved = useCallback(() => {
+    setSaved((list) => {
+      const exists = list.some((p) => placeKey(p) === placeKey(selected));
+      const next = exists ? list.filter((p) => placeKey(p) !== placeKey(selected)) : [...list, selected];
+      saveSaved(next);
+      return next;
+    });
+  }, [selected]);
+
+  const updateUnits = useCallback((patch: Partial<Units>) => {
+    setUnits((u) => {
+      const next = { ...u, ...patch };
+      saveUnits(next);
+      return next;
+    });
+  }, []);
+
+  const forecast = weather.status === "idle" ? null : weather.forecast;
+  const background = forecast ? describeWeatherCode(forecast.current.weatherCode, forecast.current.isDay).kind : "unknown";
+
+  return (
+    <main className="wx" data-wx={background}>
+      <header className="wx-top">
+        <button type="button" className="wx-back" onClick={onBack} aria-label="Back to all apps">
+          ‹ Apps
+        </button>
+        <h1 className="wx-title">Weather</h1>
+        <span className="wx-spacer" aria-hidden="true" />
+      </header>
+
+      <nav className="wx-tabs" aria-label="Weather sections">
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`wx-tab ${section === s.id ? "is-active" : ""}`}
+            aria-current={section === s.id ? "page" : undefined}
+            onClick={() => setSection(s.id)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
+      <section className="wx-body" aria-live="polite">
+        {weather.status === "loading" && !forecast ? (
+          <p className="wx-note" role="status">Loading the forecast for {selected.name}…</p>
+        ) : null}
+
+        {weather.status === "error" && !forecast ? (
+          <div className="wx-card wx-error" role="alert">
+            <p>{weather.message}</p>
+            <button type="button" className="wx-btn" onClick={() => setRefreshToken((n) => n + 1)}>
+              Try again
+            </button>
+          </div>
+        ) : null}
+
+        {weather.status === "ready" && weather.stale ? (
+          <p className="wx-note wx-stale" role="status">
+            Showing saved weather. It may be out of date.
+          </p>
+        ) : null}
+
+        {forecast ? (
+          <>
+            <div className="wx-meta">
+              <span>
+                Updated {localClock(forecast.current.time, units.clock)} local time ·{" "}
+                {new Date(forecast.fetchedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <button type="button" className="wx-link" onClick={() => setRefreshToken((n) => n + 1)}>
+                Refresh
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {section === "today" && forecast ? (
+          <TodayView forecast={forecast} place={selected} units={units} isSaved={isSaved} onToggleSaved={toggleSaved} openDay={openDay} setOpenDay={setOpenDay} />
+        ) : null}
+        {section === "hourly" && forecast ? (
+          <HourlyView forecast={forecast} units={units} openHour={openHour} setOpenHour={setOpenHour} />
+        ) : null}
+        {section === "forecast" && forecast ? (
+          <ForecastView forecast={forecast} units={units} openDay={openDay} setOpenDay={setOpenDay} />
+        ) : null}
+        {section === "saved" ? (
+          <PlacesView
+            saved={saved}
+            recent={recent}
+            current={selected}
+            units={units}
+            onChoose={choosePlace}
+            onRemove={(p) =>
+              setSaved((list) => {
+                const next = list.filter((x) => placeKey(x) !== placeKey(p));
+                saveSaved(next);
+                return next;
+              })
+            }
+            onMove={(index, dir) =>
+              setSaved((list) => {
+                const j = index + dir;
+                if (j < 0 || j >= list.length) return list;
+                const next = [...list];
+                [next[index], next[j]] = [next[j], next[index]];
+                saveSaved(next);
+                return next;
+              })
+            }
+          />
+        ) : null}
+        {section === "settings" ? <SettingsView units={units} onChange={updateUnits} /> : null}
+      </section>
+    </main>
+  );
+}
+
+function TodayView({
+  forecast,
+  place,
+  units,
+  isSaved,
+  onToggleSaved,
+  openDay,
+  setOpenDay,
+}: {
+  forecast: Forecast;
+  place: Place;
+  units: Units;
+  isSaved: boolean;
+  onToggleSaved: () => void;
+  openDay: string | null;
+  setOpenDay: (d: string | null) => void;
+}) {
+  const c = forecast.current;
+  const cond = describeWeatherCode(c.weatherCode, c.isDay);
+  const today = forecast.daily[0];
+  const aq = forecast.airQuality;
+  const uvNow = forecast.hourly.find((h) => h.time.slice(0, 13) === c.time.slice(0, 13))?.uvIndex ?? null;
+  const wet = isWetCode(c.weatherCode) || (c.precipitation ?? 0) > 0;
+  const nowHour = c.time.slice(0, 13);
+  const pop = forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.precipitationProbability ?? null;
+  const sun = today ? { rise: today.sunrise, set: today.sunset } : null;
+
+  return (
+    <div className={`wx-stack ${wet ? "is-wet" : ""}`}>
+      <div className="wx-hero wx-card">
+        <div className="wx-place">
+          <h2>{place.name}</h2>
+          <p>{[place.admin1, place.country].filter(Boolean).join(", ")}</p>
+          <p className="wx-clock">
+            Local time {localClock(c.time, units.clock)}
+            {forecast.timezone ? ` · ${forecast.timezone}` : ""}
+          </p>
+        </div>
+        <button type="button" className="wx-save" aria-pressed={isSaved} onClick={onToggleSaved}>
+          {isSaved ? "★ Saved" : "☆ Save"}
+        </button>
+        <div className="wx-temp-row">
+          <span className="wx-icon" role="img" aria-label={cond.label}>
+            {cond.icon}
+          </span>
+          <span className="wx-temp">{formatTemp(c.temperature, units)}</span>
+        </div>
+        <p className="wx-cond">{cond.label}</p>
+        <p className="wx-sub">
+          Feels like {formatTemp(c.apparentTemperature, units)}
+          {today ? ` · H ${formatTemp(today.temperatureMax, units)} / L ${formatTemp(today.temperatureMin, units)}` : ""}
+        </p>
+      </div>
+
+      <div className="wx-card">
+        <h3>Rain</h3>
+        <p>{rainSummary(forecast)}</p>
+        <dl className="wx-grid">
+          <Stat label="Rain chance now" value={formatPercent(pop)} />
+          <Stat label="Precipitation now" value={formatPrecip(c.precipitation, units)} />
+          <Stat label="Rain chance today (max)" value={formatPercent(today?.precipitationProbabilityMax ?? null)} />
+          <Stat label="Total today" value={formatPrecip(today?.precipitationSum ?? null, units)} />
+        </dl>
+      </div>
+
+      <div className="wx-card">
+        <h3>Conditions</h3>
+        <dl className="wx-grid">
+          <Stat label="Humidity" value={formatPercent(c.humidity)} />
+          <Stat label="Wind" value={`${formatWind(c.windSpeed, units)} ${windDirectionLabel(c.windDirection)}`.trim()} />
+          <Stat label="Gusts" value={formatWind(c.windGusts, units)} />
+          <Stat label="Pressure" value={formatPressure(c.pressure)} />
+          <Stat label="Cloud cover" value={formatPercent(c.cloudCover)} />
+          <Stat label="Visibility" value={formatVisibility(forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.visibility ?? null)} />
+          <Stat label="Dew point" value={formatTemp(forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.dewPoint ?? null, units)} />
+          <Stat label="UV index" value={`${formatUv(uvNow)} · ${uvLabel(uvNow)}`} />
+        </dl>
+      </div>
+
+      <div className="wx-card">
+        <h3>Sun</h3>
+        <dl className="wx-grid">
+          <Stat label="Sunrise" value={sun ? localClock(sun.rise, units.clock) : "—"} />
+          <Stat label="Sunset" value={sun ? localClock(sun.set, units.clock) : "—"} />
+          <Stat label="Max UV today" value={`${formatUv(today?.uvIndexMax ?? null)} · ${uvLabel(today?.uvIndexMax ?? null)}`} />
+        </dl>
+      </div>
+
+      <AirCard aq={aq} />
+
+      <div className="wx-card">
+        <h3>Days</h3>
+        <ul className="wx-days">
+          {forecast.daily.slice(0, 5).map((d) => {
+            const dc = describeWeatherCode(d.weatherCode, true);
+            const open = openDay === d.date;
+            return (
+              <li key={d.date}>
+                <button type="button" className="wx-day" aria-expanded={open} onClick={() => setOpenDay(open ? null : d.date)}>
+                  <span>{localDayLabel(d.date)}</span>
+                  <span role="img" aria-label={dc.label}>{dc.icon}</span>
+                  <span className="wx-day-range">
+                    {formatTemp(d.temperatureMin, units)} / {formatTemp(d.temperatureMax, units)}
+                  </span>
+                </button>
+                {open ? (
+                  <dl className="wx-grid wx-day-detail">
+                    <Stat label="Condition" value={dc.label} />
+                    <Stat label="Rain chance" value={formatPercent(d.precipitationProbabilityMax)} />
+                    <Stat label="Precipitation" value={formatPrecip(d.precipitationSum, units)} />
+                    <Stat label="Max wind" value={formatWind(d.windSpeedMax, units)} />
+                    <Stat label="UV max" value={formatUv(d.uvIndexMax)} />
+                    <Stat label="Sunrise / sunset" value={`${localClock(d.sunrise, units.clock)} / ${localClock(d.sunset, units.clock)}`} />
+                  </dl>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <p className="wx-disclaimer">
+        Forecasts are model estimates and can change. Weather data by{" "}
+        <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a>{" "}
+        (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>).
+      </p>
+    </div>
+  );
+}
+
+function AirCard({ aq }: { aq: Forecast["airQuality"] }) {
+  if (!aq) {
+    return (
+      <div className="wx-card">
+        <h3>Air quality</h3>
+        <p className="wx-sub">Air quality is unavailable for this location.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="wx-card">
+      <h3>Air quality</h3>
+      <p>
+        European AQI {aq.europeanAqi === null ? "—" : Math.round(aq.europeanAqi)} · {aqiLabel(aq.europeanAqi)}
+      </p>
+      <dl className="wx-grid">
+        <Stat label="US AQI" value={aq.usAqi === null ? "—" : String(Math.round(aq.usAqi))} />
+        <Stat label="PM2.5" value={aq.pm25 === null ? "—" : `${aq.pm25.toFixed(1)} µg/m³`} />
+        <Stat label="PM10" value={aq.pm10 === null ? "—" : `${aq.pm10.toFixed(1)} µg/m³`} />
+        <Stat label="Ozone" value={aq.ozone === null ? "—" : `${Math.round(aq.ozone)} µg/m³`} />
+        <Stat label="NO₂" value={aq.nitrogenDioxide === null ? "—" : `${Math.round(aq.nitrogenDioxide)} µg/m³`} />
+      </dl>
+    </div>
+  );
+}
+
+function HourlyView({
+  forecast,
+  units,
+  openHour,
+  setOpenHour,
+}: {
+  forecast: Forecast;
+  units: Units;
+  openHour: string | null;
+  setOpenHour: (t: string | null) => void;
+}) {
+  const nowKey = forecast.current.time.slice(0, 13);
+  const start = Math.max(0, forecast.hourly.findIndex((h) => h.time.slice(0, 13) === nowKey));
+  const hours = forecast.hourly.slice(start, start + 48);
+  if (hours.length === 0) {
+    return <p className="wx-note">No hourly forecast is available for this location.</p>;
+  }
+  return (
+    <div className="wx-stack">
+      <ul className="wx-hours" aria-label="Next 48 hours">
+        {hours.map((h) => {
+          const cond = describeWeatherCode(h.weatherCode, isDayHour(h.time, forecast));
+          const open = openHour === h.time;
+          return (
+            <li key={h.time}>
+              <button type="button" className="wx-hour" aria-expanded={open} onClick={() => setOpenHour(open ? null : h.time)}>
+                <span>{localClock(h.time, units.clock)}</span>
+                <span role="img" aria-label={cond.label}>{cond.icon}</span>
+                <span className="wx-hour-temp">{formatTemp(h.temperature, units)}</span>
+                <span className="wx-hour-pop">{formatPercent(h.precipitationProbability)}</span>
+              </button>
+              {open ? (
+                <dl className="wx-grid wx-day-detail">
+                  <Stat label="Feels like" value={formatTemp(h.apparentTemperature, units)} />
+                  <Stat label="Precipitation" value={formatPrecip(h.precipitation, units)} />
+                  <Stat label="Wind" value={formatWind(h.windSpeed, units)} />
+                  <Stat label="Humidity" value={formatPercent(h.humidity)} />
+                  <Stat label="UV" value={formatUv(h.uvIndex)} />
+                  <Stat label="Visibility" value={formatVisibility(h.visibility)} />
+                </dl>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Hour is "day" when its time falls between the day's sunrise and sunset. */
+function isDayHour(time: string, forecast: Forecast): boolean {
+  const date = time.slice(0, 10);
+  const day = forecast.daily.find((d) => d.date === date);
+  if (!day || !day.sunrise || !day.sunset) return true;
+  const t = time.slice(11, 16);
+  return t >= day.sunrise.slice(11, 16) && t < day.sunset.slice(11, 16);
+}
+
+function ForecastView({
+  forecast,
+  units,
+  openDay,
+  setOpenDay,
+}: {
+  forecast: Forecast;
+  units: Units;
+  openDay: string | null;
+  setOpenDay: (d: string | null) => void;
+}) {
+  const days = forecast.daily;
+  const lows = days.map((d) => d.temperatureMin).filter((v): v is number => v !== null);
+  const highs = days.map((d) => d.temperatureMax).filter((v): v is number => v !== null);
+  const min = lows.length ? Math.min(...lows) : 0;
+  const max = highs.length ? Math.max(...highs) : 0;
+  const span = max - min || 1;
+  if (days.length === 0) {
+    return <p className="wx-note">No daily forecast is available for this location.</p>;
+  }
+  return (
+    <div className="wx-stack">
+      <p className="wx-sub">Forecast for up to 16 days. Later days are less certain.</p>
+      <ul className="wx-days wx-card">
+        {days.map((d) => {
+          const cond = describeWeatherCode(d.weatherCode, true);
+          const open = openDay === d.date;
+          const hasRange = d.temperatureMin !== null && d.temperatureMax !== null;
+          const lo = d.temperatureMin ?? min;
+          const hi = d.temperatureMax ?? max;
+          const left = ((lo - min) / span) * 100;
+          const width = ((hi - lo) / span) * 100;
+          return (
+            <li key={d.date}>
+              <button type="button" className="wx-day" aria-expanded={open} onClick={() => setOpenDay(open ? null : d.date)}>
+                <span className="wx-day-name">
+                  {localDayLabel(d.date)} <small>{localDateLabel(d.date)}</small>
+                </span>
+                <span role="img" aria-label={cond.label}>{cond.icon}</span>
+                <span className="wx-range" aria-hidden="true">
+                  {hasRange ? <span style={{ left: `${left}%`, width: `${Math.max(width, 4)}%` }} /> : null}
+                </span>
+                <span className="wx-day-range">
+                  {formatTemp(d.temperatureMin, units)} / {formatTemp(d.temperatureMax, units)}
+                </span>
+              </button>
+              {open ? (
+                <dl className="wx-grid wx-day-detail">
+                  <Stat label="Condition" value={cond.label} />
+                  <Stat label="Rain chance" value={formatPercent(d.precipitationProbabilityMax)} />
+                  <Stat label="Precipitation" value={formatPrecip(d.precipitationSum, units)} />
+                  <Stat label="Max wind" value={formatWind(d.windSpeedMax, units)} />
+                  <Stat label="UV max" value={formatUv(d.uvIndexMax)} />
+                  <Stat label="Sunrise / sunset" value={`${localClock(d.sunrise, units.clock)} / ${localClock(d.sunset, units.clock)}`} />
+                </dl>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function PlacesView({
+  saved,
+  recent,
+  current,
+  units,
+  onChoose,
+  onRemove,
+  onMove,
+}: {
+  saved: Place[];
+  recent: Place[];
+  current: Place;
+  units: Units;
+  onChoose: (p: Place) => void;
+  onRemove: (p: Place) => void;
+  onMove: (index: number, dir: -1 | 1) => void;
+}) {
+  return (
+    <div className="wx-stack">
+      <LocationSearch onChoose={onChoose} />
+      <div className="wx-card">
+        <h3>Saved places</h3>
+        {saved.length === 0 ? (
+          <p className="wx-sub">No saved places yet. Use Save on the Today screen to add one.</p>
+        ) : (
+          <ul className="wx-list">
+            {saved.map((p, i) => (
+              <li key={placeKey(p)} className={placeKey(p) === placeKey(current) ? "is-current" : ""}>
+                <button type="button" className="wx-list-main" onClick={() => onChoose(p)}>
+                  {placeLabel(p)}
+                </button>
+                <span className="wx-list-actions">
+                  <button type="button" aria-label={`Move ${p.name} up`} disabled={i === 0} onClick={() => onMove(i, -1)}>↑</button>
+                  <button type="button" aria-label={`Move ${p.name} down`} disabled={i === saved.length - 1} onClick={() => onMove(i, 1)}>↓</button>
+                  <button type="button" aria-label={`Remove ${p.name}`} onClick={() => onRemove(p)}>✕</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {recent.length > 0 ? (
+        <div className="wx-card">
+          <h3>Recent</h3>
+          <ul className="wx-list">
+            {recent.map((p) => (
+              <li key={placeKey(p)}>
+                <button type="button" className="wx-list-main" onClick={() => onChoose(p)}>
+                  {placeLabel(p)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <p className="wx-sub">Showing {units.temperature === "fahrenheit" ? "°F" : "°C"} for all places.</p>
+    </div>
+  );
+}
+
+/** Debounced Open-Meteo place search; the server route caches and validates results. */
+function LocationSearch({ onChoose }: { onChoose: (p: Place) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Place[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [active, setActive] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      fetch(`/api/weather/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then(async (r) => {
+          const body = (await r.json().catch(() => null)) as { places?: Place[]; error?: string } | null;
+          if (!r.ok || !body || !Array.isArray(body.places)) {
+            throw new Error(body?.error ?? "Search is unavailable right now.");
+          }
+          setResults(body.places);
+          setError(null);
+          setActive(-1);
+        })
+        .catch((e: unknown) => {
+          if (controller.signal.aborted) return;
+          setResults(null);
+          setError(e instanceof Error ? e.message : "Search is unavailable right now.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
+  const choose = (p: Place) => {
+    setQuery("");
+    setResults(null);
+    onChoose(p);
+  };
+
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!results || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => Math.min(results.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => Math.max(0, i - 1));
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      choose(results[active]);
+    } else if (e.key === "Escape") {
+      setQuery("");
+    }
+  };
+
+  return (
+    <div className="wx-card">
+      <label htmlFor="wx-search" className="wx-label">Search any city, town or postcode</label>
+      <input
+        id="wx-search"
+        ref={inputRef}
+        className="wx-input"
+        type="search"
+        value={query}
+        placeholder="e.g. Lagos, Reykjavík, 10001"
+        autoComplete="off"
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={onKey}
+        role="combobox"
+        aria-expanded={Boolean(results && results.length)}
+        aria-controls="wx-results"
+        aria-activedescendant={active >= 0 ? `wx-opt-${active}` : undefined}
+      />
+      {loading ? <p className="wx-sub" role="status">Searching…</p> : null}
+      {error ? <p className="wx-error-text" role="alert">{error}</p> : null}
+      {results && results.length === 0 ? <p className="wx-sub">No places match “{query.trim()}”. Try a different spelling.</p> : null}
+      {results && results.length > 0 ? (
+        <ul id="wx-results" role="listbox" className="wx-list">
+          {results.map((p, i) => (
+            <li key={`${p.id}-${i}`}>
+              <button
+                id={`wx-opt-${i}`}
+                type="button"
+                role="option"
+                aria-selected={i === active}
+                className={`wx-list-main ${i === active ? "is-active" : ""}`}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => choose(p)}
+              >
+                <strong>{p.name}</strong>
+                <span className="wx-sub">{[p.admin1, p.country].filter(Boolean).join(", ")}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsView({ units, onChange }: { units: Units; onChange: (patch: Partial<Units>) => void }) {
+  return (
+    <div className="wx-stack">
+      <fieldset className="wx-card wx-fieldset">
+        <legend>Temperature</legend>
+        <Radio name="temp" value="celsius" checked={units.temperature === "celsius"} onChange={() => onChange({ temperature: "celsius" })} label="Celsius (°C)" />
+        <Radio name="temp" value="fahrenheit" checked={units.temperature === "fahrenheit"} onChange={() => onChange({ temperature: "fahrenheit" })} label="Fahrenheit (°F)" />
+      </fieldset>
+      <fieldset className="wx-card wx-fieldset">
+        <legend>Wind</legend>
+        <Radio name="wind" value="kmh" checked={units.wind === "kmh"} onChange={() => onChange({ wind: "kmh" })} label="km/h" />
+        <Radio name="wind" value="mph" checked={units.wind === "mph"} onChange={() => onChange({ wind: "mph" })} label="mph" />
+      </fieldset>
+      <fieldset className="wx-card wx-fieldset">
+        <legend>Precipitation</legend>
+        <Radio name="precip" value="mm" checked={units.precipitation === "mm"} onChange={() => onChange({ precipitation: "mm" })} label="Millimetres (mm)" />
+        <Radio name="precip" value="inch" checked={units.precipitation === "inch"} onChange={() => onChange({ precipitation: "inch" })} label="Inches (in)" />
+      </fieldset>
+      <fieldset className="wx-card wx-fieldset">
+        <legend>Time</legend>
+        <Radio name="clock" value="24h" checked={units.clock === "24h"} onChange={() => onChange({ clock: "24h" })} label="24-hour" />
+        <Radio name="clock" value="12h" checked={units.clock === "12h"} onChange={() => onChange({ clock: "12h" })} label="12-hour" />
+      </fieldset>
+    </div>
+  );
+}
+
+function Radio({ name, value, checked, onChange, label }: { name: string; value: string; checked: boolean; onChange: () => void; label: string }) {
+  return (
+    <label className="wx-radio">
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="wx-stat">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
