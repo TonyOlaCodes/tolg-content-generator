@@ -1,6 +1,6 @@
 "use client";
 
-export type AppId = "elephant" | "pullup" | "museum" | "weather";
+export type AppId = "elephant" | "pullup" | "museum" | "weather" | "fuel";
 
 const APPS: Array<{
   id: AppId;
@@ -49,6 +49,16 @@ const APPS: Array<{
     tags: ["Worldwide", "16 days", "Air quality"],
     accent: "#7cc7ff",
     icon: "☁️",
+  },
+  {
+    id: "fuel",
+    title: "Fuel Tracker",
+    subtitle: "Toyota Yaris 1.4 D-4D",
+    blurb:
+      "Refuels, drives, station comparison, and analytics for your car, with your Apple Notes history preloaded.",
+    tags: ["EUR · km", "Analytics", "Offline"],
+    accent: "#34d399",
+    icon: "⛽",
   },
 ];
 
