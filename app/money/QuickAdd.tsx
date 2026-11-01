@@ -7,107 +7,149 @@ import type { TxKind } from "@/money/types";
 import type { MoneyApi } from "./MoneyApp";
 
 const KINDS: { id: TxKind | "planned"; label: string }[] = [
-  { id: "expense", label: "Expense" },
-  { id: "income", label: "Income" },
+  { id: "expense", label: "Spent" },
+  { id: "income", label: "Money in" },
   { id: "transfer", label: "Transfer" },
   { id: "refund", label: "Refund" },
   { id: "planned", label: "Planned" },
-  { id: "adjustment", label: "Adjustment" },
+  { id: "adjustment", label: "Adjust balance" },
 ];
 
+/** Fast entry sheet: amount, then category, then confirm. Everything else sits under "More". */
 export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () => void; notify: (m: string) => void }) {
   const { snap, commit } = api;
   const accounts = snap.accounts.filter((a) => !a.archived);
   const categories = snap.categories.filter((c) => !c.archived && c.kind === "spending");
   const [kind, setKind] = useState<(typeof KINDS)[number]["id"]>("expense");
   const [amount, setAmount] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(todayISO());
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [toAccountId, setToAccountId] = useState(accounts[1]?.id ?? "");
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const [more, setMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const isTransfer = kind === "transfer";
   const isIncome = kind === "income";
+  const usesCategory = !isTransfer && !isIncome && kind !== "adjustment";
 
   const submit = async () => {
     if (busy) return;
-    const cents = parseEuroToCents(amount);
-    if (cents === null) return setError("Enter an amount like 12.50");
-    const txKind: TxKind = kind === "planned" ? "expense" : kind;
+    if (accounts.length === 0) return setError("Add an account first, so the balance can change.");
+    const raw = amount.trim();
+    const cents = parseEuroToCents(raw);
+    if (cents === null || cents === 0) return setError("Enter an amount like 12.50.");
+    if (kind !== "adjustment" && cents < 0) return setError("Enter a positive amount.");
+    const category = categories.find((c) => c.id === categoryId);
+    const fallback = isTransfer ? "Transfer" : isIncome ? "Money in" : category?.name ?? KINDS.find((k) => k.id === kind)?.label ?? "Spent";
     const input: TxInput = {
-      kind: txKind,
+      kind: kind === "planned" ? "expense" : kind,
       status: kind === "planned" ? "planned" : "confirmed",
       date,
-      amountCents: cents,
+      amountCents: Math.abs(cents),
       accountId: accountId || null,
       toAccountId: isTransfer ? toAccountId || null : null,
-      categoryId: isTransfer || isIncome ? null : categoryId || null,
-      description,
+      categoryId: usesCategory ? categoryId || null : null,
+      description: description.trim() || fallback,
       notes: "",
     };
     setBusy(true);
     const err = await commit(saveTransaction(snap, input, defaultCtx()));
     setBusy(false);
     if (err) return setError(err);
-    notify("Saved");
+    notify(kind === "planned" ? "Planned item saved" : "Saved");
     onClose();
   };
 
   return (
     <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
-      <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Quick add" onClick={(e) => e.stopPropagation()}>
+      <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Add transaction" onClick={(e) => e.stopPropagation()}>
+        <div className="money-sheet-grip" aria-hidden />
         <div className="money-sheet-head">
           <strong>Add</strong>
           <button type="button" className="money-link" onClick={onClose}>Cancel</button>
         </div>
-        <div className="money-seg" role="radiogroup" aria-label="Type">
-          {KINDS.map((k) => (
-            <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} className={`money-seg-btn${kind === k.id ? " is-active" : ""}`} onClick={() => setKind(k.id)}>
-              {k.label}
+
+        <label className="money-amount">
+          <span className="sr-only">Amount in euros</span>
+          <span className="money-amount-sign" aria-hidden>€</span>
+          <input
+            inputMode="decimal"
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            aria-label="Amount in euros"
+          />
+        </label>
+
+        {usesCategory && (
+          <div className="money-chips" role="radiogroup" aria-label="Category">
+            <button type="button" role="radio" aria-checked={categoryId === ""} className={`money-chip${categoryId === "" ? " is-active" : ""}`} onClick={() => setCategoryId("")}>
+              No category
             </button>
-          ))}
-        </div>
-        <label className="money-field">
-          <span>Amount (€)</span>
-          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-        </label>
-        <label className="money-field">
-          <span>Description</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} placeholder={isIncome ? "Salary, refund…" : "What for?"} />
-        </label>
-        <label className="money-field">
-          <span>Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label className="money-field">
-          <span>{isTransfer ? "From" : "Account"}</span>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </label>
-        {isTransfer && (
-          <label className="money-field">
-            <span>To</span>
-            <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </label>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={categoryId === c.id}
+                className={`money-chip${categoryId === c.id ? " is-active" : ""}`}
+                onClick={() => setCategoryId(c.id)}
+              >
+                <span aria-hidden>{c.icon}</span> {c.name}
+              </button>
+            ))}
+          </div>
         )}
-        {!isTransfer && !isIncome && (
-          <label className="money-field">
-            <span>Category</span>
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">None</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-            </select>
-          </label>
+
+        {more && (
+          <div className="money-more">
+            <div className="money-seg" role="radiogroup" aria-label="Type">
+              {KINDS.map((k) => (
+                <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} className={`money-seg-btn${kind === k.id ? " is-active" : ""}`} onClick={() => setKind(k.id)}>
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            <label className="money-field">
+              <span>Note</span>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} placeholder={isIncome ? "Salary, refund…" : "Lidl, bus ticket…"} />
+            </label>
+            <div className="money-grid2">
+              <label className="money-field">
+                <span>Date</span>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </label>
+              <label className="money-field">
+                <span>{isTransfer ? "From" : "Account"}</span>
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
+            </div>
+            {isTransfer && (
+              <label className="money-field">
+                <span>To</span>
+                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
         )}
+
+        <button type="button" className="money-link money-more-toggle" onClick={() => setMore((v) => !v)} aria-expanded={more}>
+          {more ? "Less" : "More options"}
+        </button>
+
         {error && <p className="money-error" role="alert">{error}</p>}
-        <button type="button" className="money-btn-primary" onClick={submit} disabled={busy}>
-          {busy ? "Saving…" : kind === "planned" ? "Save planned item" : "Save"}
+        {accounts.length === 0 && <p className="money-error" role="alert">Add an account first in the guided setup, so the balance can change.</p>}
+
+        <button type="button" className="money-btn-primary money-confirm" onClick={submit} disabled={busy || accounts.length === 0}>
+          {busy ? "Saving…" : kind === "planned" ? "Save planned item" : "Confirm"}
         </button>
       </div>
     </div>

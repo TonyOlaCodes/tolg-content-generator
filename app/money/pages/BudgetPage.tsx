@@ -2,116 +2,151 @@
 
 import { useState } from "react";
 import { currentPosition } from "@/money/engine";
-import { setAllocation, moveAllocation } from "@/money/actions";
+import { saveCategory, defaultCtx } from "@/money/actions";
 import { currentMonth, formatEUR, formatMonthIE, parseEuroToCents } from "@/money/money";
+import type { Category } from "@/money/types";
 import type { MoneyApi } from "../MoneyApp";
 
+/**
+ * Monthly spending plan. Each category's target is a plan, not money set aside:
+ * changing targets never changes account balances.
+ */
 export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m: string) => void }) {
   const { snap, commit } = api;
   const month = currentMonth();
   const row = currentPosition(snap, month);
-  const cats = snap.categories.filter((c) => !c.archived).sort((a, b) => a.order - b.order);
-  const [edit, setEdit] = useState<Record<string, string>>({});
-  const [moveFrom, setMoveFrom] = useState("");
+  const cats = snap.categories
+    .filter((c) => !c.archived && c.kind === "spending")
+    .sort((a, b) => a.order - b.order);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string>("");
+  const [busy, setBusy] = useState(false);
   const [moveTo, setMoveTo] = useState("");
   const [moveAmt, setMoveAmt] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const save = async (categoryId: string) => {
-    const raw = edit[categoryId];
-    if (raw === undefined || busy) return;
+  const planTotal = cats.reduce((s, c) => s + c.targetCents, 0);
+  const spentTotal = cats.reduce((s, c) => s + (row?.catSpent[c.id] ?? 0), 0);
+
+  const saveTarget = async (c: Category, raw: string) => {
     const cents = raw.trim() === "" ? 0 : parseEuroToCents(raw);
-    if (cents === null || cents < 0) return notify("Enter an amount of zero or more");
+    if (cents === null || cents < 0) return notify("Enter an amount of zero or more.");
+    if (cents === c.targetCents) return;
     setBusy(true);
-    const err = await commit(setAllocation(snap, month, categoryId, cents));
+    const err = await commit(
+      saveCategory(snap, { id: c.id, name: c.name, icon: c.icon, color: c.color, kind: c.kind, targetCents: cents, goalCents: c.goalCents }, defaultCtx()),
+    );
     setBusy(false);
-    if (err) return notify(err);
-    setEdit((e) => {
-      const next = { ...e };
-      delete next[categoryId];
-      return next;
-    });
-    notify("Allocation saved");
+    notify(err ?? `${c.name} target saved`);
   };
 
-  const move = async () => {
+  const moveBudget = async (from: Category) => {
     const cents = parseEuroToCents(moveAmt);
-    if (!moveFrom || !moveTo || cents === null) return notify("Choose two categories and an amount");
+    const to = cats.find((c) => c.id === moveTo);
+    if (!to || cents === null || cents <= 0) return notify("Choose a category and an amount above zero.");
+    if (cents > from.targetCents) return notify(`${from.name} only has ${formatEUR(from.targetCents)} planned.`);
+    const ctx = defaultCtx();
+    const a = saveCategory(snap, { id: from.id, name: from.name, icon: from.icon, color: from.color, kind: from.kind, targetCents: from.targetCents - cents, goalCents: from.goalCents }, ctx);
+    const b = saveCategory(snap, { id: to.id, name: to.name, icon: to.icon, color: to.color, kind: to.kind, targetCents: to.targetCents + cents, goalCents: to.goalCents }, ctx);
+    if (!a.ok) return notify(a.error);
+    if (!b.ok) return notify(b.error);
+    // Both plan changes are applied together so the move never half-happens.
     setBusy(true);
-    const err = await commit(moveAllocation(snap, month, moveFrom, moveTo, cents));
+    const err = await commit({ ok: true, change: { puts: [...a.change.puts, ...b.change.puts], deletes: [] } });
     setBusy(false);
     if (err) return notify(err);
     setMoveAmt("");
-    notify("Moved between categories");
+    notify(`Moved ${formatEUR(cents)} to ${to.name}`);
   };
-
-  const allocatedTotal = row?.allocatedEnd ?? 0;
-  const totalMoney = row?.totalEnd ?? 0;
-  const over = allocatedTotal > totalMoney;
 
   return (
     <div className="money-page">
-      <section className="money-panel">
-        <p className="money-kicker">{formatMonthIE(month)}</p>
-        <div className="money-grid2">
-          <div className="money-stat"><span className="money-muted">Total money</span><strong>{formatEUR(totalMoney)}</strong></div>
-          <div className="money-stat"><span className="money-muted">Unallocated</span><strong className={(row?.unallocatedEnd ?? 0) < 0 ? "is-neg" : ""}>{formatEUR(row?.unallocatedEnd ?? 0)}</strong></div>
-        </div>
-        {over && <p className="money-error" role="alert">Allocations exceed your total money by {formatEUR(allocatedTotal - totalMoney)}. Reduce an envelope before spending more.</p>}
+      <section className="money-block">
+        <p className="money-kicker">Spending plan · {formatMonthIE(month)}</p>
+        <p className="money-big">{formatEUR(spentTotal)} <span className="money-muted">of {formatEUR(planTotal)}</span></p>
+        <p className="money-muted money-small">
+          {planTotal === 0 ? "Set a monthly target for each category below." : `${formatEUR(Math.max(planTotal - spentTotal, 0))} left in your plan. Targets never reduce your balance.`}
+        </p>
       </section>
 
-      <section className="money-panel">
-        <h2 className="money-h2">Envelopes</h2>
-        <ul className="money-list">
-          {cats.map((c) => {
-            const alloc = row?.catAlloc[c.id] ?? 0;
-            const spent = row?.catSpent[c.id] ?? 0;
-            const left = row?.catEnd[c.id] ?? 0;
-            const pct = alloc > 0 ? Math.min(100, Math.round((spent / alloc) * 100)) : 0;
-            const value = edit[c.id] ?? (alloc ? (alloc / 100).toFixed(2) : "");
-            return (
-              <li key={c.id} className="money-env">
-                <div className="money-env-head">
-                  <span><span aria-hidden>{c.icon}</span> {c.name}</span>
-                  <strong className={left < 0 ? "is-neg" : ""}>{formatEUR(left)} left</strong>
-                </div>
-                <div className="money-bar" aria-hidden><span style={{ width: `${pct}%`, background: c.color }} /></div>
-                <div className="money-env-foot">
-                  <span className="money-muted">Spent {formatEUR(spent)} of {formatEUR(alloc)}</span>
-                  <span className="money-inline">
-                    <label className="sr-only" htmlFor={`alloc-${c.id}`}>Allocation for {c.name}</label>
-                    <input id={`alloc-${c.id}`} inputMode="decimal" className="money-input-sm" value={value} placeholder="0.00" onChange={(e) => setEdit((s) => ({ ...s, [c.id]: e.target.value }))} />
-                    <button type="button" className="money-link" disabled={busy || edit[c.id] === undefined} onClick={() => save(c.id)}>Save</button>
+      <ul className="money-cats">
+        {cats.map((c) => {
+          const spent = row?.catSpent[c.id] ?? 0;
+          const left = c.targetCents - spent;
+          const pct = c.targetCents > 0 ? Math.min(100, Math.round((spent / c.targetCents) * 100)) : 0;
+          const open = openId === c.id;
+          return (
+            <li key={c.id} className={`money-cat${open ? " is-open" : ""}`}>
+              <button
+                type="button"
+                className="money-cat-head"
+                aria-expanded={open}
+                onClick={() => {
+                  setOpenId(open ? null : c.id);
+                  setDraft((c.targetCents / 100).toFixed(2));
+                  setMoveTo("");
+                  setMoveAmt("");
+                }}
+              >
+                <span className="money-cat-name"><span aria-hidden>{c.icon}</span> {c.name}</span>
+                <span className="money-cat-figs">
+                  <span className="money-small money-muted">
+                    {formatEUR(spent)} of {formatEUR(c.targetCents)}
                   </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+                  <span className={`money-small ${left < 0 ? "is-neg" : "money-muted"}`}>
+                    {left < 0 ? `${formatEUR(-left)} over` : `${formatEUR(left)} left`}
+                  </span>
+                </span>
+              </button>
+              <div className="money-bar" aria-hidden>
+                <span style={{ width: `${pct}%`, background: c.color }} />
+              </div>
 
-      <section className="money-panel">
-        <h2 className="money-h2">Move allocation</h2>
-        <p className="money-muted">Moves money between envelopes. It is not income or spending.</p>
-        <div className="money-grid2">
-          <label className="money-field"><span>From</span>
-            <select value={moveFrom} onChange={(e) => setMoveFrom(e.target.value)}>
-              <option value="">Choose</option>
-              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <label className="money-field"><span>To</span>
-            <select value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
-              <option value="">Choose</option>
-              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-        </div>
-        <label className="money-field"><span>Amount (€)</span>
-          <input inputMode="decimal" value={moveAmt} onChange={(e) => setMoveAmt(e.target.value)} placeholder="0.00" />
-        </label>
-        <button type="button" className="money-btn-primary" disabled={busy} onClick={move}>Move</button>
-      </section>
+              {open && (
+                <div className="money-cat-editor">
+                  <label className="money-field">
+                    <span>Monthly target (€)</span>
+                    <input
+                      inputMode="decimal"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onBlur={() => saveTarget(c, draft)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      disabled={busy}
+                    />
+                  </label>
+                  <p className="money-small money-muted">Saves automatically when you leave the field.</p>
+
+                  {cats.length > 1 && (
+                    <div className="money-move">
+                      <p className="money-small money-muted">Move part of this plan to another category</p>
+                      <div className="money-move-row">
+                        <select aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                          <option value="">Choose</option>
+                          {cats.filter((x) => x.id !== c.id).map((x) => (
+                            <option key={x.id} value={x.id}>{x.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          inputMode="decimal"
+                          aria-label="Amount to move"
+                          placeholder="€0.00"
+                          value={moveAmt}
+                          onChange={(e) => setMoveAmt(e.target.value)}
+                        />
+                        <button type="button" className="money-btn-small" disabled={busy} onClick={() => moveBudget(c)}>Move</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {cats.length === 0 && <p className="money-muted">No spending categories yet. Add them in the guided setup.</p>}
     </div>
   );
 }

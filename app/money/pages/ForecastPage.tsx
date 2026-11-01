@@ -6,18 +6,22 @@ import { formatEUR, formatMonthIE, parseEuroToCents, todayISO } from "@/money/mo
 import { LineChart } from "../charts";
 import type { MoneyApi } from "../MoneyApp";
 
-export default function ForecastPage({ api }: { api: MoneyApi }) {
+const MILESTONES = [1, 3, 6, 12] as const;
+
+export default function ForecastPage({ api, onSetup }: { api: MoneyApi; onSetup?: () => void }) {
   const { snap } = api;
   const [scenario, setScenario] = useState<Scenario>("scheduled");
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number>(0);
   const [whatIfAmt, setWhatIfAmt] = useState("");
-  const [whatIfOn, setWhatIfOn] = useState(false);
   const today = todayISO();
+  const hasAccount = snap.accounts.some((a) => !a.archived);
+  const hasIncome = snap.recurring.some((r) => r.kind === "income" && r.status === "active");
 
+  // The what-if is a preview only: it is passed to the forecast engine and never saved.
   const extra = useMemo(() => {
     const cents = parseEuroToCents(whatIfAmt);
     const account = snap.accounts.find((a) => !a.archived);
-    if (!whatIfOn || !cents || cents <= 0 || !account) return [];
+    if (!cents || cents <= 0 || !account) return [];
     return [
       {
         kind: "expense" as const,
@@ -29,83 +33,112 @@ export default function ForecastPage({ api }: { api: MoneyApi }) {
         description: "What-if expense",
       },
     ];
-  }, [snap, whatIfAmt, whatIfOn, today]);
+  }, [snap, whatIfAmt, today]);
 
   const forecast = useMemo(
     () => buildForecast(snap, scenario, { extra }, 12, today),
     [snap, scenario, extra, today],
   );
 
-  const points = forecast.months.map((m) => ({ date: `${m.month}-01`, cents: m.end }));
-  const detail = openIdx !== null ? forecast.months[openIdx] : null;
+  const months = forecast.months;
+  const current = months[selected] ?? months[0];
+  const milestoneIdx = (n: number) => Math.min(n, months.length) - 1;
+  const points = months.map((m) => ({ date: `${m.month}-01`, cents: m.end }));
+  const needsSetup = !hasAccount || !hasIncome;
 
   return (
     <div className="money-page">
-      <section className="money-panel">
-        <div className="money-seg" role="radiogroup" aria-label="Scenario">
-          <button type="button" role="radio" aria-checked={scenario === "scheduled"} className={`money-seg-btn${scenario === "scheduled" ? " is-active" : ""}`} onClick={() => setScenario("scheduled")}>Scheduled only</button>
-          <button type="button" role="radio" aria-checked={scenario === "planned"} className={`money-seg-btn${scenario === "planned" ? " is-active" : ""}`} onClick={() => setScenario("planned")}>+ Planned spend</button>
+      <section className="money-block">
+        <p className="money-kicker">My future</p>
+        <div className="money-seg" role="radiogroup" aria-label="What to include">
+          <button type="button" role="radio" aria-checked={scenario === "scheduled"} className={`money-seg-btn${scenario === "scheduled" ? " is-active" : ""}`} onClick={() => setScenario("scheduled")}>Bills & salary</button>
+          <button type="button" role="radio" aria-checked={scenario === "planned"} className={`money-seg-btn${scenario === "planned" ? " is-active" : ""}`} onClick={() => setScenario("planned")}>+ Spending plan</button>
         </div>
-        <p className="money-muted">{scenario === "scheduled" ? "Only scheduled bills, salary and planned items." : "Adds each category's remaining plan, without repeating bills already scheduled."} An estimate, not a guarantee.</p>
+        <p className="money-muted money-small">
+          {scenario === "scheduled"
+            ? "Your confirmed balance plus expected salary, bills and planned items."
+            : "Also includes what is left in each category's monthly plan. Bills already in categories are not counted twice."}
+        </p>
         {forecast.warning && <p className="money-error" role="status">{forecast.warning}</p>}
       </section>
 
-      <section className="money-panel">
-        <h2 className="money-h2">Balance over 12 months</h2>
+      {needsSetup && (
+        <section className="money-block money-setup-card">
+          <p><strong>Forecasts need a little information.</strong></p>
+          <p className="money-muted money-small">
+            {!hasAccount ? "Add an account and its balance. " : ""}
+            {!hasIncome ? "Add your salary and payday." : ""}
+          </p>
+          {onSetup && <button type="button" className="money-btn-small" onClick={onSetup}>Finish setup</button>}
+        </section>
+      )}
+
+      <section className="money-stack">
+        <div className="money-milestones" role="tablist" aria-label="Months ahead">
+          {MILESTONES.map((n) => {
+            const idx = milestoneIdx(n);
+            const m = months[idx];
+            if (!m) return null;
+            return (
+              <button
+                key={n}
+                type="button"
+                role="tab"
+                aria-selected={selected === idx}
+                className={`money-milestone${selected === idx ? " is-active" : ""}`}
+                onClick={() => setSelected(idx)}
+              >
+                <span className="money-small money-muted">{n === 1 ? "Next month" : `${n} months`}</span>
+                <strong className={m.end < 0 ? "is-neg" : ""}>{formatEUR(m.end)}</strong>
+              </button>
+            );
+          })}
+        </div>
+
         <LineChart points={points} />
-        <p className="money-muted">Solid figures come from your confirmed transactions. Later months are projections.</p>
+        <p className="money-muted money-small">
+          Solid line: confirmed history. Later months are projections based on your plan.
+        </p>
       </section>
 
-      <section className="money-panel">
-        <h2 className="money-h2">What if</h2>
-        <p className="money-muted">Preview an extra expense today. It is not saved and does not change your actual finances.</p>
+      {current && (
+        <section className="money-block">
+          <p className="money-kicker">{formatMonthIE(current.month)}</p>
+          <div className="money-grid2">
+            <div className="money-stat"><span className="money-muted money-small">Starts with</span><strong>{formatEUR(current.start)}</strong></div>
+            <div className="money-stat"><span className="money-muted money-small">Ends with</span><strong className={current.end < 0 ? "is-neg" : ""}>{formatEUR(current.end)}</strong></div>
+            <div className="money-stat"><span className="money-muted money-small">Income</span><strong>{formatEUR(current.income)}</strong></div>
+            <div className="money-stat"><span className="money-muted money-small">Spending & bills</span><strong>{formatEUR(current.outflow)}</strong></div>
+          </div>
+          {current.items.length > 0 && (
+            <details className="money-more">
+              <summary className="money-link">What&apos;s included</summary>
+              <ul className="money-list">
+                {current.items.map((it, j) => (
+                  <li key={j} className="money-row">
+                    <span>{it.label}{it.projected ? " (projected)" : ""}</span>
+                    <strong>{formatEUR(it.amountCents)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
+
+      <section className="money-block">
+        <p className="money-kicker">What if I spend or save?</p>
+        <p className="money-muted money-small">Preview an extra expense today. It is not saved.</p>
         <div className="money-inline">
           <input inputMode="decimal" aria-label="Hypothetical expense" value={whatIfAmt} placeholder="0.00" onChange={(e) => setWhatIfAmt(e.target.value)} />
-          <button type="button" className="money-btn-small" onClick={() => setWhatIfOn((v) => !v)} disabled={!parseEuroToCents(whatIfAmt)}>
-            {whatIfOn ? "Remove" : "Preview"}
-          </button>
+          {whatIfAmt && <button type="button" className="money-link" onClick={() => setWhatIfAmt("")}>Clear</button>}
         </div>
+        {extra.length > 0 && current && (
+          <p className="money-small">
+            Ends {formatMonthIE(current.month)} with <strong>{formatEUR(current.end)}</strong> including this preview.
+          </p>
+        )}
       </section>
-
-      <section className="money-panel">
-        <h2 className="money-h2">Month by month</h2>
-        <ul className="money-list">
-          {forecast.months.map((m, i) => (
-            <li key={m.month}>
-              <button type="button" className="money-month" onClick={() => setOpenIdx(i)}>
-                <span>{formatMonthIE(m.month)}</span>
-                <span className="money-muted">{formatEUR(m.start)} → {formatEUR(m.end)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {detail && (
-        <div className="money-sheet-backdrop" role="presentation" onClick={() => setOpenIdx(null)}>
-          <div className="money-sheet" role="dialog" aria-modal="true" aria-label={`Forecast for ${formatMonthIE(detail.month)}`} onClick={(e) => e.stopPropagation()}>
-            <div className="money-sheet-head">
-              <strong>{formatMonthIE(detail.month)}</strong>
-              <button type="button" className="money-link" onClick={() => setOpenIdx(null)}>Close</button>
-            </div>
-            <div className="money-grid2">
-              <div className="money-stat"><span className="money-muted">Start</span><strong>{formatEUR(detail.start)}</strong></div>
-              <div className="money-stat"><span className="money-muted">End</span><strong className={detail.end < 0 ? "is-neg" : ""}>{formatEUR(detail.end)}</strong></div>
-              <div className="money-stat"><span className="money-muted">Income</span><strong>{formatEUR(detail.income)}</strong></div>
-              <div className="money-stat"><span className="money-muted">Outflow</span><strong>{formatEUR(detail.outflow)}</strong></div>
-            </div>
-            <p className="money-muted">Projected income {formatEUR(detail.projectedIncome)} · projected outflow {formatEUR(detail.projectedOutflow)}</p>
-            <ul className="money-list">
-              {detail.items.map((it, j) => (
-                <li key={j} className="money-row">
-                  <span>{it.label}{it.projected ? " (projected)" : ""}</span>
-                  <strong>{formatEUR(it.amountCents)}</strong>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

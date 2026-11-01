@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
-import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation } from "../money/actions";
+import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory } from "../money/actions";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
 
@@ -131,6 +131,36 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   const broken = JSON.parse(json);
   broken.data.transactions = [{ id: "x", kind: "expense", status: "confirmed", date: "2026-11-01", amountCents: 100, accountId: "missing", toAccountId: null, categoryId: null, description: "x", notes: "", recurringId: null, occurrenceDate: null, reverses: false, reversedBy: null, createdAt: "", updatedAt: "" } satisfies Transaction];
   assert.equal(validateBackup(broken).ok, false);
+}
+
+// --- starting at €0: budget targets are plans and never reduce the balance
+{
+  const zero: Snapshot = { ...base, accounts: base.accounts.map((a) => (a.id === "cur" ? { ...a, openingCents: 0 } : a)) };
+  const food = zero.categories.find((c) => c.id === "food");
+  assert.ok(food, "food category exists");
+  const r = saveCategory(zero, { id: "food", name: food.name, icon: food.icon, color: food.color, kind: food.kind, targetCents: 25_000, goalCents: food.goalCents }, ctx);
+  assert.ok(r.ok, r.ok ? "" : r.error);
+  const saved = apply(zero, r.ok ? r.change : { puts: [] });
+  assert.equal(saved.categories.find((c) => c.id === "food")?.targetCents, 25_000);
+  assert.equal(bal(saved, "cur"), 0, "a target must not change the account balance");
+  assert.equal(buildTimeline(saved, [], { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"].totalEnd, 0);
+}
+
+// --- moving plan amounts between categories keeps balances and total money unchanged
+{
+  const before = buildTimeline(base, [], { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"];
+  const food = base.categories.find((c) => c.id === "food");
+  const transport = base.categories.find((c) => c.id === "transport");
+  assert.ok(food && transport);
+  const r1 = saveCategory(base, { id: "food", name: food.name, icon: food.icon, color: food.color, kind: food.kind, targetCents: food.targetCents - 5_000, goalCents: food.goalCents }, ctx);
+  assert.ok(r1.ok);
+  const mid = apply(base, r1.ok ? r1.change : { puts: [] });
+  const r2 = saveCategory(mid, { id: "transport", name: transport.name, icon: transport.icon, color: transport.color, kind: transport.kind, targetCents: transport.targetCents + 5_000, goalCents: transport.goalCents }, ctx);
+  assert.ok(r2.ok);
+  const moved = apply(mid, r2.ok ? r2.change : { puts: [] });
+  const after = buildTimeline(moved, [], { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"];
+  assert.equal(after.totalEnd, before.totalEnd);
+  assert.equal(bal(moved, "cur"), bal(base, "cur"));
 }
 
 console.log("money tests passed");
