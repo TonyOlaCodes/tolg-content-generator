@@ -65,6 +65,8 @@ function MetricIcon({ metric }: { metric: MetricKey }) {
   }
 }
 
+export type CardStatus = "empty" | "progress" | "done";
+
 function Card({
   metric,
   wide,
@@ -72,7 +74,7 @@ function Card({
   label,
   value,
   addLabel,
-  empty,
+  status,
   children,
   footer,
 }: {
@@ -82,23 +84,40 @@ function Card({
   label: string;
   value: string;
   addLabel: string;
-  empty: boolean;
+  status: CardStatus;
   children?: ReactNode;
   footer?: ReactNode;
 }) {
   const meta = METRIC_META[metric];
+  const empty = status === "empty";
+  const statusText = status === "done" ? ", complete" : status === "progress" ? ", goal not reached yet" : "";
   return (
     <article
-      className={`daily-card${wide ? " is-wide" : ""}${empty ? " is-empty" : ""}`}
+      className={`daily-card${wide ? " is-wide" : ""}${empty ? " is-empty" : ""}${status === "done" ? " is-done" : ""}`}
       style={{ ["--daily-accent" as string]: meta.accent }}
     >
-      <button type="button" className="daily-card-tap" onClick={onOpen} aria-label={`${label}: ${empty ? `no entry, ${addLabel}` : value}. Open editor.`}>
+      <button
+        type="button"
+        className="daily-card-tap"
+        onClick={onOpen}
+        aria-label={`${label}: ${empty ? `no entry, ${addLabel}` : value}${statusText}. Open editor.`}
+      >
         <span className="daily-card-top">
           <span className="daily-card-icon" aria-hidden>
             <MetricIcon metric={metric} />
           </span>
           <span className="daily-card-label">{label}</span>
-          <span className="daily-card-chevron" aria-hidden>›</span>
+          {status === "done" ? (
+            <span className="daily-card-state" aria-hidden>
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="m6 12.5 4 4 8-9" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          ) : status === "progress" ? (
+            <span className="daily-card-state is-progress" aria-hidden />
+          ) : (
+            <span className="daily-card-chevron" aria-hidden>›</span>
+          )}
         </span>
         <span className="daily-card-value">
           {empty ? (
@@ -117,7 +136,7 @@ function Card({
   );
 }
 
-function StepsCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+function StepsCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const goal = api.settings.stepGoal;
   const percent = view.steps === null ? null : (view.steps / goal) * 100;
   const remaining = view.steps === null ? null : Math.max(0, goal - view.steps);
@@ -128,7 +147,7 @@ function StepsCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide:
       label="Steps"
       value={view.steps === null ? "Not logged" : `${formatInt(view.steps)} steps`}
       addLabel="Add"
-      empty={view.steps === null}
+      status={status}
       onOpen={() => api.openSheet({ kind: "steps" })}
     >
       <div className="daily-steps-body">
@@ -157,7 +176,7 @@ function StepsCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide:
   );
 }
 
-function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const unit = api.settings.weightUnit;
   const overview = weightOverview(api.snap, api.today);
   const latest = overview.latest;
@@ -180,7 +199,7 @@ function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide
       label="Weight"
       value={latest ? formatWeight(dayEntry ?? latest.kg, unit) : "Not logged"}
       addLabel="Add"
-      empty={!latest}
+      status={status}
       onOpen={() => api.openSheet({ kind: "weight" })}
     >
       <span className="daily-card-meta">
@@ -205,7 +224,7 @@ function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide
   );
 }
 
-function CaloriesCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+function CaloriesCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const goal = api.settings.calorieGoal;
   const percent = view.calories !== null && goal ? (view.calories / goal) * 100 : null;
   return (
@@ -215,7 +234,7 @@ function CaloriesCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wi
       label="Calories"
       value={view.calories === null ? "Not logged" : formatCalories(view.calories)}
       addLabel="Add"
-      empty={view.calories === null}
+      status={status}
       onOpen={() => api.openSheet({ kind: "calories" })}
     >
       {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.calories.ring} label="Calorie goal progress" /> : null}
@@ -239,7 +258,7 @@ function CaloriesCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wi
   );
 }
 
-function SleepCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const week = seriesForMetric(
     api.snap,
     Array.from({ length: 7 }, (_, i) => addDays(api.today, -6 + i)),
@@ -255,7 +274,7 @@ function SleepCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide:
       label="Sleep"
       value={view.sleepMinutes === null ? "Not logged" : formatDuration(view.sleepMinutes)}
       addLabel="Add"
-      empty={view.sleepMinutes === null}
+      status={status}
       onOpen={() => api.openSheet({ kind: "sleep" })}
     >
       <span className="daily-card-meta">
@@ -276,7 +295,7 @@ function SleepCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide:
   );
 }
 
-function WaterCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+function WaterCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const goal = api.settings.waterGoalMl;
   const percent = view.waterMl === null ? null : (view.waterMl / goal) * 100;
   const quick = (ml: number) => {
@@ -289,7 +308,7 @@ function WaterCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide:
       label="Water"
       value={view.waterMl === null ? "Not logged" : `${formatWater(view.waterMl)} of ${formatWater(goal)}`}
       addLabel="Add"
-      empty={view.waterMl === null}
+      status={status}
       onOpen={() => api.openSheet({ kind: "water" })}
       footer={
         <div className="daily-card-quick">
@@ -327,22 +346,32 @@ export default function TodayPage({ api }: { api: DailyApi }) {
   const settings = settingsOf(api.snap);
   const view = dayMetrics(api.snap, api.selected);
   const metrics = visibleMetrics(settings);
-  const logged = metrics.filter((metric) => {
-    switch (metric) {
-      case "steps":
-        return view.steps !== null;
-      case "weight":
-        return latestWeight(api.snap) !== null;
-      case "calories":
-        return view.calories !== null;
-      case "sleep":
-        return view.sleepMinutes !== null;
-      case "water":
-        return view.waterMl !== null;
-    }
-  }).length;
   const streak = currentStreak(api.snap, api.today);
   const dayHighlights = api.snap.highlights.filter((h) => h.date === api.selected);
+
+  const statusFor = (metric: MetricKey): CardStatus => {
+    switch (metric) {
+      case "steps":
+        if (view.steps === null) return "empty";
+        return view.steps >= settings.stepGoal ? "done" : "progress";
+      case "water":
+        if (view.waterMl === null) return "empty";
+        return view.waterMl >= settings.waterGoalMl ? "done" : "progress";
+      case "calories":
+        if (view.calories === null) return "empty";
+        return settings.calorieGoal !== null && view.calories > settings.calorieGoal ? "progress" : "done";
+      case "sleep":
+        return view.sleepMinutes === null ? "empty" : "done";
+      case "weight":
+        // Weigh-ins are not a daily requirement; any recorded weight is complete.
+        return latestWeight(api.snap) !== null ? "done" : "empty";
+    }
+  };
+  const statusRank: Record<CardStatus, number> = { empty: 0, progress: 1, done: 2 };
+  // Unfinished first, completed last; the user's card order is kept inside each group.
+  const sortedMetrics = [...metrics].sort((a, b) => statusRank[statusFor(a)] - statusRank[statusFor(b)]);
+  const logged = metrics.filter((metric) => statusFor(metric) !== "empty").length;
+  const missing = metrics.filter((metric) => statusFor(metric) === "empty").length;
 
   const go = (delta: number) => {
     const next = addDays(api.selected, delta);
@@ -352,22 +381,23 @@ export default function TodayPage({ api }: { api: DailyApi }) {
 
   // When an odd number of compact cards remains, let the last one fill the row
   // instead of leaving a blank half-card hole in the grid.
-  const compactMetrics = metrics.filter((metric) => metric !== "steps" && metric !== "water");
+  const compactMetrics = sortedMetrics.filter((metric) => metric !== "steps" && metric !== "water");
   const wideLastCompact = compactMetrics.length % 2 === 1 ? compactMetrics[compactMetrics.length - 1] : null;
 
   const renderCard = (metric: MetricKey) => {
     const wide = metric === "steps" || metric === "water" || metric === wideLastCompact;
+    const status = statusFor(metric);
     switch (metric) {
       case "steps":
-        return <StepsCard key={metric} api={api} view={view} wide={wide} />;
+        return <StepsCard key={metric} api={api} view={view} wide={wide} status={status} />;
       case "weight":
-        return <WeightCard key={metric} api={api} view={view} wide={wide} />;
+        return <WeightCard key={metric} api={api} view={view} wide={wide} status={status} />;
       case "calories":
-        return <CaloriesCard key={metric} api={api} view={view} wide={wide} />;
+        return <CaloriesCard key={metric} api={api} view={view} wide={wide} status={status} />;
       case "sleep":
-        return <SleepCard key={metric} api={api} view={view} wide={wide} />;
+        return <SleepCard key={metric} api={api} view={view} wide={wide} status={status} />;
       case "water":
-        return <WaterCard key={metric} api={api} view={view} wide={wide} />;
+        return <WaterCard key={metric} api={api} view={view} wide={wide} status={status} />;
     }
   };
 
@@ -431,30 +461,29 @@ export default function TodayPage({ api }: { api: DailyApi }) {
 
         <div className="daily-summary">
           <div className="daily-summary-dots" aria-hidden>
-            {metrics.map((metric) => {
-              const done =
-                (metric === "steps" && view.steps !== null) ||
-                (metric === "weight" && latestWeight(api.snap) !== null) ||
-                (metric === "calories" && view.calories !== null) ||
-                (metric === "sleep" && view.sleepMinutes !== null) ||
-                (metric === "water" && view.waterMl !== null);
-              return (
-                <span
-                  key={metric}
-                  className={`daily-summary-dot${done ? " is-on" : ""}`}
-                  style={{ ["--daily-accent" as string]: METRIC_META[metric].accent }}
-                />
-              );
-            })}
+            {sortedMetrics.map((metric) => (
+              <span
+                key={metric}
+                className={`daily-summary-dot${statusFor(metric) !== "empty" ? " is-on" : ""}`}
+                style={{ ["--daily-accent" as string]: METRIC_META[metric].accent }}
+              />
+            ))}
           </div>
-          <span>
-            {logged} of {metrics.length} logged
-          </span>
+          {missing > 0 ? (
+            <>
+              <span className="daily-summary-missing">{missing} not logged</span>
+              <span>
+                {logged} of {metrics.length} entered
+              </span>
+            </>
+          ) : (
+            <span className="daily-summary-complete">All {metrics.length} logged</span>
+          )}
           {streak > 1 ? <span className="daily-summary-streak">{streak}-day streak</span> : null}
         </div>
       </header>
 
-      <div className="daily-metric-grid">{metrics.map(renderCard)}</div>
+      <div className="daily-metric-grid">{sortedMetrics.map(renderCard)}</div>
 
       <section className="daily-highlight-strip">
         <div className="daily-highlight-strip-head">

@@ -289,6 +289,16 @@
   box-shadow: 0 0 8px color-mix(in srgb, var(--daily-accent) 70%, transparent);
 }
 
+.daily-summary-missing {
+  color: #ffc978;
+  font-weight: 620;
+}
+
+.daily-summary-complete {
+  color: #8fe3c6;
+  font-weight: 620;
+}
+
 .daily-summary-streak {
   margin-left: auto;
   padding: 3px 10px;
@@ -320,6 +330,57 @@
 
 .daily-card.is-wide {
   grid-column: 1 / -1;
+}
+
+/* Missing data is deliberately obvious: dashed accent edge, brighter Add. */
+.daily-card.is-empty {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--daily-accent) 34%, var(--daily-line));
+}
+
+.daily-card.is-empty .daily-card-missing {
+  color: color-mix(in srgb, var(--daily-accent) 78%, #ffffff);
+  font-weight: 620;
+}
+
+/* Completed cards sit at the bottom and carry a quiet check mark. */
+.daily-card.is-done {
+  opacity: 0.94;
+}
+
+.daily-card.is-done .daily-card-chevron {
+  display: none;
+}
+
+.daily-card-state {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(99, 230, 190, 0.14);
+  color: #8fe3c6;
+}
+
+.daily-card-state svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.daily-card-state.is-progress {
+  background: rgba(255, 201, 120, 0.14);
+  color: #ffc978;
+}
+
+.daily-card-state.is-progress::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .daily-card::before {

@@ -257,7 +257,10 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
         <p className="daily-hint">Theme follows your existing DetailFlows appearance. Times use 24-hour format.</p>
       </Section>
 
-      <Section title="Metric cards" hint="Reorder cards with the arrows. Hidden cards keep all of their stored data.">
+      <Section
+        title="Metric cards"
+        hint="Reorder cards with the arrows. Hidden cards keep all of their stored data. Today lists unfinished cards first and moves completed ones to the bottom."
+      >
         <ul className="daily-order-list">
           {settings.metricOrder.map((metric, index) => {
             const hidden = settings.hiddenMetrics.includes(metric);
