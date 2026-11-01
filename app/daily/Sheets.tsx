@@ -16,7 +16,7 @@ import {
 } from "@/daily/actions";
 import { weightsForDate, waterTotalForDate } from "@/daily/logic";
 import { dayLabel } from "@/daily/date";
-import { formatDuration, formatWater, formatWeight, kgToUnit, unitToKg } from "@/daily/format";
+import { formatDuration, formatWater, kgToUnit, unitToKg } from "@/daily/format";
 import { METRIC_META, type Highlight } from "@/daily/model";
 import { ProgressBar, ProgressRing } from "./charts";
 import { shrinkPhoto } from "./photo";
@@ -229,9 +229,6 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         inputMode="numeric"
         placeholder="e.g. 7450"
       />
-      <p className="daily-hint">
-        Leave blank and save to mark this day as not recorded. Zero is kept as a real value. Your step goal is changed in Settings.
-      </p>
     </SheetShell>
   );
 }
@@ -310,10 +307,6 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         inputMode="numeric"
         placeholder="e.g. 3450"
       />
-      <p className="daily-hint">
-        One total per day. This app is not a food diary and has nothing to do with Groceries &amp; Pantry. Your calorie goal is changed in
-        Settings.
-      </p>
     </SheetShell>
   );
 }
@@ -390,7 +383,6 @@ export function SleepSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         <NumberField label="Hours" value={hours} onChange={setHours} suffix="h" placeholder="7" />
         <NumberField label="Minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="15" />
       </div>
-      <p className="daily-hint">Total time slept is enough. Bedtimes and wake-up times are never required.</p>
     </SheetShell>
   );
 }
@@ -489,11 +481,9 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         {customUnit === "ml" ? "Enter litres instead" : "Enter millilitres instead"}
       </button>
 
-      <div className="daily-block">
-        <p className="daily-block-title">Entries today</p>
-        {entries.length === 0 ? (
-          <p className="daily-hint">No water logged for this day yet. A day with no entry stays missing, not zero.</p>
-        ) : (
+      {entries.length > 0 ? (
+        <div className="daily-block">
+          <p className="daily-block-title">Entries today</p>
           <ul className="daily-list">
             {entries.map((entry) => (
               <li key={entry.id} className="daily-list-row">
@@ -555,9 +545,8 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
               </li>
             ))}
           </ul>
-        )}
-      </div>
-      <p className="daily-hint">Your daily water goal is changed in Settings.</p>
+        </div>
+      ) : null}
     </SheetShell>
   );
 }
@@ -606,12 +595,6 @@ export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => vo
         </>
       }
     >
-      <p className="daily-hint">One weigh-in per day. Weigh whenever you like — there is no daily requirement.</p>
-      <p className="daily-hint">
-        {api.settings.weightGoalKg === null
-          ? "No weight goal set. Add one in Settings."
-          : `Goal ${formatWeight(api.settings.weightGoalKg, unit)} — change it in Settings.`}
-      </p>
       <NumberField
         label={`Weight (${unit})`}
         value={value}
@@ -619,11 +602,6 @@ export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => vo
         inputMode="decimal"
         placeholder={unit === "kg" ? "78.2" : "172.4"}
       />
-      {existing ? (
-        <p className="daily-hint">
-          Currently {formatWeight(existing.kg, unit)}. Saving replaces this day&apos;s weigh-in; Remove clears it.
-        </p>
-      ) : null}
     </SheetShell>
   );
 }
@@ -697,9 +675,6 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         </>
       }
     >
-      <p className="daily-hint">
-        Fill in only what you have. Blank rows are left untouched, and you can still edit each metric on its own card.
-      </p>
       <div className="daily-grid2">
         <NumberField label="Steps" value={steps} onChange={setSteps} inputMode="numeric" placeholder="—" />
         <NumberField label="Calories" value={calories} onChange={setCalories} inputMode="numeric" suffix="kcal" placeholder="—" />
@@ -718,7 +693,6 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
           placeholder="—"
         />
       </div>
-      <p className="daily-hint">One weigh-in per day — saving a new weight replaces that day&apos;s value.</p>
     </SheetShell>
   );
 }
@@ -793,9 +767,6 @@ export function HighlightSheet({
         </>
       }
     >
-      <p className="daily-hint">
-        Optional and always your choice — for a milestone or a memorable day. There are no daily notes or prompts.
-      </p>
       <label className="daily-field">
         <span>Title</span>
         <span className="daily-input-wrap">
@@ -870,7 +841,6 @@ export function HighlightSheet({
             }
           }}
         />
-        <p className="daily-hint">Photos are downsized and kept in this device&apos;s storage only.</p>
       </div>
     </SheetShell>
   );
