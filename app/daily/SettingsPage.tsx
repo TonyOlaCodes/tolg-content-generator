@@ -4,9 +4,9 @@ import { useState, type ReactNode } from "react";
 import { saveSettings, type Result } from "@/daily/actions";
 import { exportSnapshot, validateBackup } from "@/daily/backup";
 import { todayKey } from "@/daily/date";
-import { formatWater } from "@/daily/format";
+import { formatWater, formatWeight, kgToUnit, unitToKg } from "@/daily/format";
 import { CHART_PERIODS, EMPTY_SNAPSHOT, METRIC_META, settingsOf, type MetricKey } from "@/daily/model";
-import { parseWhole, type DailyApi } from "./api";
+import { parseDecimal, parseWhole, type DailyApi } from "./api";
 
 function Section({ title, children, hint }: { title: string; children: ReactNode; hint?: string }) {
   return (
@@ -23,6 +23,11 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
   const [stepGoal, setStepGoal] = useState(String(settings.stepGoal));
   const [calorieGoal, setCalorieGoal] = useState(settings.calorieGoal !== null ? String(settings.calorieGoal) : "");
   const [waterGoal, setWaterGoal] = useState(String(settings.waterGoalMl));
+  const [weightGoal, setWeightGoal] = useState(
+    settings.weightGoalKg !== null
+      ? String(Math.round(kgToUnit(settings.weightGoalKg, settings.weightUnit) * 100) / 100)
+      : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,9 +40,16 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
     const trimmedCalories = calorieGoal.trim();
     const calories = trimmedCalories ? parseWhole(trimmedCalories) : null;
     if (trimmedCalories && calories === null) return setError("Enter a whole number for calories, or leave it blank.");
+    const trimmedWeight = weightGoal.trim();
+    let weightKg: number | null = null;
+    if (trimmedWeight) {
+      const parsedWeight = parseDecimal(trimmedWeight);
+      if (parsedWeight === null) return setError(`Enter a weight goal in ${settings.weightUnit}, or leave it blank.`);
+      weightKg = unitToKg(parsedWeight, settings.weightUnit);
+    }
     setBusy(true);
     const message = await api.commit(
-      saveSettings(api.snap, { stepGoal: steps, waterGoalMl: water, calorieGoal: calories }),
+      saveSettings(api.snap, { stepGoal: steps, waterGoalMl: water, calorieGoal: calories, weightGoalKg: weightKg }),
       "Goals saved",
       false,
     );
@@ -51,6 +63,18 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
     const failure = await api.commit(result, message, false);
     setBusy(false);
     if (failure) setError(failure);
+  };
+
+  const changeUnit = (unit: "kg" | "lb") => {
+    if (unit === settings.weightUnit) return;
+    if (weightGoal.trim()) {
+      const parsed = parseDecimal(weightGoal);
+      if (parsed !== null) {
+        const kg = unitToKg(parsed, settings.weightUnit);
+        setWeightGoal(String(Math.round(kgToUnit(kg, unit) * 100) / 100));
+      }
+    }
+    void apply(saveSettings(api.snap, { weightUnit: unit }), unit === "kg" ? "Showing kilograms" : "Showing pounds");
   };
 
   const move = (index: number, direction: -1 | 1) => {
@@ -171,6 +195,23 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
           </span>
         </label>
         <p className="daily-hint">Currently {formatWater(settings.waterGoalMl)} per day.</p>
+        <label className="daily-field">
+          <span>Weight goal (optional)</span>
+          <span className="daily-input-wrap">
+            <input
+              className="daily-input"
+              type="text"
+              inputMode="decimal"
+              placeholder="No goal"
+              value={weightGoal}
+              onChange={(event) => setWeightGoal(event.target.value)}
+            />
+            <em className="daily-input-suffix">{settings.weightUnit}</em>
+          </span>
+        </label>
+        <p className="daily-hint">
+          Shown as a dashed line on the weight chart. {settings.weightGoalKg !== null ? `Currently ${formatWeight(settings.weightGoalKg, settings.weightUnit)}.` : "No goal set."}
+        </p>
         <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void saveGoals()}>
           Save goals
         </button>
@@ -186,7 +227,7 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
                 type="button"
                 className={`daily-seg-btn${settings.weightUnit === unit ? " is-active" : ""}`}
                 aria-pressed={settings.weightUnit === unit}
-                onClick={() => void apply(saveSettings(api.snap, { weightUnit: unit }), unit === "kg" ? "Showing kilograms" : "Showing pounds")}
+                onClick={() => changeUnit(unit)}
               >
                 {unit === "kg" ? "Kilograms" : "Pounds"}
               </button>

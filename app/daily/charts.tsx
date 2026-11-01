@@ -252,19 +252,25 @@ export function LineChart({
   color,
   formatValue,
   ariaLabel,
+  goal = null,
+  goalText,
 }: {
   points: ChartPoint[];
   smoothed?: ChartPoint[] | null;
   color: string;
   formatValue: (value: number) => string;
   ariaLabel: string;
+  /** Optional target value drawn as a dashed line. */
+  goal?: number | null;
+  goalText?: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const values = [...points, ...(smoothed ?? [])]
     .map((p) => p.value)
     .filter((v): v is number => v !== null);
-  const min = values.length ? Math.min(...values) : 0;
-  const max = values.length ? Math.max(...values) : 1;
+  const rangeValues = goal !== null ? [...values, goal] : values;
+  const min = rangeValues.length ? Math.min(...rangeValues) : 0;
+  const max = rangeValues.length ? Math.max(...rangeValues) : 1;
   const padding = Math.max(0.3, (max - min) * 0.25);
   const low = min - padding;
   const high = max + padding;
@@ -312,6 +318,29 @@ export function LineChart({
     <ChartShell tooltip={tooltip} onScrub={scrub} onLeave={() => setActive(null)} ariaLabel={ariaLabel}>
       <svg viewBox={`0 0 ${W} ${H}`} className="daily-chart-svg" aria-hidden focusable="false">
         <line x1={PAD.left} y1={PAD.top + plotH} x2={W - PAD.right} y2={PAD.top + plotH} className="daily-chart-axis" />
+        {goal !== null ? (
+          <>
+            <line
+              x1={PAD.left}
+              y1={y(goal)}
+              x2={W - PAD.right}
+              y2={y(goal)}
+              className="daily-chart-goal"
+              style={{ stroke: color }}
+            />
+            {goalText ? (
+              <text
+                x={W - PAD.right}
+                y={Math.min(PAD.top + plotH - 3, Math.max(PAD.top + 8, y(goal) - 4))}
+                textAnchor="end"
+                className="daily-chart-goal-label"
+                style={{ fill: color }}
+              >
+                {goalText}
+              </text>
+            ) : null}
+          </>
+        ) : null}
         {smoothed && smoothed.length > 0 ? (
           <path d={path(smoothed)} fill="none" stroke={color} strokeOpacity={0.35} strokeWidth={1.6} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" />
         ) : null}

@@ -164,6 +164,15 @@ function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide
   const dayEntry = view.weightKg !== null ? view.weightKg : null;
   const spark = seriesForMetric(api.snap, Array.from({ length: 14 }, (_, i) => addDays(api.today, -13 + i)), "weight").map((p) => p.value);
   const change = overview.change30;
+  const goalKg = api.settings.weightGoalKg;
+  const goalNote =
+    goalKg === null
+      ? null
+      : latest
+        ? Math.abs(latest.kg - goalKg) < 0.05
+          ? "Goal reached"
+          : `${formatWeight(Math.abs(latest.kg - goalKg), unit)} ${latest.kg > goalKg ? "above" : "below"} goal`
+        : `Goal ${formatWeight(goalKg, unit)}`;
   return (
     <Card
       metric="weight"
@@ -189,6 +198,7 @@ function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide
         ) : (
           <span>Weigh in whenever you like</span>
         )}
+        {goalNote ? <span className="daily-goal-note">{goalNote}</span> : null}
       </span>
       <Sparkline points={spark} color={METRIC_META.weight.ring} />
     </Card>

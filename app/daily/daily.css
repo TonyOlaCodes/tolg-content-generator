@@ -443,6 +443,11 @@
   color: #8fe3c6;
 }
 
+.daily-goal-note {
+  color: #c4b5fd;
+  font-weight: 600;
+}
+
 .daily-card-quick {
   position: relative;
   display: flex;
@@ -1145,6 +1150,11 @@
   stroke: rgba(255, 255, 255, 0.3);
   stroke-dasharray: 3 3;
   stroke-width: 1;
+}
+
+.daily-chart-goal-label {
+  font-size: 8px;
+  opacity: 0.9;
 }
 
 .daily-chart-tip {

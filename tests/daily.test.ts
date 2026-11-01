@@ -236,6 +236,11 @@ const ordered = apply(goalSnap, saveSettings(goalSnap, { metricOrder: ["water", 
 assert.deepEqual(ordered.settings.metricOrder, ["water", "steps", "weight", "calories", "sleep"], "missing metrics are appended");
 assert.deepEqual(visibleMetrics({ ...DEFAULT_SETTINGS, hiddenMetrics: ["water"] }), ["steps", "weight", "calories", "sleep"]);
 assert.equal(saveSettings(goalSnap, { calorieGoal: null }).ok, true, "calorie goal stays optional");
+const weightGoalSet = apply(goalSnap, saveSettings(goalSnap, { weightGoalKg: 75.5 }));
+assert.equal(weightGoalSet.settings.weightGoalKg, 75.5, "weight goal is stored in kilograms");
+assert.equal(saveSettings(weightGoalSet, { weightGoalKg: 5 }).ok, false, "impossible weight goals are rejected");
+assert.equal(saveSettings(weightGoalSet, { weightGoalKg: 401 }).ok, false);
+assert.equal(saveSettings(weightGoalSet, { weightGoalKg: null }).ok, true, "weight goal stays optional");
 
 // ---------------------------------------------------------------- insights
 const noData = emptySnapshot();
@@ -336,7 +341,7 @@ assert.equal(periodDates(av, 0, TODAY).length, daysBetween("2026-10-26", TODAY) 
 snap = apply(snap, addWater(snap, { date: TODAY, ml: 500 }, ctx));
 snap = apply(snap, addWeight(snap, { date: TODAY, kg: 78.2, time: "07:00" }, ctx));
 snap = apply(snap, saveHighlight(snap, { date: TODAY, title: "Milestone", description: "A day", tags: ["tag"], photo: "data:image/png;base64,AAAA" }, ctx));
-snap = apply(snap, saveSettings(snap, { stepGoal: 12_000, calorieGoal: 2200, waterGoalMl: 2500, weightUnit: "lb", chartPeriod: 90 }));
+snap = apply(snap, saveSettings(snap, { stepGoal: 12_000, calorieGoal: 2200, waterGoalMl: 2500, weightGoalKg: 72.5, weightUnit: "lb", chartPeriod: 90 }));
 
 const json = exportSnapshot(snap, new Date("2026-11-01T10:00:00Z"));
 const parsed = validateBackup(JSON.parse(json));
@@ -346,6 +351,7 @@ assert.equal(parsed.ok ? parsed.data.weights.length : 0, snap.weights.length);
 assert.equal(parsed.ok ? parsed.data.highlights[0].photo : null, "data:image/png;base64,AAAA", "highlight photos survive export");
 assert.equal(parsed.ok ? parsed.data.settings.stepGoal : 0, 12_000);
 assert.equal(parsed.ok ? parsed.data.settings.weightUnit : "", "lb");
+assert.equal(parsed.ok ? parsed.data.settings.weightGoalKg : 0, 72.5, "weight goals survive export and import");
 
 const broken = JSON.parse(json) as { data: { days: { steps?: unknown }[] } };
 broken.data.days[0].steps = 999_999;
@@ -358,6 +364,9 @@ assert.equal(validateBackup(duplicateWater).ok, false, "duplicate ids are reject
 const badSettings = JSON.parse(json) as { data: { settings: { stepGoal: number } } };
 badSettings.data.settings.stepGoal = 0;
 assert.equal(validateBackup(badSettings).ok, false);
+const badWeightGoal = JSON.parse(json) as { data: { settings: { weightGoalKg: number } } };
+badWeightGoal.data.settings.weightGoalKg = 1;
+assert.equal(validateBackup(badWeightGoal).ok, false, "impossible weight goals are rejected on import");
 const futureHighlight = JSON.parse(json) as { data: { highlights: { date: string }[] } };
 futureHighlight.data.highlights[0].date = "2099-01-01";
 assert.equal(validateBackup(futureHighlight).ok, true, "backups may contain any valid calendar date");

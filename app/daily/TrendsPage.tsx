@@ -200,11 +200,23 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           color={METRIC_META.weight.ring}
           formatValue={(value) => formatWeight(value, api.settings.weightUnit)}
           ariaLabel={`Weight chart for ${rangeLabel}`}
+          goal={api.settings.weightGoalKg}
+          goalText={api.settings.weightGoalKg !== null ? `Goal ${formatWeight(api.settings.weightGoalKg, api.settings.weightUnit)}` : undefined}
         />
         <p className="daily-chart-legend">
           <span className="is-solid" style={{ background: METRIC_META.weight.ring }} aria-hidden /> Weigh-ins
           <span className="is-dashed" style={{ color: METRIC_META.weight.ring }} aria-hidden /> Smoothed trend
+          {api.settings.weightGoalKg !== null ? (
+            <>
+              <span className="is-dashed" style={{ color: METRIC_META.weight.accent }} aria-hidden /> Goal
+            </>
+          ) : null}
         </p>
+        {api.settings.weightGoalKg !== null ? (
+          <p className="daily-hint">
+            Goal line at {formatWeight(api.settings.weightGoalKg, api.settings.weightUnit)} · change it in Settings.
+          </p>
+        ) : null}
         <div className="daily-stats">
           <Stat label="Latest" value={weight.latest ? formatWeight(weight.latest.kg, api.settings.weightUnit) : "—"} hint={weight.latest ? shortDate(weight.latest.date, true) : undefined} />
           <Stat

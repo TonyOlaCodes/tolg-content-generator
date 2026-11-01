@@ -309,6 +309,11 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     if (error) return fail(error);
     next.calorieGoal = round0(patch.calorieGoal);
   }
+  if (patch.weightGoalKg !== undefined && patch.weightGoalKg !== null) {
+    const error = validateWeightKg(patch.weightGoalKg);
+    if (error) return fail(error);
+    next.weightGoalKg = round2(patch.weightGoalKg);
+  }
   if (patch.weightUnit !== undefined && patch.weightUnit !== "kg" && patch.weightUnit !== "lb") {
     return fail("Choose kilograms or pounds.");
   }
@@ -336,6 +341,7 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     next.stepGoal === current.stepGoal &&
     next.calorieGoal === current.calorieGoal &&
     next.waterGoalMl === current.waterGoalMl &&
+    next.weightGoalKg === current.weightGoalKg &&
     next.weightUnit === current.weightUnit &&
     next.chartPeriod === current.chartPeriod &&
     next.metricOrder.join(",") === current.metricOrder.join(",") &&

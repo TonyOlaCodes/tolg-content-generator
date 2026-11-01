@@ -625,6 +625,11 @@ export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => vo
       <p className="daily-hint">
         Weigh in whenever you like — no daily requirement. Several measurements on the same date are kept separately.
       </p>
+      <p className="daily-hint">
+        {api.settings.weightGoalKg === null
+          ? "No weight goal set. Add one in Settings."
+          : `Goal ${formatWeight(api.settings.weightGoalKg, unit)} — change it in Settings.`}
+      </p>
       <div className="daily-grid2">
         <NumberField
           label={`Weight (${unit})`}

@@ -86,6 +86,8 @@ export type Settings = {
   /** Optional: `null` hides goal comparison for calories without hiding the metric. */
   calorieGoal: number | null;
   waterGoalMl: number;
+  /** Optional target bodyweight in kilograms. */
+  weightGoalKg: number | null;
   weightUnit: WeightUnit;
   chartPeriod: ChartPeriod;
   metricOrder: MetricKey[];
@@ -97,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: 10_000,
   calorieGoal: null,
   waterGoalMl: 3_000,
+  weightGoalKg: null,
   weightUnit: "kg",
   chartPeriod: 30,
   metricOrder: [...METRIC_KEYS],
