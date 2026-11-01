@@ -1,10 +1,10 @@
 import type { Units } from "./types";
 
 /** Open-Meteo returns Celsius, km/h and mm by default; convert only for display. */
-export function formatTemp(celsius: number | null, units: Units): string {
+/** Temperatures are always shown in Celsius. */
+export function formatTemp(celsius: number | null, _units?: Units): string {
   if (celsius === null || !Number.isFinite(celsius)) return "—";
-  const value = units.temperature === "fahrenheit" ? (celsius * 9) / 5 + 32 : celsius;
-  return `${Math.round(value)}°`;
+  return `${Math.round(celsius)}°`;
 }
 
 export function formatWind(kmh: number | null, units: Units): string {
@@ -26,19 +26,9 @@ export function formatPercent(value: number | null): string {
   return `${Math.round(value)}%`;
 }
 
-export function formatPressure(hpa: number | null): string {
-  if (hpa === null || !Number.isFinite(hpa)) return "—";
-  return `${Math.round(hpa)} hPa`;
-}
-
 export function formatVisibility(meters: number | null): string {
   if (meters === null || !Number.isFinite(meters)) return "—";
   return meters >= 1000 ? `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km` : `${Math.round(meters)} m`;
-}
-
-export function formatUv(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  return value.toFixed(value < 10 ? 1 : 0);
 }
 
 export function windDirectionLabel(degrees: number | null): string {
@@ -51,8 +41,8 @@ export function windDirectionLabel(degrees: number | null): string {
  * Converts a Celsius value without rounding, for charts that need the raw scale
  * in the user's chosen unit.
  */
-export function toDisplayTemp(celsius: number, units: Units): number {
-  return units.temperature === "fahrenheit" ? (celsius * 9) / 5 + 32 : celsius;
+export function toDisplayTemp(celsius: number, _units?: Units): number {
+  return celsius;
 }
 
 export function toDisplayWind(kmh: number, units: Units): number {

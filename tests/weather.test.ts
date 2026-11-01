@@ -9,7 +9,7 @@ import { describeWeatherCode, isWetCode, isSnowCode } from "../weather/codes";
 import { formatTemp, formatWind, formatPrecip, formatVisibility, windDirectionLabel } from "../weather/units";
 import { DEFAULT_UNITS, type Units } from "../weather/types";
 
-const F: Units = { ...DEFAULT_UNITS, temperature: "fahrenheit", wind: "mph", precipitation: "inch" };
+const F: Units = { ...DEFAULT_UNITS, wind: "mph", precipitation: "inch" };
 let passed = 0;
 
 function test(name: string, fn: () => void) {
@@ -18,10 +18,10 @@ function test(name: string, fn: () => void) {
   console.log(`ok - ${name}`);
 }
 
-test("Celsius is shown as-is, Fahrenheit converts", () => {
+test("temperatures are always shown in Celsius", () => {
   assert.equal(formatTemp(0, DEFAULT_UNITS), "0°");
   assert.equal(formatTemp(-10, DEFAULT_UNITS), "-10°");
-  assert.equal(formatTemp(100, F), "212°");
+  assert.equal(formatTemp(100, F), "100°");
   assert.equal(formatTemp(-40, F), "-40°");
 });
 

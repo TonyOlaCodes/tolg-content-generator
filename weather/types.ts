@@ -1,5 +1,5 @@
 export type Units = {
-  temperature: "celsius" | "fahrenheit";
+  temperature: "celsius";
   wind: "kmh" | "mph";
   precipitation: "mm" | "inch";
   clock: "24h" | "12h";

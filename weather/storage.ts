@@ -89,7 +89,7 @@ export function loadUnits(): Units {
       if (typeof v !== "object" || v === null) return null;
       const u = v as Record<string, unknown>;
       return {
-        temperature: u.temperature === "fahrenheit" ? "fahrenheit" : "celsius",
+        temperature: "celsius",
         wind: u.wind === "mph" ? "mph" : "kmh",
         precipitation: u.precipitation === "inch" ? "inch" : "mm",
         clock: u.clock === "12h" ? "12h" : "24h",

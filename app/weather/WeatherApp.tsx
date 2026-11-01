@@ -7,9 +7,6 @@ import { describeWeatherCode, isWetCode } from "@/weather/codes";
 import {
   formatPercent,
   formatPrecip,
-  formatPressure,
-  formatTemp,
-  formatUv,
   formatVisibility,
   formatWind,
   windDirectionLabel,
@@ -26,24 +23,15 @@ const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: "saved", label: "Places", icon: "⌖" },
 ];
 
-/** Primary temperature in the chosen unit, with the other unit as a smaller secondary value. */
-function tempParts(celsius: number | null, units: Units): { primary: string; secondary: string } {
-  if (celsius === null || !Number.isFinite(celsius)) return { primary: "—", secondary: "" };
-  const c = Math.round(celsius);
-  const f = Math.round((celsius * 9) / 5 + 32);
-  return units.temperature === "fahrenheit"
-    ? { primary: `${f}°F`, secondary: `${c}°C` }
-    : { primary: `${c}°C`, secondary: `${f}°F` };
+/** Temperatures are always shown in Celsius. */
+function tempParts(celsius: number | null): { primary: string } {
+  if (celsius === null || !Number.isFinite(celsius)) return { primary: "—" };
+  return { primary: `${Math.round(celsius)}°C` };
 }
 
-function TempPair({ celsius, units, className }: { celsius: number | null; units: Units; className?: string }) {
-  const { primary, secondary } = tempParts(celsius, units);
-  return (
-    <span className={className}>
-      {primary}
-      {secondary ? <span className="wx-temp-alt"> ({secondary})</span> : null}
-    </span>
-  );
+function TempPair({ celsius, className }: { celsius: number | null; className?: string }) {
+  const { primary } = tempParts(celsius);
+  return <span className={className}>{primary}</span>;
 }
 
 /** Formats an Open-Meteo local ISO time ("2026-10-31T14:00") without touching the device time zone. */
@@ -71,23 +59,21 @@ function localDateLabel(iso: string): string {
   return new Date(Date.UTC(y, mo - 1, d)).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-function uvLabel(uv: number | null): string {
-  if (uv === null) return "Unavailable";
-  if (uv < 3) return "Low";
-  if (uv < 6) return "Moderate";
-  if (uv < 8) return "High";
-  if (uv < 11) return "Very high";
-  return "Extreme";
-}
-
-function aqiLabel(eu: number | null): string {
-  if (eu === null) return "Unavailable";
-  if (eu <= 20) return "Good";
-  if (eu <= 40) return "Fair";
-  if (eu <= 60) return "Moderate";
-  if (eu <= 80) return "Poor";
-  if (eu <= 100) return "Very poor";
-  return "Extremely poor";
+/** Favourite chip: place name with that place's current weather emoji and temperature. */
+function FavChip({ place }: { place: Place }) {
+  const state = useForecast(place, 0);
+  const forecast = state.status === "ready" || state.status === "loading" || state.status === "error" ? state.forecast : null;
+  const cond = forecast ? describeWeatherCode(forecast.current.weatherCode, forecast.current.isDay) : null;
+  return (
+    <>
+      {place.name}
+      {cond && forecast ? (
+        <span className="wx-fav-wx">
+          <span role="img" aria-label={cond.label}>{cond.icon}</span> {Math.round(forecast.current.temperature ?? 0)}°
+        </span>
+      ) : null}
+    </>
+  );
 }
 
 function placeLabel(p: Place): string {
@@ -190,7 +176,7 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
               className={`wx-fav ${placeKey(p) === placeKey(selected) ? "is-active" : ""}`}
               onClick={() => choosePlace(p)}
             >
-              {p.name}
+              <FavChip place={p} />
             </button>
           ))}
         </div>
@@ -259,7 +245,6 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
             saved={saved}
             recent={recent}
             current={selected}
-            units={units}
             onChoose={choosePlace}
             onRemove={(p) =>
               setSaved((list) => {
@@ -305,8 +290,6 @@ function TodayView({
   const c = forecast.current;
   const cond = describeWeatherCode(c.weatherCode, c.isDay);
   const today = forecast.daily[0];
-  const aq = forecast.airQuality;
-  const uvNow = forecast.hourly.find((h) => h.time.slice(0, 13) === c.time.slice(0, 13))?.uvIndex ?? null;
   const wet = isWetCode(c.weatherCode) || (c.precipitation ?? 0) > 0;
   const nowHour = c.time.slice(0, 13);
   const pop = forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.precipitationProbability ?? null;
@@ -323,21 +306,21 @@ function TodayView({
             </p>
           </div>
           <button type="button" className="wx-save" aria-pressed={isSaved} onClick={onToggleSaved}>
-            {isSaved ? "★ Saved" : "☆ Save"}
+            {isSaved ? "★" : "☆"}
           </button>
         </div>
         <div className="wx-hero-main">
           <div>
             <p className="wx-hero-temp">
-              <TempPair celsius={c.temperature} units={units} />
+              <TempPair celsius={c.temperature} />
             </p>
             <p className="wx-hero-cond">{cond.label}</p>
             <p className="wx-hero-hl">
-              H <TempPair celsius={today?.temperatureMax ?? null} units={units} /> · L{" "}
-              <TempPair celsius={today?.temperatureMin ?? null} units={units} />
+              H <TempPair celsius={today?.temperatureMax ?? null} /> · L{" "}
+              <TempPair celsius={today?.temperatureMin ?? null} />
             </p>
             <p className="wx-hero-hl">
-              Feels like <TempPair celsius={c.apparentTemperature} units={units} />
+              Feels like <TempPair celsius={c.apparentTemperature} />
             </p>
           </div>
           <span className="wx-hero-icon" role="img" aria-label={cond.label}>
@@ -363,11 +346,8 @@ function TodayView({
           <Stat label="Humidity" value={formatPercent(c.humidity)} />
           <Stat label="Wind" value={`${formatWind(c.windSpeed, units)} ${windDirectionLabel(c.windDirection)}`.trim()} />
           <Stat label="Gusts" value={formatWind(c.windGusts, units)} />
-          <Stat label="Pressure" value={formatPressure(c.pressure)} />
           <Stat label="Cloud cover" value={formatPercent(c.cloudCover)} />
           <Stat label="Visibility" value={formatVisibility(forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.visibility ?? null)} />
-          <Stat label="Dew point" value={formatTemp(forecast.hourly.find((h) => h.time.slice(0, 13) === nowHour)?.dewPoint ?? null, units)} />
-          <Stat label="UV index" value={`${formatUv(uvNow)} · ${uvLabel(uvNow)}`} />
         </dl>
       </div>
 
@@ -376,25 +356,22 @@ function TodayView({
         <dl className="wx-grid">
           <Stat label="Sunrise" value={sun ? localClock(sun.rise, units.clock) : "—"} />
           <Stat label="Sunset" value={sun ? localClock(sun.set, units.clock) : "—"} />
-          <Stat label="Max UV today" value={`${formatUv(today?.uvIndexMax ?? null)} · ${uvLabel(today?.uvIndexMax ?? null)}`} />
         </dl>
       </div>
-
-      <AirCard aq={aq} />
 
       <div className="wx-card">
         <h3>Days</h3>
         <ul className="wx-days">
-          {forecast.daily.slice(0, 5).map((d) => {
+          {forecast.daily.slice(0, 10).map((d) => {
             const dc = describeWeatherCode(d.weatherCode, true);
             const open = openDay === d.date;
             return (
               <li key={d.date}>
                 <button type="button" className="wx-day" aria-expanded={open} onClick={() => setOpenDay(open ? null : d.date)}>
-                  <span>{localDayLabel(d.date)}</span>
+                  <span className="wx-day-date">{localDayLabel(d.date)} {localDateLabel(d.date)}</span>
                   <span role="img" aria-label={dc.label}>{dc.icon}</span>
                   <span className="wx-day-range">
-                    {formatTemp(d.temperatureMin, units)} / {formatTemp(d.temperatureMax, units)}
+                    {tempParts(d.temperatureMax).primary} / {tempParts(d.temperatureMin).primary}
                   </span>
                 </button>
                 {open ? (
@@ -403,7 +380,6 @@ function TodayView({
                     <Stat label="Rain chance" value={formatPercent(d.precipitationProbabilityMax)} />
                     <Stat label="Precipitation" value={formatPrecip(d.precipitationSum, units)} />
                     <Stat label="Max wind" value={formatWind(d.windSpeedMax, units)} />
-                    <Stat label="UV max" value={formatUv(d.uvIndexMax)} />
                     <Stat label="Sunrise / sunset" value={`${localClock(d.sunrise, units.clock)} / ${localClock(d.sunset, units.clock)}`} />
                   </dl>
                 ) : null}
@@ -418,32 +394,6 @@ function TodayView({
         <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a>{" "}
         (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>).
       </p>
-    </div>
-  );
-}
-
-function AirCard({ aq }: { aq: Forecast["airQuality"] }) {
-  if (!aq) {
-    return (
-      <div className="wx-card">
-        <h3>Air quality</h3>
-        <p className="wx-sub">Air quality is unavailable for this location.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="wx-card">
-      <h3>Air quality</h3>
-      <p>
-        European AQI {aq.europeanAqi === null ? "—" : Math.round(aq.europeanAqi)} · {aqiLabel(aq.europeanAqi)}
-      </p>
-      <dl className="wx-grid">
-        <Stat label="US AQI" value={aq.usAqi === null ? "—" : String(Math.round(aq.usAqi))} />
-        <Stat label="PM2.5" value={aq.pm25 === null ? "—" : `${aq.pm25.toFixed(1)} µg/m³`} />
-        <Stat label="PM10" value={aq.pm10 === null ? "—" : `${aq.pm10.toFixed(1)} µg/m³`} />
-        <Stat label="Ozone" value={aq.ozone === null ? "—" : `${Math.round(aq.ozone)} µg/m³`} />
-        <Stat label="NO₂" value={aq.nitrogenDioxide === null ? "—" : `${Math.round(aq.nitrogenDioxide)} µg/m³`} />
-      </dl>
     </div>
   );
 }
@@ -470,7 +420,7 @@ function HourlyView({
     <div className="wx-stack">
       <div className="wx-card">
         <div className="wx-chart-label"><span>Temperature</span><span>next {hours.length}h</span></div>
-        <LineChart values={hours.map((h) => h.temperature)} format={(v) => `${Math.round(v)}°`} units={units} />
+        <LineChart values={hours.map((h) => h.temperature)} format={(v) => `${Math.round(v)}°`} />
         <div className="wx-chart-label"><span>Rain chance</span><span>%</span></div>
         <BarChart values={hours.map((h) => h.precipitationProbability)} />
       </div>
@@ -478,7 +428,7 @@ function HourlyView({
         {hours.map((h) => {
           const cond = describeWeatherCode(h.weatherCode, isDayHour(h.time, forecast));
           const open = openHour === h.time;
-          const tp = tempParts(h.temperature, units);
+          const tp = tempParts(h.temperature);
           return (
             <li key={h.time}>
               <button type="button" className={`wx-hcell ${open ? "is-selected" : ""}`} aria-pressed={open} onClick={() => setOpenHour(open ? null : h.time)}>
@@ -495,11 +445,10 @@ function HourlyView({
         <div className="wx-card">
           <h3>{localClock(selectedHour.time, units.clock)} · {localDateLabel(selectedHour.time.slice(0, 10))}</h3>
           <dl className="wx-hour-detail">
-            <Stat label="Feels like" value={tempParts(selectedHour.apparentTemperature, units).primary} />
+            <Stat label="Feels like" value={tempParts(selectedHour.apparentTemperature).primary} />
             <Stat label="Precipitation" value={formatPrecip(selectedHour.precipitation, units)} />
             <Stat label="Wind" value={formatWind(selectedHour.windSpeed, units)} />
             <Stat label="Humidity" value={formatPercent(selectedHour.humidity)} />
-            <Stat label="UV" value={formatUv(selectedHour.uvIndex)} />
             <Stat label="Visibility" value={formatVisibility(selectedHour.visibility)} />
           </dl>
         </div>
@@ -509,7 +458,7 @@ function HourlyView({
 }
 
 /** Simple SVG line chart. Missing values break the line instead of being drawn as zero. */
-function LineChart({ values, format, units }: { values: (number | null)[]; format: (v: number) => string; units: Units }) {
+function LineChart({ values, format }: { values: (number | null)[]; format: (v: number) => string }) {
   const nums = values.filter((v): v is number => v !== null && Number.isFinite(v));
   if (nums.length < 2) return <p className="wx-sub">Not enough data for a chart.</p>;
   const lo = Math.min(...nums);
@@ -522,7 +471,7 @@ function LineChart({ values, format, units }: { values: (number | null)[]; forma
   const first = values.find((v) => v !== null);
   const last = [...values].reverse().find((v) => v !== null);
   return (
-    <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`Temperature from ${first === undefined || first === null ? "—" : tempParts(first, units).primary} to ${last === undefined || last === null ? "—" : tempParts(last, units).primary}; low ${format(lo)}, high ${format(hi)}`}>
+    <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`Temperature from ${first === undefined || first === null ? "—" : tempParts(first).primary} to ${last === undefined || last === null ? "—" : tempParts(last).primary}; low ${format(lo)}, high ${format(hi)}`}>
       <path d={d} fill="none" stroke="#ffd166" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
     </svg>
   );
@@ -596,7 +545,7 @@ function ForecastView({
                   {hasRange ? <span className="wx-range-fill" style={{ left: `${left}%`, width: `${Math.max(width, 4)}%` }} /> : null}
                 </span>
                 <span className="wx-drow-hl">
-                  <TempPair celsius={d.temperatureMax} units={units} /> <small>/ <TempPair celsius={d.temperatureMin} units={units} /></small>
+                  <TempPair celsius={d.temperatureMax} /> <small>/ <TempPair celsius={d.temperatureMin} /></small>
                 </span>
               </button>
               {open ? (
@@ -605,7 +554,6 @@ function ForecastView({
                   <Stat label="Rain chance" value={formatPercent(d.precipitationProbabilityMax)} />
                   <Stat label="Precipitation" value={formatPrecip(d.precipitationSum, units)} />
                   <Stat label="Max wind" value={formatWind(d.windSpeedMax, units)} />
-                  <Stat label="UV max" value={formatUv(d.uvIndexMax)} />
                   <Stat label="Sunrise / sunset" value={`${localClock(d.sunrise, units.clock)} / ${localClock(d.sunset, units.clock)}`} />
                 </dl>
               ) : null}
@@ -621,7 +569,6 @@ function PlacesView({
   saved,
   recent,
   current,
-  units,
   onChoose,
   onRemove,
   onMove,
@@ -629,7 +576,6 @@ function PlacesView({
   saved: Place[];
   recent: Place[];
   current: Place;
-  units: Units;
   onChoose: (p: Place) => void;
   onRemove: (p: Place) => void;
   onMove: (index: number, dir: -1 | 1) => void;
@@ -672,7 +618,7 @@ function PlacesView({
           </ul>
         </div>
       ) : null}
-      <p className="wx-sub">Showing {units.temperature === "fahrenheit" ? "°F" : "°C"} for all places.</p>
+      <p className="wx-sub">Showing °C for all places.</p>
     </div>
   );
 }

@@ -178,6 +178,8 @@
 .wx-favs::-webkit-scrollbar { display: none; }
 .wx-fav { flex: 0 0 auto; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--wx-border); background: var(--wx-card); color: var(--wx-text); font: inherit; font-size: 0.9rem; cursor: pointer; }
 .wx-fav.is-active { background: var(--wx-text); color: #0b1020; border-color: transparent; }
+.wx-fav-wx { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.wx-day-date { font-weight: 600; }
 
 /* Hourly strip and charts */
 .wx-strip { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 6px; scrollbar-width: none; }
