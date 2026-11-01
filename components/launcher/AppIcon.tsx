@@ -30,6 +30,13 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
           <path d="M4.5 20.5h9.5" {...common} />
         </svg>
       );
+    case "money":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <circle cx={12} cy={12} r={8} {...common} />
+          <path d="M14.5 9.5c-.4-.9-1.3-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1.2 0-2.2-.6-2.6-1.5M12 6.5v1.5M12 16v1.5" {...common} />
+        </svg>
+      );
   }
 }
 

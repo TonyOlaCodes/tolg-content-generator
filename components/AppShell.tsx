@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import AppChooser, { type AppId } from "./AppChooser";
 import WeatherApp from "@/app/weather/WeatherApp";
 import FuelApp from "@/app/fuel/FuelApp";
+import MoneyApp from "@/app/money/MoneyApp";
 
 export default function AppShell() {
   const [app, setApp] = useState<AppId | null>(null);
@@ -22,6 +23,14 @@ export default function AppShell() {
     return (
       <main className="app-shell is-weather">
         <WeatherApp onBack={backToChooser} />
+      </main>
+    );
+  }
+
+  if (app === "money") {
+    return (
+      <main className="app-shell is-money">
+        <MoneyApp onBack={backToChooser} />
       </main>
     );
   }
