@@ -1,10 +1,10 @@
-export type AppId = "weather" | "fuel" | "money" | "groceries";
+export type AppId = "weather" | "fuel" | "money" | "groceries" | "daily";
 
 export type Category = "Productivity" | "Utilities" | "Fitness" | "Finance" | "Entertainment";
 
 export const CATEGORIES: Category[] = ["Productivity", "Utilities", "Fitness", "Finance", "Entertainment"];
 
-export type Glyph = "weather" | "fuel" | "money" | "groceries";
+export type Glyph = "weather" | "fuel" | "money" | "groceries" | "daily";
 
 export type AppEntry = {
   id: AppId;
@@ -54,6 +54,15 @@ export const APPS: AppEntry[] = [
     category: "Productivity",
     gradient: ["#86efac", "#15803d"],
     glyph: "groceries",
+    status: "ready",
+  },
+  {
+    id: "daily",
+    title: "Daily Tracker",
+    subtitle: "Steps, weight, calories, sleep and water",
+    category: "Fitness",
+    gradient: ["#7cc7ff", "#8b7cff"],
+    glyph: "daily",
     status: "ready",
   },
 ];

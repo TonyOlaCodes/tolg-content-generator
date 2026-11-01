@@ -1,0 +1,481 @@
+"use client";
+
+import { addWater } from "@/daily/actions";
+import {
+  currentStreak,
+  dayMetrics,
+  latestWeight,
+  seriesForMetric,
+  weightOverview,
+  type DayMetrics,
+} from "@/daily/logic";
+import { addDays, dayLabel, shortDate } from "@/daily/date";
+import type { ReactNode } from "react";
+import {
+  formatCalories,
+  formatDuration,
+  formatInt,
+  formatPercent,
+  formatWater,
+  formatWeight,
+  formatWeightChange,
+} from "@/daily/format";
+import { METRIC_META, settingsOf, visibleMetrics, type MetricKey } from "@/daily/model";
+import { ProgressBar, ProgressRing, Sparkline } from "./charts";
+import { uiCtx, type DailyApi } from "./api";
+
+function MetricIcon({ metric }: { metric: MetricKey }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (metric) {
+    case "steps":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M8 4.5c1.4 0 2.3 1 2.3 2.6 0 2.6-1 4-1 6.1 0 1.9 1 3.2 2.6 3.2 2 0 3.1-1.7 3.1-4.1 0-2.8 1.1-4.3 1.1-6.3 0-1.3.9-2 2-2" {...common} />
+          <path d="M7.3 19.6c.6.6 1.4.9 2.3.9 2 0 3.2-1.3 5-1.3 1 0 1.8.3 2.4.9" {...common} strokeWidth={1.7} />
+        </svg>
+      );
+    case "weight":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <rect x={4} y={7} width={16} height={12.5} rx={3} {...common} />
+          <path d="M8.5 7a3.5 3.5 0 0 1 7 0" {...common} />
+          <path d="M12 11.2a2 2 0 1 0 1.7 3l-1.2-1.8" {...common} strokeWidth={1.7} />
+        </svg>
+      );
+    case "calories":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M12 3.5c.4 2.6-1.5 3.4-1.5 5.3 0 1 .6 1.8 1.5 2.2-.2-1.6.7-2.5 1.6-3 .1 1.7 2.4 2.9 2.4 5.5a4 4 0 0 1-8 0c0-2.4 1.2-4.1 2-5.9.7-1.4 1.3-2.5 2-4.1Z" {...common} />
+        </svg>
+      );
+    case "sleep":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M19.5 14.3A7.7 7.7 0 0 1 9.7 4.5a8 8 0 1 0 9.8 9.8Z" {...common} />
+          <path d="M15.5 4.5h3l-3 3h3" {...common} strokeWidth={1.5} />
+        </svg>
+      );
+    case "water":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M12 3.6c3.2 3.8 5.4 6.5 5.4 9.2a5.4 5.4 0 0 1-10.8 0c0-2.7 2.2-5.4 5.4-9.2Z" {...common} />
+          <path d="M9.6 13.6a2.5 2.5 0 0 0 2.5 2.6" {...common} strokeWidth={1.6} />
+        </svg>
+      );
+  }
+}
+
+function Card({
+  metric,
+  wide,
+  onOpen,
+  label,
+  value,
+  addLabel,
+  empty,
+  children,
+  footer,
+}: {
+  metric: MetricKey;
+  wide?: boolean;
+  onOpen: () => void;
+  label: string;
+  value: string;
+  addLabel: string;
+  empty: boolean;
+  children?: ReactNode;
+  footer?: ReactNode;
+}) {
+  const meta = METRIC_META[metric];
+  return (
+    <article
+      className={`daily-card${wide ? " is-wide" : ""}${empty ? " is-empty" : ""}`}
+      style={{ ["--daily-accent" as string]: meta.accent }}
+    >
+      <button type="button" className="daily-card-tap" onClick={onOpen} aria-label={`${label}: ${empty ? `no entry, ${addLabel}` : value}. Open editor.`}>
+        <span className="daily-card-top">
+          <span className="daily-card-icon" aria-hidden>
+            <MetricIcon metric={metric} />
+          </span>
+          <span className="daily-card-label">{label}</span>
+          <span className="daily-card-chevron" aria-hidden>›</span>
+        </span>
+        <span className="daily-card-value">
+          {empty ? (
+            <>
+              <span className="daily-card-missing">Not logged</span>
+              <span className="daily-card-add">{addLabel}</span>
+            </>
+          ) : (
+            value
+          )}
+        </span>
+        {children}
+      </button>
+      {footer}
+    </article>
+  );
+}
+
+function StepsCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+  const goal = api.settings.stepGoal;
+  const percent = view.steps === null ? null : (view.steps / goal) * 100;
+  const remaining = view.steps === null ? null : Math.max(0, goal - view.steps);
+  return (
+    <Card
+      metric="steps"
+      wide={wide}
+      label="Steps"
+      value={view.steps === null ? "Not logged" : `${formatInt(view.steps)} steps`}
+      addLabel="Add"
+      empty={view.steps === null}
+      onOpen={() => api.openSheet({ kind: "steps" })}
+    >
+      <div className="daily-steps-body">
+        <ProgressRing percent={percent} color={METRIC_META.steps.ring} size={94} stroke={9}>
+          <span className="daily-ring-number">{percent === null ? "—" : formatPercent(percent)}</span>
+          <span className="daily-ring-caption">of goal</span>
+        </ProgressRing>
+        <div className="daily-steps-info">
+          <p className="daily-steps-goal">
+            {view.steps === null ? `${formatInt(goal)} goal` : `${formatInt(goal)} goal`}
+          </p>
+          <p className="daily-steps-note">
+            {view.steps === null
+              ? "Tap to add today's total"
+              : remaining === 0
+                ? "Goal reached — nice work"
+                : `${formatInt(remaining ?? 0)} steps to go`}
+          </p>
+          <ProgressBar percent={percent} color={METRIC_META.steps.ring} label="Steps goal progress" />
+          <p className="daily-steps-foot">
+            {view.steps === null ? "Missing is not zero" : `${formatPercent(percent ?? 0)} completed`}
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function WeightCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+  const unit = api.settings.weightUnit;
+  const overview = weightOverview(api.snap, api.today);
+  const latest = overview.latest;
+  const dayEntry = view.weightKg !== null ? view.weightKg : null;
+  const spark = seriesForMetric(api.snap, Array.from({ length: 14 }, (_, i) => addDays(api.today, -13 + i)), "weight").map((p) => p.value);
+  const change = overview.change30;
+  return (
+    <Card
+      metric="weight"
+      wide={wide}
+      label="Weight"
+      value={latest ? formatWeight(dayEntry ?? latest.kg, unit) : "Not logged"}
+      addLabel="Add"
+      empty={!latest}
+      onOpen={() => api.openSheet({ kind: "weight" })}
+    >
+      <span className="daily-card-meta">
+        {latest ? (
+          <>
+            <span>
+              {dayEntry !== null ? (view.weightCount > 1 ? `${view.weightCount} weigh-ins this day` : "Weighed today") : `Last ${shortDate(latest.date)}`}
+            </span>
+            {change !== null ? (
+              <span className={`daily-delta ${change > 0 ? "is-up" : change < 0 ? "is-down" : ""}`}>
+                {formatWeightChange(change, unit)} / 30d
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span>Weigh in whenever you like</span>
+        )}
+      </span>
+      <Sparkline points={spark} color={METRIC_META.weight.ring} />
+    </Card>
+  );
+}
+
+function CaloriesCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+  const goal = api.settings.calorieGoal;
+  const percent = view.calories !== null && goal ? (view.calories / goal) * 100 : null;
+  return (
+    <Card
+      metric="calories"
+      wide={wide}
+      label="Calories"
+      value={view.calories === null ? "Not logged" : formatCalories(view.calories)}
+      addLabel="Add"
+      empty={view.calories === null}
+      onOpen={() => api.openSheet({ kind: "calories" })}
+    >
+      {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.calories.ring} label="Calorie goal progress" /> : null}
+      <span className="daily-card-meta">
+        {view.calories === null ? (
+          <span>One total per day</span>
+        ) : goal === null ? (
+          <span>No goal set · optional</span>
+        ) : (
+          <>
+            <span>
+              {formatInt(view.calories)} / {formatInt(goal)} kcal
+            </span>
+            <span className={view.calories > goal ? "daily-delta is-up" : "daily-delta"}>
+              {view.calories > goal ? `+${formatInt(view.calories - goal)}` : `${formatInt(goal - view.calories)} left`}
+            </span>
+          </>
+        )}
+      </span>
+    </Card>
+  );
+}
+
+function SleepCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+  const week = seriesForMetric(
+    api.snap,
+    Array.from({ length: 7 }, (_, i) => addDays(api.today, -6 + i)),
+    "sleep",
+  )
+    .map((p) => p.value)
+    .filter((v): v is number => v !== null);
+  const weekAvg = week.length ? week.reduce((sum, v) => sum + v, 0) / week.length : null;
+  return (
+    <Card
+      metric="sleep"
+      wide={wide}
+      label="Sleep"
+      value={view.sleepMinutes === null ? "Not logged" : formatDuration(view.sleepMinutes)}
+      addLabel="Add"
+      empty={view.sleepMinutes === null}
+      onOpen={() => api.openSheet({ kind: "sleep" })}
+    >
+      <span className="daily-card-meta">
+        {weekAvg === null ? (
+          <span>Hours and minutes</span>
+        ) : (
+          <>
+            <span>7-day avg {formatDuration(weekAvg)}</span>                {view.sleepMinutes !== null && Math.abs(view.sleepMinutes - weekAvg) >= 5 ? (
+              <span className="daily-delta">
+                {view.sleepMinutes >= weekAvg ? "+" : "−"}
+                {formatDuration(Math.abs(view.sleepMinutes - weekAvg))}
+              </span>
+            ) : null}
+          </>
+        )}
+      </span>
+    </Card>
+  );
+}
+
+function WaterCard({ api, view, wide }: { api: DailyApi; view: DayMetrics; wide: boolean }) {
+  const goal = api.settings.waterGoalMl;
+  const percent = view.waterMl === null ? null : (view.waterMl / goal) * 100;
+  const quick = (ml: number) => {
+    void api.commit(addWater(api.snap, { date: api.selected, ml }, uiCtx(api.today)), `Added ${formatWater(ml)}`);
+  };
+  return (
+    <Card
+      metric="water"
+      wide={wide}
+      label="Water"
+      value={view.waterMl === null ? "Not logged" : `${formatWater(view.waterMl)} of ${formatWater(goal)}`}
+      addLabel="Add"
+      empty={view.waterMl === null}
+      onOpen={() => api.openSheet({ kind: "water" })}
+      footer={
+        <div className="daily-card-quick">
+          {[250, 500].map((ml) => (
+            <button
+              key={ml}
+              type="button"
+              className="daily-quick daily-quick-small"
+              onClick={() => quick(ml)}
+              aria-label={`Add ${ml} millilitres of water`}
+            >
+              +{ml} ml
+            </button>
+          ))}
+          <button
+            type="button"
+            className="daily-quick daily-quick-small"
+            onClick={() => api.openSheet({ kind: "water" })}
+          >
+            More
+          </button>
+        </div>
+      }
+    >
+      <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water goal progress" />
+      <span className="daily-card-meta">
+        <span>{percent === null ? "Tap to log your first glass" : `${formatPercent(percent)} of goal`}</span>
+        {view.waterMl !== null ? <span>{formatWater(Math.max(0, goal - view.waterMl))} left</span> : null}
+      </span>
+    </Card>
+  );
+}
+
+export default function TodayPage({ api }: { api: DailyApi }) {
+  const settings = settingsOf(api.snap);
+  const view = dayMetrics(api.snap, api.selected);
+  const metrics = visibleMetrics(settings);
+  const logged = metrics.filter((metric) => {
+    switch (metric) {
+      case "steps":
+        return view.steps !== null;
+      case "weight":
+        return latestWeight(api.snap) !== null;
+      case "calories":
+        return view.calories !== null;
+      case "sleep":
+        return view.sleepMinutes !== null;
+      case "water":
+        return view.waterMl !== null;
+    }
+  }).length;
+  const streak = currentStreak(api.snap, api.today);
+  const dayHighlights = api.snap.highlights.filter((h) => h.date === api.selected);
+
+  const go = (delta: number) => {
+    const next = addDays(api.selected, delta);
+    if (next > api.today) return;
+    api.setSelected(next);
+  };
+
+  // When an odd number of compact cards remains, let the last one fill the row
+  // instead of leaving a blank half-card hole in the grid.
+  const compactMetrics = metrics.filter((metric) => metric !== "steps" && metric !== "water");
+  const wideLastCompact = compactMetrics.length % 2 === 1 ? compactMetrics[compactMetrics.length - 1] : null;
+
+  const renderCard = (metric: MetricKey) => {
+    const wide = metric === "steps" || metric === "water" || metric === wideLastCompact;
+    switch (metric) {
+      case "steps":
+        return <StepsCard key={metric} api={api} view={view} wide={wide} />;
+      case "weight":
+        return <WeightCard key={metric} api={api} view={view} wide={wide} />;
+      case "calories":
+        return <CaloriesCard key={metric} api={api} view={view} wide={wide} />;
+      case "sleep":
+        return <SleepCard key={metric} api={api} view={view} wide={wide} />;
+      case "water":
+        return <WaterCard key={metric} api={api} view={view} wide={wide} />;
+    }
+  };
+
+  return (
+    <div className="daily-page">
+      <header className="daily-hero">
+        <div className="daily-hero-top">
+          <div>
+            <p className="daily-eyebrow">DetailFlows</p>
+            <h1 className="daily-hero-title">Daily Tracker</h1>
+            <p className="daily-hero-date">{dayLabel(api.selected, api.today)}</p>
+          </div>
+          <button type="button" className="daily-quicklog" onClick={() => api.openSheet({ kind: "quicklog" })}>
+            <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+              <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" />
+            </svg>
+            <span>Log</span>
+          </button>
+        </div>
+
+        <div className="daily-datebar" aria-label="Choose a day">
+          <button
+            type="button"
+            className="daily-date-arrow"
+            onClick={() => go(-1)}
+            aria-label="Previous day"
+          >
+            ‹
+          </button>
+          <label className="daily-date-pick">
+            <span className="daily-date-pick-text">
+              {api.selected === api.today ? "Today" : shortDate(api.selected, api.selected.slice(0, 4) !== api.today.slice(0, 4))}
+            </span>
+            <input
+              type="date"
+              value={api.selected}
+              max={api.today}
+              aria-label="Pick a date"
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value && value <= api.today) api.setSelected(value);
+              }}
+            />
+            <span className="daily-date-pick-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                <rect x={4} y={5.5} width={16} height={15} rx={2.5} />
+                <path d="M4 10h16M8.5 3v4M15.5 3v4" />
+              </svg>
+            </span>
+          </label>
+          <button
+            type="button"
+            className="daily-date-arrow"
+            onClick={() => go(1)}
+            disabled={api.selected >= api.today}
+            aria-label="Next day"
+          >
+            ›
+          </button>
+        </div>
+
+        <div className="daily-summary">
+          <div className="daily-summary-dots" aria-hidden>
+            {metrics.map((metric) => {
+              const done =
+                (metric === "steps" && view.steps !== null) ||
+                (metric === "weight" && latestWeight(api.snap) !== null) ||
+                (metric === "calories" && view.calories !== null) ||
+                (metric === "sleep" && view.sleepMinutes !== null) ||
+                (metric === "water" && view.waterMl !== null);
+              return (
+                <span
+                  key={metric}
+                  className={`daily-summary-dot${done ? " is-on" : ""}`}
+                  style={{ ["--daily-accent" as string]: METRIC_META[metric].accent }}
+                />
+              );
+            })}
+          </div>
+          <span>
+            {logged} of {metrics.length} logged
+          </span>
+          {streak > 1 ? <span className="daily-summary-streak">{streak}-day streak</span> : null}
+        </div>
+      </header>
+
+      <div className="daily-metric-grid">{metrics.map(renderCard)}</div>
+
+      <section className="daily-highlight-strip">
+        <div className="daily-highlight-strip-head">
+          <span>Highlights</span>
+          <button type="button" className="daily-link" onClick={() => api.openSheet({ kind: "highlight", highlight: null })}>
+            {dayHighlights.length ? "Add another" : "Add a highlight"}
+          </button>
+        </div>
+        {dayHighlights.length === 0 ? (
+          <p className="daily-hint">Optional — save a milestone when you feel like it. Never required.</p>
+        ) : (
+          <ul className="daily-highlight-mini-list">
+            {dayHighlights.map((highlight) => (
+              <li key={highlight.id}>
+                <button
+                  type="button"
+                  className="daily-highlight-mini"
+                  onClick={() => api.openSheet({ kind: "highlight", highlight })}
+                >
+                  <span className="daily-highlight-star" aria-hidden>★</span>
+                  <span>{highlight.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <p className="daily-footnote">
+        Data is stored in this browser only. Open Settings to export a backup or adjust your goals.
+      </p>
+    </div>
+  );
+}

@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Apps — Weather & Fuel Tracker",
-  description: "Weather forecasts and a Fuel Tracker for your car.",
-  applicationName: "Apps",
+  title: "DetailFlows — Mini Apps",
+  description: "Weather, Fuel, Money, Groceries and a local-first Daily Tracker in one place.",
+  applicationName: "DetailFlows",
 };
 
 export const viewport: Viewport = {
