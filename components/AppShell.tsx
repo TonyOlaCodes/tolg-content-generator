@@ -7,6 +7,7 @@ import GameApp from "./GameApp";
 import PullUpApp from "./pullup/PullUpApp";
 import WeatherApp from "@/app/weather/WeatherApp";
 import FuelApp from "@/app/fuel/FuelApp";
+import MoneyApp from "@/app/money/MoneyApp";
 
 const MuseumApp = dynamic(() => import("./museum/MuseumApp"), {
   ssr: false,
@@ -52,6 +53,14 @@ export default function AppShell({ initialCode }: { initialCode?: string }) {
     return (
       <main className="app-shell is-fuel">
         <FuelApp onBack={backToChooser} />
+      </main>
+    );
+  }
+
+  if (app === "money") {
+    return (
+      <main className="app-shell is-money">
+        <MoneyApp onBack={backToChooser} />
       </main>
     );
   }
