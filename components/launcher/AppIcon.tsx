@@ -37,6 +37,14 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
           <path d="M14.5 9.5c-.4-.9-1.3-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1.2 0-2.2-.6-2.6-1.5M12 6.5v1.5M12 16v1.5" {...common} />
         </svg>
       );
+    case "groceries":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M3.5 5.5h2.2l2 9.5h9.6l2-7H7" {...common} />
+          <circle cx={9.5} cy={19} r={1.3} {...common} />
+          <circle cx={16.5} cy={19} r={1.3} {...common} />
+        </svg>
+      );
   }
 }
 

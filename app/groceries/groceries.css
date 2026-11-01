@@ -1,0 +1,222 @@
+/* Groceries & Pantry. Dark, iPhone-style, built on the DetailFlows tokens in globals.css. */
+.groceries {
+  --gr-accent: #86efac;
+  --gr-accent-deep: #15803d;
+  --gr-card: rgba(255, 255, 255, 0.06);
+  --gr-card-hi: rgba(255, 255, 255, 0.1);
+  --gr-line: rgba(255, 255, 255, 0.1);
+  min-height: 100dvh;
+  background: radial-gradient(120% 60% at 50% 0%, #17231b 0%, var(--bg) 60%);
+  color: var(--text);
+  font-size: 15px;
+  padding-bottom: calc(86px + var(--safe-bottom));
+}
+
+.groceries-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + var(--safe-top)) 14px 10px;
+  background: rgba(13, 11, 20, 0.85);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--gr-line);
+}
+.groceries-top > :last-child { justify-self: end; }
+.groceries-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.groceries-back {
+  justify-self: start;
+  background: none;
+  border: 0;
+  color: var(--gr-accent);
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.groceries-body { padding: 14px 14px 20px; max-width: 640px; margin: 0 auto; }
+.groceries-hint { color: var(--muted); padding: 24px 16px; text-align: center; }
+.groceries-card { margin: 16px; padding: 16px; border-radius: 18px; background: var(--gr-card); }
+
+.groceries-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 6px 6px calc(6px + var(--safe-bottom));
+  background: rgba(16, 13, 24, 0.92);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--gr-line);
+}
+.groceries-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.groceries-nav-btn.is-on { color: var(--gr-accent); }
+.groceries-nav-icon { font-size: 18px; line-height: 1; }
+
+.groceries-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + var(--safe-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #f7f4ee;
+  color: #0d0b14;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  max-width: calc(100vw - 32px);
+}
+
+/* Shared page primitives */
+.gr-stack { display: flex; flex-direction: column; gap: 12px; }
+.gr-card { background: var(--gr-card); border: 1px solid var(--gr-line); border-radius: 18px; padding: 14px; }
+.gr-card.gr-empty { text-align: center; padding: 22px 16px; }
+.gr-h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.gr-kicker { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.gr-muted { color: var(--muted); margin: 0; }
+.gr-small { font-size: 12px; }
+.gr-center { text-align: center; }
+.gr-error { color: var(--bad); margin: 0; font-size: 13px; }
+.gr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.gr-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--gr-line); }
+.gr-row:first-child { border-top: 0; }
+.gr-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.gr-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: none; border: 0; color: inherit; font: inherit; padding: 0; text-align: left; }
+.gr-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-search { display: flex; gap: 8px; }
+.gr-chips-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.gr-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.gr-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.gr-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gr-group { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.gr-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gr-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gr-total { display: flex; flex-direction: column; gap: 2px; padding: 14px; border-radius: 18px; background: linear-gradient(135deg, rgba(134, 239, 172, 0.22), rgba(21, 128, 61, 0.12)); border: 1px solid rgba(134, 239, 172, 0.3); }
+.gr-total-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gr-total-value.is-muted { color: var(--muted); font-size: 22px; }
+.gr-metric { display: flex; flex-direction: column; gap: 2px; }
+.gr-metric-value { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.gr-rank { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.gr-rank li { display: flex; justify-content: space-between; gap: 10px; }
+
+/* Buttons and controls */
+.gr-primary, .gr-secondary, .gr-danger, .gr-chip, .gr-pill, .gr-link {
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.2s ease;
+}
+.gr-primary:active, .gr-secondary:active, .gr-chip:active, .gr-pill:active { transform: scale(0.97); }
+.gr-primary, .gr-secondary, .gr-danger { min-height: 46px; border-radius: 14px; padding: 0 16px; font-weight: 650; border: 0; }
+.gr-primary { background: var(--gr-accent); color: #0b2415; }
+.gr-primary.is-small { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.gr-secondary { background: var(--gr-card-hi); color: var(--text); border: 1px solid var(--gr-line); }
+.gr-secondary.is-danger, .gr-danger { color: var(--bad); }
+.gr-danger { background: rgba(255, 122, 144, 0.12); }
+.gr-chip { min-height: 32px; padding: 0 12px; border-radius: 999px; background: var(--gr-card-hi); color: var(--text); border: 1px solid var(--gr-line); font-size: 13px; }
+.gr-chip.is-danger { color: var(--bad); }
+.gr-link { background: none; border: 0; color: var(--gr-accent); padding: 6px 2px; font-size: 15px; }
+.gr-link.is-strong { font-weight: 650; }
+.gr-link.is-danger { color: var(--bad); font-size: 13px; }
+.gr-pill { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--gr-line); background: transparent; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.gr-pill.is-on { background: var(--gr-accent); color: #0b2415; border-color: transparent; font-weight: 650; }
+.gr-primary:disabled, .gr-secondary:disabled, .gr-chip:disabled, .gr-danger:disabled { opacity: 0.45; cursor: default; }
+
+.gr-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--gr-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.gr-input:focus { border-color: var(--gr-accent); }
+.gr-input.is-compact { min-height: 36px; width: 96px; padding: 6px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+select.gr-input { appearance: none; }
+textarea.gr-input { resize: vertical; }
+.gr-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+
+/* Food list */
+.gr-food-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gr-food { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--gr-card); border: 1px solid var(--gr-line); }
+.gr-food-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; }
+.gr-food-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-badge { align-self: flex-start; font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: var(--gr-card-hi); color: var(--muted); }
+.gr-badge.is-plenty { color: var(--good); background: rgba(99, 230, 190, 0.14); }
+.gr-badge.is-low { color: var(--warn); background: rgba(255, 179, 71, 0.16); }
+.gr-badge.is-critical { color: var(--bad); background: rgba(255, 122, 144, 0.16); }
+.gr-badge.is-empty { color: var(--bad); background: rgba(255, 122, 144, 0.28); }
+
+/* Stepper (+ / −) */
+.gr-stepper { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--gr-line); flex-shrink: 0; }
+.gr-stepper button { width: 36px; height: 36px; border-radius: 999px; border: 0; background: var(--gr-card-hi); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer; transition: transform 0.12s ease; }
+.gr-stepper button:active { transform: scale(0.92); }
+.gr-stepper button:disabled { opacity: 0.4; cursor: default; }
+.gr-stepper-value { min-width: 44px; text-align: center; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* Check box */
+.gr-check { width: 28px; height: 28px; border-radius: 999px; border: 2px solid var(--gr-accent); background: transparent; cursor: pointer; flex-shrink: 0; }
+.gr-shop-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--gr-line); }
+.gr-shop-row:first-child { border-top: 0; }
+.gr-line-edit { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.gr-line-total { font-weight: 650; font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.gr-row.is-done .gr-name { color: var(--muted); text-decoration: line-through; }
+.gr-price { display: inline-flex; align-items: center; gap: 4px; }
+.gr-finish-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* Home */
+.gr-hero { padding: 18px; border-radius: 22px; background: linear-gradient(145deg, rgba(134, 239, 172, 0.2), rgba(21, 128, 61, 0.08) 60%, rgba(255, 255, 255, 0.02)); border: 1px solid rgba(134, 239, 172, 0.25); display: flex; flex-direction: column; gap: 10px; }
+.gr-hero-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.gr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gr-stat { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); }
+.gr-stat-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gr-stat-label { font-size: 11px; color: var(--muted); }
+.gr-stat.is-warn .gr-stat-value { color: var(--warn); }
+.gr-stat.is-bad .gr-stat-value { color: var(--bad); }
+
+/* Meals */
+.gr-meal { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--gr-line); }
+.gr-meal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; }
+.gr-meal-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.gr-quick { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 8px; align-items: center; }
+.gr-ingredient { display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr auto; gap: 6px; align-items: center; }
+
+/* Analytics */
+.gr-rank li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Sheets */
+.gr-sheet-wrap { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; justify-content: flex-end; }
+.gr-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); border: 0; padding: 0; cursor: pointer; animation: gr-fade 0.2s ease; }
+.gr-sheet { position: relative; max-height: 88dvh; overflow-y: auto; background: #1a1624; border-radius: 22px 22px 0 0; padding-bottom: var(--safe-bottom); box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.45); animation: gr-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.gr-sheet-head { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 14px 14px 10px; background: #1a1624; border-bottom: 1px solid var(--gr-line); }
+.gr-sheet-head > :last-child { justify-self: end; }
+.gr-sheet-head > :first-child { justify-self: start; }
+@keyframes gr-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gr-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .groceries *, .groceries *::before, .groceries *::after { animation: none !important; transition: none !important; }
+}

@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx tests/weather.test.ts && tsx tests/fuel.test.ts && tsx tests/money.test.ts",
+    "test": "tsx tests/weather.test.ts && tsx tests/fuel.test.ts && tsx tests/money.test.ts && tsx tests/groceries.test.ts",
     "probe": "node tests/probe.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"

@@ -1,10 +1,10 @@
-export type AppId = "weather" | "fuel" | "money";
+export type AppId = "weather" | "fuel" | "money" | "groceries";
 
 export type Category = "Productivity" | "Utilities" | "Fitness" | "Finance" | "Entertainment";
 
 export const CATEGORIES: Category[] = ["Productivity", "Utilities", "Fitness", "Finance", "Entertainment"];
 
-export type Glyph = "weather" | "fuel" | "money";
+export type Glyph = "weather" | "fuel" | "money" | "groceries";
 
 export type AppEntry = {
   id: AppId;
@@ -45,6 +45,15 @@ export const APPS: AppEntry[] = [
     category: "Finance",
     gradient: ["#fde68a", "#b45309"],
     glyph: "money",
+    status: "ready",
+  },
+  {
+    id: "groceries",
+    title: "Groceries & Pantry",
+    subtitle: "Stock, meals and shopping",
+    category: "Productivity",
+    gradient: ["#86efac", "#15803d"],
+    glyph: "groceries",
     status: "ready",
   },
 ];

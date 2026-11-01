@@ -5,6 +5,7 @@ import AppChooser, { type AppId } from "./AppChooser";
 import WeatherApp from "@/app/weather/WeatherApp";
 import FuelApp from "@/app/fuel/FuelApp";
 import MoneyApp from "@/app/money/MoneyApp";
+import GroceriesApp from "@/app/groceries/GroceriesApp";
 
 export default function AppShell() {
   const [app, setApp] = useState<AppId | null>(null);
@@ -31,6 +32,14 @@ export default function AppShell() {
     return (
       <main className="app-shell is-money">
         <MoneyApp onBack={backToChooser} />
+      </main>
+    );
+  }
+
+  if (app === "groceries") {
+    return (
+      <main className="app-shell is-groceries">
+        <GroceriesApp onBack={backToChooser} />
       </main>
     );
   }
