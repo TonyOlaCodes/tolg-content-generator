@@ -206,7 +206,7 @@ function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetri
         {latest ? (
           <>
             <span>
-              {dayEntry !== null ? (view.weightCount > 1 ? `${view.weightCount} weigh-ins this day` : "Weighed today") : `Last ${shortDate(latest.date)}`}
+              {dayEntry !== null ? "Weighed this day" : `Last ${shortDate(latest.date)}`}
             </span>
             {change !== null ? (
               <span className={`daily-delta ${change > 0 ? "is-up" : change < 0 ? "is-down" : ""}`}>

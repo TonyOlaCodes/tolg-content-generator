@@ -1,6 +1,6 @@
 import type { ChartPeriod, Highlight, Settings, Snapshot, WeightUnit } from "./model";
 import { CHART_PERIODS, DEFAULT_SETTINGS, LIMITS, METRIC_KEYS } from "./model";
-import { isDateKey, isValidTime } from "./date";
+import { isDateKey } from "./date";
 import { validateCalories, validateSleepMinutes, validateSteps, validateWaterMl, validateWeightKg } from "./actions";
 
 export const BACKUP_FORMAT = "detailflows-daily";
@@ -87,17 +87,19 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
     days.push({ date: item.date, steps: steps as number | null, calories: calories as number | null, sleepMinutes: sleepMinutes as number | null, updatedAt: item.updatedAt });
   }
 
-  const weights: Snapshot["weights"] = [];
+  // One weigh-in per date: older backups may hold several for the same day, so keep the newest.
+  const weightByDate = new Map<string, Snapshot["weights"][number]>();
   const weightIds = new Set<string>();
   for (const item of data.weights as unknown[]) {
     if (!isObj(item) || !isStr(item.id) || !isDateKey(item.date) || !isNum(item.kg) || !isStr(item.createdAt)) return { ok: false, error: "A weigh-in in the backup is malformed." };
     if (weightIds.has(item.id)) return { ok: false, error: "The backup has duplicate weigh-in IDs." };
     weightIds.add(item.id);
     if (validateWeightKg(item.kg) !== null) return { ok: false, error: "A weigh-in in the backup is outside the allowed range." };
-    const time = item.time ?? null;
-    if (time !== null && !isValidTime(time)) return { ok: false, error: "A weigh-in has an invalid time." };
-    weights.push({ id: item.id, date: item.date, kg: item.kg, time: time as string | null, createdAt: item.createdAt });
+    const entry = { id: item.id, date: item.date, kg: item.kg, createdAt: item.createdAt };
+    const current = weightByDate.get(item.date);
+    if (!current || entry.createdAt >= current.createdAt) weightByDate.set(item.date, entry);
   }
+  const weights = [...weightByDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const water: Snapshot["water"] = [];
   const waterIds = new Set<string>();

@@ -40,10 +40,8 @@ export type DayEntry = {
 export type WeightEntry = {
   id: string;
   date: string;
-  /** Always stored in kilograms; the display unit is a setting. */
+  /** Always stored in kilograms; the display unit is a setting. One entry per date. */
   kg: number;
-  /** Local 24-hour time ("HH:mm") when the measurement was taken, if given. */
-  time: string | null;
   createdAt: string;
 };
 

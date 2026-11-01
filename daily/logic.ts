@@ -22,10 +22,9 @@ export type DayMetrics = {
   calories: number | null;
   sleepMinutes: number | null;
   waterMl: number | null;
-  /** Most recent weigh-in on this day, or null when there was none. */
+  /** The day's weigh-in, or null when there was none. */
   weightKg: number | null;
   weightId: string | null;
-  weightCount: number;
   hasData: boolean;
 };
 
@@ -56,13 +55,10 @@ export function waterTotalForDate(snapshot: Snapshot, date: string): number | nu
   return entries.reduce((sum, w) => sum + w.ml, 0);
 }
 
-/** Sorts a day's weigh-ins so the latest one wins (time first, then creation). */
+/** Sorts weigh-ins by date, with creation time only as a stable tie-breaker. */
 export function sortWeights(entries: WeightEntry[]): WeightEntry[] {
   return [...entries].sort((a, b) => {
     if (a.date !== b.date) return compareDateKeys(a.date, b.date);
-    const at = a.time ?? "";
-    const bt = b.time ?? "";
-    if (at !== bt) return at < bt ? -1 : 1;
     if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
     return a.id < b.id ? -1 : 1;
   });
@@ -99,7 +95,6 @@ export function dayMetrics(snapshot: Snapshot, date: string): DayMetrics {
     waterMl,
     weightKg: latest ? latest.kg : null,
     weightId: latest ? latest.id : null,
-    weightCount: weights.length,
     hasData: steps !== null || calories !== null || sleepMinutes !== null || waterMl !== null || latest !== null,
   };
 }

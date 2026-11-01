@@ -14,7 +14,6 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -159,26 +158,6 @@ export function longDate(key: string): string {
 
 export function shortWeekdayDate(key: string): string {
   return `${weekdayShort(key)} ${shortDate(key, true)}`;
-}
-
-/** Parses "HH:mm" into minutes since midnight. */
-export function timeToMinutes(time: string): number | null {
-  if (!TIME_RE.test(time)) return null;
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
-
-export function isValidTime(value: unknown): value is string {
-  return typeof value === "string" && TIME_RE.test(value);
-}
-
-export function formatTime(time: string): string {
-  return isValidTime(time) ? time : "";
-}
-
-/** Current local wall-clock time as "HH:mm" (24-hour, per the app's preference). */
-export function nowTime(now: Date = new Date()): string {
-  return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 /** Calendar grid for a month: leading blanks (Monday first) plus day keys. */

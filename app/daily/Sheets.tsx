@@ -12,13 +12,12 @@ import {
   setDayMetric,
   setDayMetrics,
   updateWater,
-  updateWeight,
   type Result,
 } from "@/daily/actions";
 import { weightsForDate, waterTotalForDate } from "@/daily/logic";
-import { dayLabel, nowTime } from "@/daily/date";
+import { dayLabel } from "@/daily/date";
 import { formatDuration, formatWater, formatWeight, kgToUnit, unitToKg } from "@/daily/format";
-import { METRIC_META, type Highlight, type WeightEntry } from "@/daily/model";
+import { METRIC_META, type Highlight } from "@/daily/model";
 import { ProgressBar, ProgressRing } from "./charts";
 import { shrinkPhoto } from "./photo";
 import { parseDecimal, parseWhole, uiCtx, type DailyApi } from "./api";
@@ -568,29 +567,22 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
 export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => void }) {
   const date = api.selected;
   const unit = api.settings.weightUnit;
-  const entries = weightsForDate(api.snap, date);
-  const [value, setValue] = useState("");
-  const [time, setTime] = useState(nowTime());
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const existing = weightsForDate(api.snap, date)[0] ?? null;
+  const [value, setValue] = useState(existing ? numberInput(kgToUnit(existing.kg, unit)) : "");
   const { error, setError, busy, run } = useSaving();
 
   const submit = async () => {
     const parsed = parseDecimal(value);
     if (parsed === null) return setError(`Enter a weight in ${unit}.`);
-    const kg = unitToKg(parsed, unit);
-    const cleanTime = time.trim() === "" ? null : time.trim();
-    if (cleanTime && !/^([01]\d|2[0-3]):([0-5]\d)$/.test(cleanTime)) {
-      return setError("Enter the time as 24-hour HH:mm, or leave it blank.");
-    }
-    const result = editingId
-      ? updateWeight(api.snap, editingId, { kg, time: cleanTime })
-      : addWeight(api.snap, { date, kg, time: cleanTime }, uiCtx(api.today));
-    const ok = await run(() => api.commit(result, editingId ? "Weigh-in updated" : "Weigh-in saved"));
-    if (ok) {
-      setValue("");
-      setEditingId(null);
-      setTime(nowTime());
-    }
+    const result = addWeight(api.snap, { date, kg: unitToKg(parsed, unit) }, uiCtx(api.today));
+    const ok = await run(() => api.commit(result, existing ? "Weigh-in updated" : "Weigh-in saved"));
+    if (ok) onClose();
+  };
+
+  const remove = async () => {
+    if (!existing) return;
+    const ok = await run(() => api.commit(deleteWeight(api.snap, existing.id), "Weigh-in removed"));
+    if (ok) onClose();
   };
 
   return (
@@ -602,95 +594,36 @@ export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => vo
         <>
           <ErrorLine message={error} />
           <div className="daily-sheet-actions">
-            {editingId ? (
-              <button
-                type="button"
-                className="daily-btn-ghost"
-                onClick={() => {
-                  setEditingId(null);
-                  setValue("");
-                  setError(null);
-                }}
-              >
-                Cancel edit
+            {existing ? (
+              <button type="button" className="daily-btn-ghost" disabled={busy} onClick={() => void remove()}>
+                Remove
               </button>
             ) : null}
             <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void submit()}>
-              {editingId ? "Update weigh-in" : "Add weigh-in"}
+              {existing ? "Update weigh-in" : "Save weigh-in"}
             </button>
           </div>
         </>
       }
     >
-      <p className="daily-hint">
-        Weigh in whenever you like — no daily requirement. Several measurements on the same date are kept separately.
-      </p>
+      <p className="daily-hint">One weigh-in per day. Weigh whenever you like — there is no daily requirement.</p>
       <p className="daily-hint">
         {api.settings.weightGoalKg === null
           ? "No weight goal set. Add one in Settings."
           : `Goal ${formatWeight(api.settings.weightGoalKg, unit)} — change it in Settings.`}
       </p>
-      <div className="daily-grid2">
-        <NumberField
-          label={`Weight (${unit})`}
-          value={value}
-          onChange={setValue}
-          inputMode="decimal"
-          placeholder={unit === "kg" ? "78.2" : "172.4"}
-        />
-        <label className="daily-field">
-          <span>Time (optional)</span>
-          <span className="daily-input-wrap">
-            <input
-              className="daily-input"
-              type="text"
-              inputMode="numeric"
-              placeholder="07:15"
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
-            />
-          </span>
-        </label>
-      </div>
-
-      <div className="daily-block">
-        <p className="daily-block-title">Weigh-ins on this date</p>
-        {entries.length === 0 ? (
-          <p className="daily-hint">Nothing recorded for this date yet.</p>
-        ) : (
-          <ul className="daily-list">
-            {entries.map((entry: WeightEntry) => (
-              <li key={entry.id} className="daily-list-row">
-                <span className="daily-list-main">
-                  <strong>{formatWeight(entry.kg, unit)}</strong>
-                  <em>{entry.time ?? "no time"}</em>
-                </span>
-                <button
-                  type="button"
-                  className="daily-link"
-                  onClick={() => {
-                    setEditingId(entry.id);
-                    setValue(numberInput(kgToUnit(entry.kg, unit)));
-                    setTime(entry.time ?? "");
-                    setError(null);
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="daily-link is-danger"
-                  disabled={busy}
-                  onClick={() => void run(() => api.commit(deleteWeight(api.snap, entry.id), "Weigh-in removed"))}
-                  aria-label={`Delete weigh-in ${formatWeight(entry.kg, unit)}`}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <NumberField
+        label={`Weight (${unit})`}
+        value={value}
+        onChange={setValue}
+        inputMode="decimal"
+        placeholder={unit === "kg" ? "78.2" : "172.4"}
+      />
+      {existing ? (
+        <p className="daily-hint">
+          Currently {formatWeight(existing.kg, unit)}. Saving replaces this day&apos;s weigh-in; Remove clears it.
+        </p>
+      ) : null}
     </SheetShell>
   );
 }
@@ -701,13 +634,13 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
   const date = api.selected;
   const day = api.snap.days.find((d) => d.date === date) ?? null;
   const unit = api.settings.weightUnit;
+  const dayWeight = weightsForDate(api.snap, date)[0] ?? null;
   const [steps, setSteps] = useState(day?.steps != null ? String(day.steps) : "");
   const [calories, setCalories] = useState(day?.calories != null ? String(day.calories) : "");
   const [hours, setHours] = useState(day?.sleepMinutes != null ? String(Math.floor(day.sleepMinutes / 60)) : "");
   const [minutes, setMinutes] = useState(day?.sleepMinutes != null ? String(day.sleepMinutes % 60) : "");
   const [water, setWater] = useState("");
-  const [weight, setWeight] = useState("");
-  const [time, setTime] = useState(nowTime());
+  const [weight, setWeight] = useState(dayWeight ? numberInput(kgToUnit(dayWeight.kg, unit)) : "");
   const { error, setError, busy, run } = useSaving();
 
   const save = async () => {
@@ -741,8 +674,7 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
     if (weight.trim()) {
       const parsed = parseDecimal(weight);
       if (parsed === null) return setError(`Weight must be a number in ${unit}.`);
-      const cleanTime = time.trim() === "" ? null : time.trim();
-      results.push(addWeight(api.snap, { date, kg: unitToKg(parsed, unit), time: cleanTime }, uiCtx(api.today)));
+      results.push(addWeight(api.snap, { date, kg: unitToKg(parsed, unit) }, uiCtx(api.today)));
     }
 
     if (results.length === 0) return setError("Enter at least one value to save.");
@@ -786,18 +718,7 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
           placeholder="—"
         />
       </div>
-      <label className="daily-field">
-        <span>Weigh-in time (optional)</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            inputMode="numeric"
-            value={time}
-            onChange={(event) => setTime(event.target.value)}
-          />
-        </span>
-      </label>
+      <p className="daily-hint">One weigh-in per day — saving a new weight replaces that day&apos;s value.</p>
     </SheetShell>
   );
 }

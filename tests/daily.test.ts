@@ -32,7 +32,7 @@ import {
   weekAverage,
   weightStats,
 } from "../daily/logic";
-import { addDays, daysBetween, eachDay, monthGrid, parseDateKey, startOfWeek, timeToMinutes, toDateKey, todayKey } from "../daily/date";
+import { addDays, daysBetween, eachDay, monthGrid, parseDateKey, startOfWeek, toDateKey, todayKey } from "../daily/date";
 import { exportSnapshot, validateBackup } from "../daily/backup";
 import { DEFAULT_SETTINGS, LIMITS, emptySnapshot, visibleMetrics, type Snapshot } from "../daily/model";
 import { formatDuration, formatWater, formatWeightChange, kgToUnit } from "../daily/format";
@@ -58,7 +58,6 @@ assert.equal(addDays("2028-03-01", -1), "2028-02-29", "leap year");
 assert.equal(parseDateKey("2026-02-31"), null, "impossible dates are rejected");
 assert.equal(parseDateKey("2026-11-01")?.getDate(), 1);
 assert.equal(startOfWeek("2026-11-01"), "2026-10-26", "weeks start on Monday");
-assert.equal(timeToMinutes("31:00"), null);
 assert.equal(toDateKey(new Date(2026, 10, 1, 23, 30)), "2026-11-01", "day keys use local parts, not UTC");
 assert.equal(eachDay("2026-10-30", "2026-11-01").length, 3);
 assert.equal(monthGrid("2026-11")[0], null, "November 2026 starts on a Sunday, so Monday-first grid has 6 blanks");
@@ -158,48 +157,48 @@ assert.equal(formatWater(3000), "3 L");
 
 // ------------------------------------------------------------------ weight
 let weightSnap = emptySnapshot();
-// Two weigh-ins on the same day, with times, both kept.
-weightSnap = apply(weightSnap, addWeight(weightSnap, { date: TODAY, kg: 78.4, time: "07:15" }, ctx));
-const morningId = weightSnap.weights[0].id;
-weightSnap = apply(weightSnap, addWeight(weightSnap, { date: TODAY, kg: 78.2, time: "19:40" }, ctx));
-assert.equal(weightSnap.weights.length, 2, "multiple weigh-ins per day are preserved");
-assert.equal(latestWeight(weightSnap)?.kg, 78.2, "the latest time wins");
-assert.equal(dayMetrics(weightSnap, TODAY).weightCount, 2);
+// One weigh-in per day: logging again replaces that day's value.
+weightSnap = apply(weightSnap, addWeight(weightSnap, { date: TODAY, kg: 78.4 }, ctx));
+const dayId = weightSnap.weights[0].id;
+weightSnap = apply(weightSnap, addWeight(weightSnap, { date: TODAY, kg: 78.2 }, ctx));
+assert.equal(weightSnap.weights.length, 1, "a day keeps a single weigh-in");
+assert.equal(weightSnap.weights[0].id, dayId, "re-logging updates the existing record");
+assert.equal(latestWeight(weightSnap)?.kg, 78.2);
+assert.equal(dayMetrics(weightSnap, TODAY).weightKg, 78.2);
 
-// A later weigh-in on a previous day, and a missing day in between.
-weightSnap = apply(weightSnap, addWeight(weightSnap, { date: "2026-10-25", kg: 79.0, time: "08:00" }, ctx));
-weightSnap = apply(weightSnap, addWeight(weightSnap, { date: "2026-10-20", kg: 79.6, time: null }, ctx));
+// A weigh-in on a previous day, and a missing day in between.
+weightSnap = apply(weightSnap, addWeight(weightSnap, { date: "2026-10-25", kg: 79.0 }, ctx));
+weightSnap = apply(weightSnap, addWeight(weightSnap, { date: "2026-10-20", kg: 79.6 }, ctx));
+assert.equal(weightSnap.weights.length, 3);
 assert.equal(latestWeight(weightSnap)?.kg, 78.2);
 assert.equal(dayMetrics(weightSnap, "2026-10-31").weightKg, null, "a missing weigh-in is not zero");
 
 // Update a measurement's value, keeping the same record.
-weightSnap = apply(weightSnap, updateWeight(weightSnap, morningId, { kg: 78.45, time: "07:30" }));
-assert.equal(weightSnap.weights.find((w) => w.id === morningId)?.kg, 78.45);
-assert.equal(weightSnap.weights.length, 4);
-assert.equal(updateWeight(weightSnap, morningId, { kg: 500, time: null }).ok, false);
-assert.equal(updateWeight(weightSnap, morningId, { kg: 78, time: "7:30" }).ok, false);
+weightSnap = apply(weightSnap, updateWeight(weightSnap, dayId, { kg: 78.45 }));
+assert.equal(weightSnap.weights.find((w) => w.id === dayId)?.kg, 78.45);
+assert.equal(weightSnap.weights.length, 3);
+assert.equal(updateWeight(weightSnap, dayId, { kg: 500 }).ok, false);
 
 // Weight trend: change over the period uses real measurements only.
 const stats = weightStats(weightSnap, "2026-10-20", TODAY);
-assert.equal(stats.count, 4);
-assert.equal(stats.changeKg !== null ? Math.round(stats.changeKg * 100) / 100 : null, -1.4);
+assert.equal(stats.count, 3);
+assert.equal(stats.changeKg !== null ? Math.round(stats.changeKg * 100) / 100 : null, -1.15);
 assert.equal(stats.daily.length, 3, "only days with a weigh-in appear in the daily series");
 assert.equal(stats.smoothed.length, 3);
 assert.equal(stats.weekly.length, 2, "two Monday-based weeks");
 assert.equal(stats.monthly.length, 2, "October and November");
-// Weekly average (w/c 26 Oct) uses both Nov 1 measurements and the Oct 25 one? Oct 25 is the earlier week.
 const weekOfNov1 = stats.weekly.find((w) => w.key === "2026-10-26");
 assert.ok(weekOfNov1);
-assert.equal(Math.round(weekOfNov1.kg * 100) / 100, 78.33, "average of 78.2 and 78.45 (two real measurements)");
-assert.equal(weekOfNov1.count, 2);
+assert.equal(Math.round(weekOfNov1.kg * 100) / 100, 78.45, "the day's single weigh-in");
+assert.equal(weekOfNov1.count, 1);
 assert.equal(formatWeightChange(0.8, "kg"), "+0.8 kg");
 assert.equal(Math.round(kgToUnit(100, "lb") * 10) / 10, 220.5);
 
 // Deleting a single weigh-in is undoable.
-const deleteResult = must(deleteWeight(weightSnap, morningId));
+const deleteResult = must(deleteWeight(weightSnap, dayId));
 const afterDelete = applyChangeLocally(weightSnap, deleteResult);
-assert.equal(afterDelete.weights.length, 3);
-assert.equal(applyChangeLocally(afterDelete, invertChange(weightSnap, deleteResult)).weights.length, 4);
+assert.equal(afterDelete.weights.length, 2);
+assert.equal(applyChangeLocally(afterDelete, invertChange(weightSnap, deleteResult)).weights.length, 3);
 
 // ------------------------------------------------------- averages and goals
 const averagesSnap = emptySnapshot();
@@ -255,9 +254,9 @@ const insightSnap = apply(
     ),
     addWater(av, { date: "2026-10-26", ml: 3000 }, ctx),
   ),
-  addWeight(av, { date: "2026-10-05", kg: 80, time: null }, ctx),
+  addWeight(av, { date: "2026-10-05", kg: 80 }, ctx),
 );
-const insightWeightSnap = apply(insightSnap, addWeight(insightSnap, { date: "2026-10-28", kg: 79.2, time: null }, ctx));
+const insightWeightSnap = apply(insightSnap, addWeight(insightSnap, { date: "2026-10-28", kg: 79.2 }, ctx));
 const insights = buildInsights(insightWeightSnap, 30, TODAY);
 const text = insights.map((i) => i.text).join(" ");
 assert.match(text, /Average steps since your first entry: 7,000/, "averages use recorded days only");
@@ -368,7 +367,7 @@ assert.equal(periodDates(av, 0, TODAY).length, daysBetween("2026-10-26", TODAY) 
 
 // ------------------------------------------------------------------ backup
 snap = apply(snap, addWater(snap, { date: TODAY, ml: 500 }, ctx));
-snap = apply(snap, addWeight(snap, { date: TODAY, kg: 78.2, time: "07:00" }, ctx));
+snap = apply(snap, addWeight(snap, { date: TODAY, kg: 78.2 }, ctx));
 snap = apply(snap, saveHighlight(snap, { date: TODAY, title: "Milestone", description: "A day", tags: ["tag"], photo: "data:image/png;base64,AAAA" }, ctx));
 snap = apply(snap, saveSettings(snap, { stepGoal: 12_000, calorieGoal: 2200, waterGoalMl: 2500, weightGoalKg: 72.5, weightUnit: "lb", chartPeriod: 90 }));
 
@@ -381,6 +380,16 @@ assert.equal(parsed.ok ? parsed.data.highlights[0].photo : null, "data:image/png
 assert.equal(parsed.ok ? parsed.data.settings.stepGoal : 0, 12_000);
 assert.equal(parsed.ok ? parsed.data.settings.weightUnit : "", "lb");
 assert.equal(parsed.ok ? parsed.data.settings.weightGoalKg : 0, 72.5, "weight goals survive export and import");
+
+// Older backups could hold several weigh-ins per day; import keeps one and drops the time field.
+const legacyBackup = JSON.parse(json) as { data: { weights: { id: string; date: string; kg: number; createdAt: string; time?: string }[] } };
+const firstWeight = legacyBackup.data.weights[0];
+legacyBackup.data.weights.push({ ...firstWeight, id: `${firstWeight.id}-legacy`, kg: 77.7, createdAt: "2099-01-01T00:00:00.000Z", time: "19:40" });
+const legacyParsed = validateBackup(legacyBackup);
+assert.ok(legacyParsed.ok);
+assert.equal(legacyParsed.data.weights.length, snap.weights.length, "extra weigh-ins on the same day are dropped");
+assert.equal(legacyParsed.data.weights.find((w) => w.date === firstWeight.date)?.kg, 77.7, "the newest weigh-in is kept");
+assert.equal("time" in legacyParsed.data.weights[0], false, "legacy times are not carried over");
 
 const broken = JSON.parse(json) as { data: { days: { steps?: unknown }[] } };
 broken.data.days[0].steps = 999_999;

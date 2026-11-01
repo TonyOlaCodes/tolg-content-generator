@@ -14,7 +14,7 @@ import { DEFAULT_SETTINGS, EMPTY_SNAPSHOT, STORE_KEY, STORE_NAMES, type Snapshot
 import type { Change } from "./actions";
 
 const DB_NAME = "detailflows-daily";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export type DailyStore = {
   load(): Promise<Snapshot>;
@@ -33,7 +33,7 @@ function openDb(): Promise<IDBDatabase> {
       return;
     }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
       for (const name of STORE_NAMES) {
         if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: STORE_KEY[name] });
@@ -41,6 +41,28 @@ function openDb(): Promise<IDBDatabase> {
       for (const name of ["weights", "water", "highlights"] as const) {
         const store = request.transaction?.objectStore(name);
         if (store && !store.indexNames.contains("by-date")) store.createIndex("by-date", "date");
+      }
+      // v2: a day now holds a single weigh-in and no longer stores a time.
+      if (event.oldVersion >= 1 && event.oldVersion < 2) {
+        const store = request.transaction?.objectStore("weights");
+        if (store) {
+          const read = store.getAll();
+          read.onsuccess = () => {
+            const all = read.result as Snapshot["weights"][number][];
+            const newest = new Map<string, Snapshot["weights"][number]>();
+            for (const entry of all) {
+              const current = newest.get(entry.date);
+              if (!current || entry.createdAt >= current.createdAt) newest.set(entry.date, entry);
+            }
+            for (const entry of all) {
+              if (newest.get(entry.date) === entry) {
+                store.put({ id: entry.id, date: entry.date, kg: entry.kg, createdAt: entry.createdAt });
+              } else {
+                store.delete(entry.id);
+              }
+            }
+          };
+        }
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -55,6 +77,18 @@ function done(tx: IDBTransaction): Promise<void> {
     tx.onerror = () => reject(tx.error ?? new Error("Could not save your entries."));
     tx.onabort = () => reject(tx.error ?? new Error("The save was cancelled. Nothing was changed."));
   });
+}
+
+/** Collapses legacy multiple-weigh-in days to the newest entry and drops the old time field. */
+function normalizeWeights(entries: Snapshot["weights"]): Snapshot["weights"] {
+  const newest = new Map<string, Snapshot["weights"][number]>();
+  for (const entry of entries) {
+    const current = newest.get(entry.date);
+    if (!current || entry.createdAt >= current.createdAt) newest.set(entry.date, entry);
+  }
+  return [...newest.values()]
+    .map(({ id, date, kg, createdAt }) => ({ id, date, kg, createdAt }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 function normalizeSettings(value: unknown): Snapshot["settings"] {
@@ -97,7 +131,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
     await done(tx);
     return {
       days,
-      weights,
+      weights: normalizeWeights(weights),
       water,
       highlights,
       settings: normalizeSettings(settings[0]),
@@ -127,7 +161,7 @@ export async function replaceAll(snapshot: Snapshot): Promise<void> {
     const tx = db.transaction(STORE_NAMES, "readwrite");
     for (const name of STORE_NAMES) tx.objectStore(name).clear();
     for (const day of snapshot.days) tx.objectStore("days").put(day);
-    for (const weight of snapshot.weights) tx.objectStore("weights").put(weight);
+    for (const weight of normalizeWeights(snapshot.weights)) tx.objectStore("weights").put(weight);
     for (const entry of snapshot.water) tx.objectStore("water").put(entry);
     for (const highlight of snapshot.highlights) tx.objectStore("highlights").put(highlight);
     tx.objectStore("settings").put(normalizeSettings(snapshot.settings));

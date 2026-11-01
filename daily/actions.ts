@@ -9,7 +9,7 @@
 
 import type { ChartPeriod, DayEntry, Highlight, MetricKey, Settings, Snapshot, StoreName, WaterEntry, WeightEntry, WeightUnit } from "./model";
 import { CHART_PERIODS, LIMITS, METRIC_KEYS, STORE_KEY, settingsOf } from "./model";
-import { isDateKey, isValidTime } from "./date";
+import { isDateKey } from "./date";
 
 export type Change = {
   puts: { store: StoreName; value: unknown }[];
@@ -203,31 +203,31 @@ export function deleteWater(snapshot: Snapshot, id: string): Result {
   return change([], [{ store: "water", key: id }]);
 }
 
-/** Multiple weigh-ins per day are kept as separate records, never overwritten. */
-export function addWeight(snapshot: Snapshot, input: { date: string; kg: number; time: string | null }, ctx: Ctx): Result {
+/** A day holds exactly one weigh-in: logging again replaces that day's value. */
+export function addWeight(snapshot: Snapshot, input: { date: string; kg: number }, ctx: Ctx): Result {
   const dateError = checkDate(input.date, ctx.today);
   if (dateError) return fail(dateError);
   const error = validateWeightKg(input.kg);
   if (error) return fail(error);
-  if (input.time !== null && !isValidTime(input.time)) return fail("Enter a valid time (00:00–23:59).");
-  void snapshot;
+  const existing = snapshot.weights.find((w) => w.date === input.date);
+  if (existing) {
+    return change([{ store: "weights", value: { ...existing, kg: round2(input.kg) } }]);
+  }
   const entry: WeightEntry = {
     id: ctx.newId(),
     date: input.date,
     kg: round2(input.kg),
-    time: input.time,
     createdAt: ctx.now,
   };
   return change([{ store: "weights", value: entry }]);
 }
 
-export function updateWeight(snapshot: Snapshot, id: string, input: { kg: number; time: string | null }): Result {
+export function updateWeight(snapshot: Snapshot, id: string, input: { kg: number }): Result {
   const entry = snapshot.weights.find((w) => w.id === id);
   if (!entry) return fail("That weigh-in no longer exists.");
   const error = validateWeightKg(input.kg);
   if (error) return fail(error);
-  if (input.time !== null && !isValidTime(input.time)) return fail("Enter a valid time (00:00–23:59).");
-  return change([{ store: "weights", value: { ...entry, kg: round2(input.kg), time: input.time } }]);
+  return change([{ store: "weights", value: { ...entry, kg: round2(input.kg) } }]);
 }
 
 export function deleteWeight(snapshot: Snapshot, id: string): Result {

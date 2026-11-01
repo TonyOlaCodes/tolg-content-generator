@@ -24,7 +24,7 @@ Daily Tracker is local-first. Entries are stored in this browser with IndexedDB 
 nothing is sent to a server; Apple Health is not accessed.
 
 - Today dashboard with editable metric cards, a date selector and quick daily logging.
-- Steps, bodyweight (multiple weigh-ins per day), calories, sleep and water.
+- Steps, bodyweight (one weigh-in per day), calories, sleep and water.
 - Calendar history, chart trends and automatically calculated insights from recorded data only.
 - Optional highlights with a title, description, tags and a downsized photo.
 - Settings for goals, weight unit, chart period, card order/visibility and JSON backup.

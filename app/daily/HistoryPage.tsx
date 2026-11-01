@@ -72,7 +72,7 @@ export default function HistoryPage({ api }: { api: DailyApi }) {
       case "weight":
         return selected.weightKg === null
           ? "Not logged"
-          : `${formatWeight(selected.weightKg, api.settings.weightUnit)}${selected.weightCount > 1 ? ` · ${selected.weightCount} weigh-ins` : ""}`;
+          : formatWeight(selected.weightKg, api.settings.weightUnit);
       case "calories":
         return selected.calories === null ? "Not logged" : formatCalories(selected.calories);
       case "sleep":
