@@ -19,13 +19,33 @@ import { DEFAULT_UNITS } from "@/weather/types";
 import "./weather.css";
 
 type Section = "today" | "hourly" | "forecast" | "saved" | "settings";
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "hourly", label: "Hourly" },
-  { id: "forecast", label: "16 days" },
-  { id: "saved", label: "Places" },
-  { id: "settings", label: "Settings" },
+const SECTIONS: { id: Section; label: string; icon: string }[] = [
+  { id: "today", label: "Today", icon: "◉" },
+  { id: "hourly", label: "Hourly", icon: "◷" },
+  { id: "forecast", label: "16 Days", icon: "▦" },
+  { id: "saved", label: "Places", icon: "⌖" },
+  { id: "settings", label: "Settings", icon: "⚙" },
 ];
+
+/** Primary temperature in the chosen unit, with the other unit as a smaller secondary value. */
+function tempParts(celsius: number | null, units: Units): { primary: string; secondary: string } {
+  if (celsius === null || !Number.isFinite(celsius)) return { primary: "—", secondary: "" };
+  const c = Math.round(celsius);
+  const f = Math.round((celsius * 9) / 5 + 32);
+  return units.temperature === "fahrenheit"
+    ? { primary: `${f}°F`, secondary: `${c}°C` }
+    : { primary: `${c}°C`, secondary: `${f}°F` };
+}
+
+function TempPair({ celsius, units, className }: { celsius: number | null; units: Units; className?: string }) {
+  const { primary, secondary } = tempParts(celsius, units);
+  return (
+    <span className={className}>
+      {primary}
+      {secondary ? <span className="wx-temp-alt"> ({secondary})</span> : null}
+    </span>
+  );
+}
 
 /** Formats an Open-Meteo local ISO time ("2026-10-31T14:00") without touching the device time zone. */
 function localClock(iso: string | null, clock: Units["clock"]): string {
@@ -99,6 +119,7 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [openHour, setOpenHour] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Load local preferences only after mount, so server rendering never touches storage.
   useEffect(() => {
@@ -125,6 +146,7 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
     });
     setOpenDay(null);
     setOpenHour(null);
+    setSearchOpen(false);
     setSection("today");
   }, []);
 
@@ -156,24 +178,49 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
           ‹ Apps
         </button>
         <h1 className="wx-title">Weather</h1>
-        <span className="wx-spacer" aria-hidden="true" />
+        <button type="button" className="wx-back" aria-label="Search places" aria-expanded={searchOpen} onClick={() => setSearchOpen((o) => !o)}>
+          ⌕
+        </button>
       </header>
 
-      <nav className="wx-tabs" aria-label="Weather sections">
+      {searchOpen ? (
+        <div className="wx-body-search">
+          <LocationSearch onChoose={(p) => { choosePlace(p); setSearchOpen(false); }} />
+        </div>
+      ) : null}
+
+      {saved.length > 0 ? (
+        <div className="wx-favs" role="list" aria-label="Favourite places">
+          {saved.map((p) => (
+            <button
+              key={placeKey(p)}
+              type="button"
+              role="listitem"
+              className={`wx-fav ${placeKey(p) === placeKey(selected) ? "is-active" : ""}`}
+              onClick={() => choosePlace(p)}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <nav className="wx-nav" aria-label="Weather sections">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
             type="button"
-            className={`wx-tab ${section === s.id ? "is-active" : ""}`}
+            className={`wx-nav-btn ${section === s.id ? "is-active" : ""}`}
             aria-current={section === s.id ? "page" : undefined}
             onClick={() => setSection(s.id)}
           >
+            <span className="wx-nav-icon" aria-hidden="true">{s.icon}</span>
             {s.label}
           </button>
         ))}
       </nav>
 
-      <section className="wx-body" aria-live="polite">
+      <section className="wx-body wx-body-pad" aria-live="polite">
         {weather.status === "loading" && !forecast ? (
           <p className="wx-note" role="status">Loading the forecast for {selected.name}…</p>
         ) : null}
@@ -278,28 +325,35 @@ function TodayView({
   return (
     <div className={`wx-stack ${wet ? "is-wet" : ""}`}>
       <div className="wx-hero wx-card">
-        <div className="wx-place">
-          <h2>{place.name}</h2>
-          <p>{[place.admin1, place.country].filter(Boolean).join(", ")}</p>
-          <p className="wx-clock">
-            Local time {localClock(c.time, units.clock)}
-            {forecast.timezone ? ` · ${forecast.timezone}` : ""}
-          </p>
+        <div className="wx-hero-top">
+          <div>
+            <h2 className="wx-hero-place">{place.name}</h2>
+            <p className="wx-clock">
+              {[place.admin1, place.country].filter(Boolean).join(", ")} · {localClock(c.time, units.clock)}
+            </p>
+          </div>
+          <button type="button" className="wx-save" aria-pressed={isSaved} onClick={onToggleSaved}>
+            {isSaved ? "★ Saved" : "☆ Save"}
+          </button>
         </div>
-        <button type="button" className="wx-save" aria-pressed={isSaved} onClick={onToggleSaved}>
-          {isSaved ? "★ Saved" : "☆ Save"}
-        </button>
-        <div className="wx-temp-row">
-          <span className="wx-icon" role="img" aria-label={cond.label}>
+        <div className="wx-hero-main">
+          <div>
+            <p className="wx-hero-temp">
+              <TempPair celsius={c.temperature} units={units} />
+            </p>
+            <p className="wx-hero-cond">{cond.label}</p>
+            <p className="wx-hero-hl">
+              H <TempPair celsius={today?.temperatureMax ?? null} units={units} /> · L{" "}
+              <TempPair celsius={today?.temperatureMin ?? null} units={units} />
+            </p>
+            <p className="wx-hero-hl">
+              Feels like <TempPair celsius={c.apparentTemperature} units={units} />
+            </p>
+          </div>
+          <span className="wx-hero-icon" role="img" aria-label={cond.label}>
             {cond.icon}
           </span>
-          <span className="wx-temp">{formatTemp(c.temperature, units)}</span>
         </div>
-        <p className="wx-cond">{cond.label}</p>
-        <p className="wx-sub">
-          Feels like {formatTemp(c.apparentTemperature, units)}
-          {today ? ` · H ${formatTemp(today.temperatureMax, units)} / L ${formatTemp(today.temperatureMin, units)}` : ""}
-        </p>
       </div>
 
       <div className="wx-card">
@@ -421,35 +475,82 @@ function HourlyView({
   if (hours.length === 0) {
     return <p className="wx-note">No hourly forecast is available for this location.</p>;
   }
+  const selectedHour = hours.find((h) => h.time === openHour) ?? null;
   return (
     <div className="wx-stack">
-      <ul className="wx-hours" aria-label="Next 48 hours">
+      <div className="wx-card">
+        <div className="wx-chart-label"><span>Temperature</span><span>next {hours.length}h</span></div>
+        <LineChart values={hours.map((h) => h.temperature)} format={(v) => `${Math.round(v)}°`} units={units} />
+        <div className="wx-chart-label"><span>Rain chance</span><span>%</span></div>
+        <BarChart values={hours.map((h) => h.precipitationProbability)} />
+      </div>
+      <ul className="wx-strip wx-card" aria-label="Next 48 hours">
         {hours.map((h) => {
           const cond = describeWeatherCode(h.weatherCode, isDayHour(h.time, forecast));
           const open = openHour === h.time;
+          const tp = tempParts(h.temperature, units);
           return (
             <li key={h.time}>
-              <button type="button" className="wx-hour" aria-expanded={open} onClick={() => setOpenHour(open ? null : h.time)}>
+              <button type="button" className={`wx-hcell ${open ? "is-selected" : ""}`} aria-pressed={open} onClick={() => setOpenHour(open ? null : h.time)}>
                 <span>{localClock(h.time, units.clock)}</span>
-                <span role="img" aria-label={cond.label}>{cond.icon}</span>
-                <span className="wx-hour-temp">{formatTemp(h.temperature, units)}</span>
-                <span className="wx-hour-pop">{formatPercent(h.precipitationProbability)}</span>
+                <span className="wx-hcell-icon" role="img" aria-label={cond.label}>{cond.icon}</span>
+                <span className="wx-hcell-temp">{tp.primary}</span>
+                <span className="wx-hcell-pop">{h.precipitationProbability === null ? "" : formatPercent(h.precipitationProbability)}</span>
               </button>
-              {open ? (
-                <dl className="wx-grid wx-day-detail">
-                  <Stat label="Feels like" value={formatTemp(h.apparentTemperature, units)} />
-                  <Stat label="Precipitation" value={formatPrecip(h.precipitation, units)} />
-                  <Stat label="Wind" value={formatWind(h.windSpeed, units)} />
-                  <Stat label="Humidity" value={formatPercent(h.humidity)} />
-                  <Stat label="UV" value={formatUv(h.uvIndex)} />
-                  <Stat label="Visibility" value={formatVisibility(h.visibility)} />
-                </dl>
-              ) : null}
             </li>
           );
         })}
       </ul>
+      {selectedHour ? (
+        <div className="wx-card">
+          <h3>{localClock(selectedHour.time, units.clock)} · {localDateLabel(selectedHour.time.slice(0, 10))}</h3>
+          <dl className="wx-hour-detail">
+            <Stat label="Feels like" value={tempParts(selectedHour.apparentTemperature, units).primary} />
+            <Stat label="Precipitation" value={formatPrecip(selectedHour.precipitation, units)} />
+            <Stat label="Wind" value={formatWind(selectedHour.windSpeed, units)} />
+            <Stat label="Humidity" value={formatPercent(selectedHour.humidity)} />
+            <Stat label="UV" value={formatUv(selectedHour.uvIndex)} />
+            <Stat label="Visibility" value={formatVisibility(selectedHour.visibility)} />
+          </dl>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/** Simple SVG line chart. Missing values break the line instead of being drawn as zero. */
+function LineChart({ values, format, units }: { values: (number | null)[]; format: (v: number) => string; units: Units }) {
+  const nums = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  if (nums.length < 2) return <p className="wx-sub">Not enough data for a chart.</p>;
+  const lo = Math.min(...nums);
+  const hi = Math.max(...nums);
+  const span = hi - lo || 1;
+  const w = 100;
+  const h = 60;
+  const pts = values.map((v, i) => (v === null ? null : { x: (i / (values.length - 1)) * w, y: h - ((v - lo) / span) * (h - 8) - 4 }));
+  const d = pts.reduce((acc, p) => (p ? `${acc}${acc.endsWith("M") || acc === "" ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)} ` : acc), "");
+  const first = values.find((v) => v !== null);
+  const last = [...values].reverse().find((v) => v !== null);
+  return (
+    <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`Temperature from ${first === undefined || first === null ? "—" : tempParts(first, units).primary} to ${last === undefined || last === null ? "—" : tempParts(last, units).primary}; low ${format(lo)}, high ${format(hi)}`}>
+      <path d={d} fill="none" stroke="#ffd166" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Simple SVG bar chart for precipitation probability (0–100%). */
+function BarChart({ values }: { values: (number | null)[] }) {
+  const w = 100;
+  const h = 40;
+  const bw = w / Math.max(values.length, 1);
+  return (
+    <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="Rain chance by hour" style={{ height: 52 }}>
+      {values.map((v, i) =>
+        v === null ? null : (
+          <rect key={i} x={i * bw + bw * 0.15} y={h - (v / 100) * h} width={bw * 0.7} height={(v / 100) * h} rx="1" fill="#7cc7ff" opacity={0.85} />
+        ),
+      )}
+    </svg>
   );
 }
 
@@ -496,16 +597,16 @@ function ForecastView({
           const width = ((hi - lo) / span) * 100;
           return (
             <li key={d.date}>
-              <button type="button" className="wx-day" aria-expanded={open} onClick={() => setOpenDay(open ? null : d.date)}>
+              <button type="button" className="wx-day wx-drow" aria-expanded={open} onClick={() => setOpenDay(open ? null : d.date)}>
                 <span className="wx-day-name">
                   {localDayLabel(d.date)} <small>{localDateLabel(d.date)}</small>
                 </span>
-                <span role="img" aria-label={cond.label}>{cond.icon}</span>
-                <span className="wx-range" aria-hidden="true">
-                  {hasRange ? <span style={{ left: `${left}%`, width: `${Math.max(width, 4)}%` }} /> : null}
+                <span className="wx-drow-icon" role="img" aria-label={cond.label}>{cond.icon}</span>
+                <span className="wx-range-track" aria-hidden="true">
+                  {hasRange ? <span className="wx-range-fill" style={{ left: `${left}%`, width: `${Math.max(width, 4)}%` }} /> : null}
                 </span>
-                <span className="wx-day-range">
-                  {formatTemp(d.temperatureMin, units)} / {formatTemp(d.temperatureMax, units)}
+                <span className="wx-drow-hl">
+                  <TempPair celsius={d.temperatureMax} units={units} /> <small>/ <TempPair celsius={d.temperatureMin} units={units} /></small>
                 </span>
               </button>
               {open ? (
@@ -701,36 +802,29 @@ function LocationSearch({ onChoose }: { onChoose: (p: Place) => void }) {
 function SettingsView({ units, onChange }: { units: Units; onChange: (patch: Partial<Units>) => void }) {
   return (
     <div className="wx-stack">
-      <fieldset className="wx-card wx-fieldset">
-        <legend>Temperature</legend>
-        <Radio name="temp" value="celsius" checked={units.temperature === "celsius"} onChange={() => onChange({ temperature: "celsius" })} label="Celsius (°C)" />
-        <Radio name="temp" value="fahrenheit" checked={units.temperature === "fahrenheit"} onChange={() => onChange({ temperature: "fahrenheit" })} label="Fahrenheit (°F)" />
-      </fieldset>
-      <fieldset className="wx-card wx-fieldset">
-        <legend>Wind</legend>
-        <Radio name="wind" value="kmh" checked={units.wind === "kmh"} onChange={() => onChange({ wind: "kmh" })} label="km/h" />
-        <Radio name="wind" value="mph" checked={units.wind === "mph"} onChange={() => onChange({ wind: "mph" })} label="mph" />
-      </fieldset>
-      <fieldset className="wx-card wx-fieldset">
-        <legend>Precipitation</legend>
-        <Radio name="precip" value="mm" checked={units.precipitation === "mm"} onChange={() => onChange({ precipitation: "mm" })} label="Millimetres (mm)" />
-        <Radio name="precip" value="inch" checked={units.precipitation === "inch"} onChange={() => onChange({ precipitation: "inch" })} label="Inches (in)" />
-      </fieldset>
-      <fieldset className="wx-card wx-fieldset">
-        <legend>Time</legend>
-        <Radio name="clock" value="24h" checked={units.clock === "24h"} onChange={() => onChange({ clock: "24h" })} label="24-hour" />
-        <Radio name="clock" value="12h" checked={units.clock === "12h"} onChange={() => onChange({ clock: "12h" })} label="12-hour" />
-      </fieldset>
+      <div className="wx-card">
+        <SettingRow label="Temperature" name="temp" value={units.temperature} onChange={(v) => onChange({ temperature: v as Units["temperature"] })} options={[{ v: "celsius", l: "°C" }, { v: "fahrenheit", l: "°F" }]} />
+        <SettingRow label="Wind" name="wind" value={units.wind} onChange={(v) => onChange({ wind: v as Units["wind"] })} options={[{ v: "kmh", l: "km/h" }, { v: "mph", l: "mph" }]} />
+        <SettingRow label="Precipitation" name="precip" value={units.precipitation} onChange={(v) => onChange({ precipitation: v as Units["precipitation"] })} options={[{ v: "mm", l: "mm" }, { v: "inch", l: "in" }]} />
+        <SettingRow label="Clock" name="clock" value={units.clock} onChange={(v) => onChange({ clock: v as Units["clock"] })} options={[{ v: "24h", l: "24h" }, { v: "12h", l: "12h" }]} />
+      </div>
     </div>
   );
 }
 
-function Radio({ name, value, checked, onChange, label }: { name: string; value: string; checked: boolean; onChange: () => void; label: string }) {
+/** Compact row with a segmented control; each option is a real button that updates and persists the preference. */
+function SettingRow({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
   return (
-    <label className="wx-radio">
-      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
-      <span>{label}</span>
-    </label>
+    <div className="wx-setrow" role="group" aria-labelledby={`${name}-label`}>
+      <span id={`${name}-label`}>{label}</span>
+      <span className="wx-seg">
+        {options.map((o) => (
+          <button key={o.v} type="button" aria-pressed={value === o.v} onClick={() => onChange(o.v)}>
+            {o.l}
+          </button>
+        ))}
+      </span>
+    </div>
   );
 }
 

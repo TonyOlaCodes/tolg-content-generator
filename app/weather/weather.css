@@ -158,6 +158,76 @@
 .wx-radio { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .wx-radio input { width: 20px; height: 20px; accent-color: var(--wx-accent); }
 
+/* Secondary temperature unit */
+.wx-temp-alt { font-size: 0.45em; font-weight: 500; color: var(--wx-muted); letter-spacing: 0; }
+.wx-body-search { max-width: 640px; width: 100%; margin: 8px auto 0; }
+
+/* Compact hero */
+.wx-hero { padding: 18px 16px 14px; border-radius: 28px; }
+.wx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wx-hero-place { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.wx-hero-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.wx-hero-temp { font-size: 4.6rem; font-weight: 200; letter-spacing: -0.04em; line-height: 1; margin: 0; }
+.wx-hero-f { font-size: 1rem; color: var(--wx-muted); font-weight: 500; margin-left: 6px; }
+.wx-hero-cond { font-size: 1rem; margin: 4px 0 0; }
+.wx-hero-hl { color: var(--wx-muted); font-size: 0.9rem; margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.wx-hero-icon { font-size: 4.5rem; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25)); }
+
+/* Favourites row */
+.wx-favs { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
+.wx-favs::-webkit-scrollbar { display: none; }
+.wx-fav { flex: 0 0 auto; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--wx-border); background: var(--wx-card); color: var(--wx-text); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.wx-fav.is-active { background: var(--wx-text); color: #0b1020; border-color: transparent; }
+
+/* Hourly strip and charts */
+.wx-strip { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 6px; scrollbar-width: none; }
+.wx-strip::-webkit-scrollbar { display: none; }
+.wx-strip > li { flex: 0 0 auto; }
+.wx-hcell { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 56px; padding: 10px 0; border-radius: 16px; border: 1px solid transparent; background: none; color: var(--wx-text); font: inherit; font-size: 0.8rem; cursor: pointer; }
+.wx-hcell.is-selected { border-color: var(--wx-border); background: var(--wx-card); }
+.wx-hcell-icon { font-size: 1.3rem; line-height: 1; }
+.wx-hcell-temp { font-weight: 600; font-variant-numeric: tabular-nums; }
+.wx-hcell-pop { color: var(--wx-accent); font-size: 0.72rem; min-height: 1em; }
+.wx-chart { width: 100%; height: 84px; display: block; overflow: visible; }
+.wx-chart-label { font-size: 0.75rem; color: var(--wx-muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
+.wx-hour-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; }
+
+/* 16-day list rows */
+.wx-drow { display: grid; grid-template-columns: 84px 28px 1fr 84px; align-items: center; gap: 8px; min-height: 44px; font-variant-numeric: tabular-nums; }
+.wx-drow-icon { font-size: 1.2rem; text-align: center; line-height: 1; }
+.wx-drow-hl { text-align: right; font-size: 0.9rem; }
+.wx-drow-hl small { color: var(--wx-muted); }
+.wx-range-track { position: relative; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
+.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+
+/* Settings toggles */
+.wx-setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 0; border-bottom: 1px solid var(--wx-border); }
+.wx-setrow:last-child { border-bottom: none; }
+.wx-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--wx-border); }
+.wx-seg button { min-height: 34px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--wx-muted); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.wx-seg button[aria-pressed="true"] { background: var(--wx-text); color: #0b1020; font-weight: 600; }
+
+/* Bottom navigation (safe-area aware) */
+.wx-nav {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 8px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--wx-border);
+  background: rgba(10, 14, 26, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 20;
+}
+.wx-nav-btn { min-width: 56px; min-height: 48px; padding: 4px 8px; border: none; border-radius: 999px; background: none; color: var(--wx-muted); font: inherit; font-size: 0.7rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.wx-nav-btn.is-active { color: #07111f; background: var(--wx-accent); }
+.wx-nav-icon { font-size: 1.1rem; line-height: 1; }
+.wx-body-pad { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
 @media (prefers-reduced-motion: reduce) {
   .wx, .wx * { transition: none !important; animation: none !important; }
 }
