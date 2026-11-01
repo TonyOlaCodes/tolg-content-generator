@@ -9,7 +9,6 @@ import {
   deleteWeight,
   mergeChanges,
   saveHighlight,
-  saveSettings,
   setDayMetric,
   setDayMetrics,
   updateWater,
@@ -168,7 +167,6 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
   const date = api.selected;
   const day = api.snap.days.find((d) => d.date === date) ?? null;
   const [value, setValue] = useState(day?.steps !== null && day?.steps !== undefined ? String(day.steps) : "");
-  const [goal, setGoal] = useState(String(api.settings.stepGoal));
   const { error, setError, busy, run } = useSaving();
   const goalValue = api.settings.stepGoal;
 
@@ -183,14 +181,6 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
     const result = setDayMetric(api.snap, date, "steps", next, uiCtx(api.today));
     const ok = await run(() => api.commit(result, next === null ? "Steps entry cleared" : "Steps saved"));
     if (ok) onClose();
-  };
-
-  const saveGoal = async () => {
-    const parsed = parseWhole(goal);
-    if (parsed === null) return setError("Enter your daily step goal as a whole number.");
-    const result = saveSettings(api.snap, { stepGoal: parsed });
-    const ok = await run(() => api.commit(result, "Step goal updated", false));
-    if (ok) api.notify(`Step goal set to ${parsed.toLocaleString()}`);
   };
 
   const hasEntry = day?.steps !== null && day?.steps !== undefined;
@@ -240,23 +230,9 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         inputMode="numeric"
         placeholder="e.g. 7450"
       />
-      <p className="daily-hint">Leave blank and save to mark this day as not recorded. Zero is kept as a real value.</p>
-      <div className="daily-field">
-        <span>Daily step goal</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            inputMode="numeric"
-            value={goal}
-            onChange={(event) => setGoal(event.target.value)}
-          />
-          <em className="daily-input-suffix">steps</em>
-        </span>
-        <button type="button" className="daily-link" disabled={busy} onClick={() => void saveGoal()}>
-          Update goal
-        </button>
-      </div>
+      <p className="daily-hint">
+        Leave blank and save to mark this day as not recorded. Zero is kept as a real value. Your step goal is changed in Settings.
+      </p>
     </SheetShell>
   );
 }
@@ -267,7 +243,6 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
   const date = api.selected;
   const day = api.snap.days.find((d) => d.date === date) ?? null;
   const [value, setValue] = useState(day?.calories !== null && day?.calories !== undefined ? String(day.calories) : "");
-  const [goal, setGoal] = useState(api.settings.calorieGoal !== null ? String(api.settings.calorieGoal) : "");
   const { error, setError, busy, run } = useSaving();
 
   const save = async () => {
@@ -281,15 +256,6 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
     const result = setDayMetric(api.snap, date, "calories", next, uiCtx(api.today));
     const ok = await run(() => api.commit(result, next === null ? "Calories entry cleared" : "Calories saved"));
     if (ok) onClose();
-  };
-
-  const saveGoal = async () => {
-    const trimmed = goal.trim();
-    const parsed = trimmed ? parseWhole(trimmed) : null;
-    if (trimmed && parsed === null) return setError("Enter a calorie goal as a whole number, or clear it.");
-    const result = saveSettings(api.snap, { calorieGoal: parsed });
-    const ok = await run(() => api.commit(result, parsed === null ? "Calorie goal removed" : "Calorie goal updated", false));
-    if (ok) api.notify(parsed === null ? "Calorie goal removed" : `Calorie goal set to ${parsed.toLocaleString()} kcal`);
   };
 
   const hasEntry = day?.calories !== null && day?.calories !== undefined;
@@ -346,25 +312,9 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         placeholder="e.g. 3450"
       />
       <p className="daily-hint">
-        One total per day. This app is not a food diary and has nothing to do with Groceries &amp; Pantry.
+        One total per day. This app is not a food diary and has nothing to do with Groceries &amp; Pantry. Your calorie goal is changed in
+        Settings.
       </p>
-      <div className="daily-field">
-        <span>Daily calorie goal (optional)</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            inputMode="numeric"
-            placeholder="No goal"
-            value={goal}
-            onChange={(event) => setGoal(event.target.value)}
-          />
-          <em className="daily-input-suffix">kcal</em>
-        </span>
-        <button type="button" className="daily-link" disabled={busy} onClick={() => void saveGoal()}>
-          {api.settings.calorieGoal === null ? "Set goal" : "Update goal"}
-        </button>
-      </div>
     </SheetShell>
   );
 }
@@ -457,7 +407,6 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   const [custom, setCustom] = useState("");
   const [customUnit, setCustomUnit] = useState<"ml" | "L">("ml");
-  const [goalInput, setGoalInput] = useState(String(goal));
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   const { error, setError, busy, run } = useSaving();
 
@@ -465,14 +414,6 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
     if (ml <= 0) return setError("Enter an amount above zero.");
     const result = addWater(api.snap, { date, ml }, uiCtx(api.today));
     await run(() => api.commit(result, `Added ${formatWater(ml)}`));
-  };
-
-  const saveGoal = async () => {
-    const parsed = parseWhole(goalInput);
-    if (parsed === null) return setError("Enter your daily water goal in millilitres.");
-    const result = saveSettings(api.snap, { waterGoalMl: parsed });
-    const ok = await run(() => api.commit(result, "Water goal updated", false));
-    if (ok) api.notify(`Water goal set to ${formatWater(parsed)}`);
   };
 
   const percent = goal > 0 ? ((total ?? 0) / goal) * 100 : null;
@@ -617,23 +558,7 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
           </ul>
         )}
       </div>
-
-      <div className="daily-field">
-        <span>Daily water goal</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            inputMode="numeric"
-            value={goalInput}
-            onChange={(event) => setGoalInput(event.target.value)}
-          />
-          <em className="daily-input-suffix">ml</em>
-        </span>
-        <button type="button" className="daily-link" disabled={busy} onClick={() => void saveGoal()}>
-          Update goal
-        </button>
-      </div>
+      <p className="daily-hint">Your daily water goal is changed in Settings.</p>
     </SheetShell>
   );
 }
