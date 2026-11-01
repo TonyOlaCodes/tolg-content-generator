@@ -26,6 +26,7 @@ import {
   latestWeight,
   monthAverage,
   periodDates,
+  periodStart,
   seriesForMetric,
   waterTotalForDate,
   weekAverage,
@@ -259,12 +260,39 @@ const insightSnap = apply(
 const insightWeightSnap = apply(insightSnap, addWeight(insightSnap, { date: "2026-10-28", kg: 79.2, time: null }, ctx));
 const insights = buildInsights(insightWeightSnap, 30, TODAY);
 const text = insights.map((i) => i.text).join(" ");
-assert.match(text, /Average steps over the last 30 days: 7,000/, "averages use recorded days only");
-assert.match(text, /Weight decreased by 0\.8 kg over the last 30 days/, "weight change is computed from measurements");
-assert.match(text, /Average sleep over the last 30 days: 7h 10m/, "sleep insight uses recorded nights");
-assert.match(text, /Average water over the last 30 days: 3 L/, "water insight");
+assert.match(text, /Average steps since your first entry: 7,000/, "averages use recorded days only");
+assert.match(text, /Weight decreased by 0\.8 kg since your first entry/, "weight change is computed from measurements");
+assert.match(text, /Average sleep since your first entry: 7h 10m/, "sleep insight uses recorded nights");
+assert.match(text, /Average water since your first entry: 3 L/, "water insight");
+assert.doesNotMatch(text, /over the last 30 days/, "the range does not pretend to cover days before the first entry");
 assert.doesNotMatch(text, /zero|0 kcal/, "missing calorie days never appear as zero");
 assert.ok(buildInsights(emptySnapshot(), 0, TODAY).length === 0);
+
+// -------------------------------------------- analytics start at first log
+// A brand-new tracker with one entry must report one day, not thirty empty days.
+const fresh = emptySnapshot();
+const freshOne = apply(fresh, setDayMetric(fresh, "2026-10-31", "steps", 5000, ctx));
+assert.deepEqual(periodDates(freshOne, 30, TODAY), ["2026-10-31", TODAY], "range is clamped to the first logged day");
+assert.equal(periodStart(freshOne, 365, TODAY), "2026-10-31");
+const freshInsights = buildInsights(freshOne, 30, TODAY);
+const freshText = freshInsights.map((i) => i.text).join(" ");
+assert.match(freshText, /Average steps since your first entry: 5,000/, "the average is the one real day");
+assert.doesNotMatch(freshText, /167/, "the single value is never divided across empty days");
+
+// Highlights alone do not start a metrics range.
+const highlightOnly = applyHighlight(emptySnapshot(), "2026-09-01");
+assert.deepEqual(periodDates(highlightOnly, 7, TODAY), [TODAY], "a highlight is not a metric for analytics");
+assert.deepEqual(buildInsights(highlightOnly, 7, TODAY), []);
+
+// Once history exceeds the window, the normal rolling window is used.
+const older = apply(av, setDayMetric(av, "2026-09-01", "steps", 1000, ctx));
+assert.equal(periodDates(older, 7, TODAY).length, 7, "a 7-day window still ends at today");
+assert.match(buildInsights(older, 7, TODAY).map((i) => i.text).join(" "), /Average steps over the last 7 days/, "enough history keeps the rolling label");
+
+function applyHighlight(snapshot: Snapshot, date: string): Snapshot {
+  const result = saveHighlight(snapshot, { date, title: "Milestone", description: "", tags: [], photo: null }, ctx);
+  return apply(snapshot, result);
+}
 
 // --------------------------------------------------------------- highlights
 let highlightSnap = emptySnapshot();
@@ -327,12 +355,13 @@ assert.equal(currentStreak(emptySnapshot(), TODAY), 0);
 const bucketDates = periodDates(av, 7, TODAY);
 assert.equal(bucketDates.length, 7);
 const stepSeriesRange = seriesForMetric(av, bucketDates, "steps");
-const dailyBuckets = bucketSeries(stepSeriesRange, 7, TODAY);
+const dailyBuckets = bucketSeries(stepSeriesRange, TODAY);
 assert.equal(dailyBuckets.length, 7);
 assert.equal(dailyBuckets[6].value, 9000);
 assert.equal(dailyBuckets[4].value, null, "Oct 30 has no step entry, so that bucket is empty (not zero)");
 assert.equal(dailyBuckets[4].loggedDays, 0);
-const weeklyBuckets = bucketSeries(seriesForMetric(av, periodDates(av, 90, TODAY), "steps"), 90, TODAY);
+const longHistory = apply(av, setDayMetric(av, "2026-08-15", "steps", 4000, ctx));
+const weeklyBuckets = bucketSeries(seriesForMetric(longHistory, periodDates(longHistory, 90, TODAY), "steps"), TODAY);
 assert.ok(weeklyBuckets.length >= 12);
 assert.ok(weeklyBuckets.every((b) => b.value === null || Number.isFinite(b.value)));
 assert.equal(periodDates(av, 0, TODAY).length, daysBetween("2026-10-26", TODAY) + 1, "all-time starts at the first record");

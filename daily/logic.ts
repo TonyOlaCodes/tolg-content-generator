@@ -146,10 +146,30 @@ export function earliestEntryDate(snapshot: Snapshot): string | null {
   return dates.reduce((min, d) => (d < min ? d : min), dates[0]);
 }
 
-/** Start of the selected chart range; "all time" starts at the first record. */
+/**
+ * First day with a tracked metric. Highlights alone do not open an analytics
+ * range, because a highlight is not a measurement.
+ */
+export function earliestMetricDate(snapshot: Snapshot): string | null {
+  const dates: string[] = [
+    ...snapshot.days.map((d) => d.date),
+    ...snapshot.weights.map((w) => w.date),
+    ...snapshot.water.map((w) => w.date),
+  ];
+  if (dates.length === 0) return null;
+  return dates.reduce((min, d) => (d < min ? d : min), dates[0]);
+}
+
+/**
+ * Start of the selected chart range. Analytics never reach back before the
+ * first logged day: a new tracker with one entry yesterday reports one day,
+ * not thirty empty days. "All time" starts at that first measurement too.
+ */
 export function periodStart(snapshot: Snapshot, period: ChartPeriod, end: string): string {
-  if (period > 0) return addDays(end, -(period - 1));
-  return earliestEntryDate(snapshot) ?? end;
+  const first = earliestMetricDate(snapshot);
+  if (!first) return end;
+  const requested = period > 0 ? addDays(end, -(period - 1)) : first;
+  return requested < first ? first : requested;
 }
 
 export function periodDates(snapshot: Snapshot, period: ChartPeriod, end: string): string[] {
@@ -171,8 +191,9 @@ export type Bucket = {
  * so charts stay readable on a phone. Missing days never become zero: buckets
  * average only recorded values and are null when the bucket has no data.
  */
-export function bucketSeries(series: SeriesPoint[], period: ChartPeriod, today: string): Bucket[] {
-  const bucketDays = period === 90 ? 7 : period === 365 || period === 0 ? 0 : 1;
+export function bucketSeries(series: SeriesPoint[], today: string): Bucket[] {
+  // Bin by the range that actually has records, not by the requested period.
+  const bucketDays = series.length <= 35 ? 1 : series.length <= 210 ? 7 : 0;
   const toBucket = (points: SeriesPoint[]): Bucket => {
     const values = points.map((p) => p.value).filter((v): v is number => v !== null);
     const from = points[0]?.date ?? "";
@@ -330,8 +351,8 @@ export function weightMeasurementsSeries(snapshot: Snapshot, from: string, to: s
 
 export type Insight = { metric: MetricKey | null; text: string };
 
-function rangeLabel(period: ChartPeriod): string {
-  if (period === 0) return "since your first entry";
+function rangeLabel(period: ChartPeriod, dates: string[]): string {
+  if (period === 0 || dates.length < period) return "since your first entry";
   return `over the last ${period} days`;
 }
 
@@ -343,7 +364,7 @@ export function buildInsights(snapshot: Snapshot, period: ChartPeriod, today: st
   const settings = settingsOf(snapshot);
   const dates = periodDates(snapshot, period, today);
   const out: Insight[] = [];
-  const where = rangeLabel(period);
+  const where = rangeLabel(period, dates);
 
   const stepSeries = seriesForMetric(snapshot, dates, "steps");
   const stepAvg = average(stepSeries.map((p) => p.value).filter((v): v is number => v !== null));

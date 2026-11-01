@@ -69,10 +69,10 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
   const from = dates[0] ?? api.today;
   const insights = useMemo(() => buildInsights(api.snap, period, api.today), [api.snap, period, api.today]);
 
-  const stepBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "steps"), period, api.today), [api.snap, dates, period, api.today]);
-  const calorieBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "calories"), period, api.today), [api.snap, dates, period, api.today]);
-  const sleepBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "sleep"), period, api.today), [api.snap, dates, period, api.today]);
-  const waterBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "water"), period, api.today), [api.snap, dates, period, api.today]);
+  const stepBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "steps"), api.today), [api.snap, dates, api.today]);
+  const calorieBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "calories"), api.today), [api.snap, dates, api.today]);
+  const sleepBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "sleep"), api.today), [api.snap, dates, api.today]);
+  const waterBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "water"), api.today), [api.snap, dates, api.today]);
   const weight = useMemo(() => weightStats(api.snap, from, api.today), [api.snap, from, api.today]);
 
   const stepSeries = seriesForMetric(api.snap, dates, "steps");
@@ -117,6 +117,9 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
     waterValues.length > 0 ||
     weight.count > 0;
 
+  // A new tracker should never claim a 30-day average from one logged day.
+  const clampedToFirstEntry = period !== 0 && dates.length < period;
+  const rangePhrase = period === 0 || clampedToFirstEntry ? "since your first entry" : `the last ${period} days`;
   const rangeLabel = period === 0 ? "all time" : `the last ${period} days`;
 
   return (
@@ -124,7 +127,7 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
       <header className="daily-hero">
         <p className="daily-eyebrow">Trends</p>
         <h1 className="daily-hero-title">Progress</h1>
-        <p className="daily-hero-date">Averages, trends and goal completion for {rangeLabel}.</p>
+        <p className="daily-hero-date">Averages, trends and goal completion {rangePhrase}.</p>
       </header>
 
       <div className="daily-period-chips" role="tablist" aria-label="Chart period">
@@ -330,7 +333,8 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
       </TrendSection>
 
       <p className="daily-footnote">
-        Averages use only recorded values. Empty days are gaps, not zeros. This range starts {shortDate(periodStart(api.snap, period, api.today), true)}.
+        Averages use only recorded values, and analytics never start before your first logged day. Empty days are gaps, not zeros. This range
+        starts {shortDate(periodStart(api.snap, period, api.today), true)}.
       </p>
     </div>
   );
