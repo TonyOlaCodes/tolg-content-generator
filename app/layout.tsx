@@ -2,9 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Apps — Elephant & Pull Up Analysis",
-  description:
-    "Choose Elephant in the Room or AI Pull-Up Analysis (MediaPipe pose tracking on your video).",
+  title: "Apps — Weather & Fuel Tracker",
+  description: "Weather forecasts and a Fuel Tracker for your car.",
   applicationName: "Apps",
 };
 

@@ -1,27 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import AppChooser, { type AppId } from "./AppChooser";
-import GameApp from "./GameApp";
-import PullUpApp from "./pullup/PullUpApp";
 import WeatherApp from "@/app/weather/WeatherApp";
 import FuelApp from "@/app/fuel/FuelApp";
-import MoneyApp from "@/app/money/MoneyApp";
 
-const MuseumApp = dynamic(() => import("./museum/MuseumApp"), {
-  ssr: false,
-  loading: () => (
-    <main className="app-shell is-museum">
-      <p style={{ color: "#d4b483", letterSpacing: "0.2em", textTransform: "uppercase", fontSize: 12 }}>
-        Opening the Impossible Museum…
-      </p>
-    </main>
-  ),
-});
-
-export default function AppShell({ initialCode }: { initialCode?: string }) {
-  const [app, setApp] = useState<AppId | null>(initialCode ? "elephant" : null);
+export default function AppShell() {
+  const [app, setApp] = useState<AppId | null>(null);
 
   const backToChooser = useCallback(() => setApp(null), []);
 
@@ -29,14 +14,6 @@ export default function AppShell({ initialCode }: { initialCode?: string }) {
     return (
       <main className="app-shell">
         <AppChooser onChoose={setApp} />
-      </main>
-    );
-  }
-
-  if (app === "pullup") {
-    return (
-      <main className="app-shell is-pullup">
-        <PullUpApp onBack={backToChooser} />
       </main>
     );
   }
@@ -49,36 +26,9 @@ export default function AppShell({ initialCode }: { initialCode?: string }) {
     );
   }
 
-  if (app === "fuel") {
-    return (
-      <main className="app-shell is-fuel">
-        <FuelApp onBack={backToChooser} />
-      </main>
-    );
-  }
-
-  if (app === "money") {
-    return (
-      <main className="app-shell is-money">
-        <MoneyApp onBack={backToChooser} />
-      </main>
-    );
-  }
-
-  if (app === "museum") {
-    return (
-      <main className="app-shell is-museum">
-        <MuseumApp onBack={backToChooser} />
-      </main>
-    );
-  }
-
   return (
-    <div className="app-with-back">
-      <button type="button" className="app-back-to-chooser" onClick={backToChooser}>
-        ← Apps
-      </button>
-      <GameApp initialCode={initialCode} />
-    </div>
+    <main className="app-shell is-fuel">
+      <FuelApp onBack={backToChooser} />
+    </main>
   );
 }

@@ -1,6 +1,6 @@
-# Single-container image: Next.js client + the authoritative game server on one port.
-# Build:  docker build -t elephant-in-the-room .
-# Run:    docker run -p 3000:3000 elephant-in-the-room
+# Single-container image: the Next.js app (Weather and Fuel Tracker) on one port.
+# Build:  docker build -t tolg-content-generator .
+# Run:    docker run -p 3000:3000 tolg-content-generator
 
 FROM node:22-slim
 
@@ -18,5 +18,4 @@ RUN npm run build
 
 EXPOSE 3000
 
-# main.ts serves the built Next.js app and hosts the game socket on /ws
-CMD ["npx", "tsx", "main.ts"]
+CMD ["npm", "start"]

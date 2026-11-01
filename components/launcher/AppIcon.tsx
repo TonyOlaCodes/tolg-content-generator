@@ -14,34 +14,6 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
     strokeLinejoin: "round" as const,
   };
   switch (glyph) {
-    case "elephant":
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-          <path
-            d="M5 10.5C5 7.4 7.6 5.5 11 5.5S17 7.4 17 10.5V15h-2.4v3.1a1.3 1.3 0 0 1-2.6 0V15H9.9v3.1a1.3 1.3 0 0 1-2.6 0V13.2C5.9 12.7 5 11.9 5 10.5Z"
-            fill="currentColor"
-            opacity={0.95}
-          />
-          <path d="M17 9.5c2.4 0 3.4 1.6 3 4.2-.2 1.2-1.1 1.6-1.9.9" {...common} />
-          <circle cx={8.5} cy={8.6} r={2.2} fill="currentColor" opacity={0.35} />
-          <circle cx={14.4} cy={8} r={0.9} fill="#1a1020" />
-        </svg>
-      );
-    case "pullup":
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-          <path d="M2.5 12h19" {...common} />
-          <path d="M5.5 8v8M18.5 8v8M3 9.5v5M21 9.5v5" {...common} strokeWidth={2.2} />
-        </svg>
-      );
-    case "museum":
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-          <path d="M3 9.5 12 4l9 5.5" {...common} />
-          <path d="M4.5 10.5v7.5M9.5 10.5v7.5M14.5 10.5v7.5M19.5 10.5v7.5" {...common} />
-          <path d="M3 19.5h18M2.5 21.5h19" {...common} />
-        </svg>
-      );
     case "weather":
       return (
         <svg viewBox="0 0 24 24" aria-hidden focusable="false">
@@ -56,13 +28,6 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
           <rect x={4.5} y={4} width={9.5} height={16.5} rx={1.6} {...common} />
           <path d="M8 8h2.5M14 9h2a1.5 1.5 0 0 1 1.5 1.5V16a1.4 1.4 0 0 0 2.8 0V8.5l-2-2" {...common} />
           <path d="M4.5 20.5h9.5" {...common} />
-        </svg>
-      );
-    case "money":
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-          <circle cx={12} cy={12} r={8} {...common} />
-          <path d="M14.5 9.5c-.4-.9-1.3-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1.2 0-2.2-.6-2.6-1.5M12 6.5v1.5M12 16v1.5" {...common} />
         </svg>
       );
   }
