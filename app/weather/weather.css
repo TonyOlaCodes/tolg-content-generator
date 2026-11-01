@@ -200,13 +200,6 @@
 .wx-range-track { position: relative; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
 .wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
 
-/* Settings toggles */
-.wx-setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 0; border-bottom: 1px solid var(--wx-border); }
-.wx-setrow:last-child { border-bottom: none; }
-.wx-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--wx-border); }
-.wx-seg button { min-height: 34px; padding: 0 12px; border: none; border-radius: 999px; background: none; color: var(--wx-muted); font: inherit; font-size: 0.85rem; cursor: pointer; }
-.wx-seg button[aria-pressed="true"] { background: var(--wx-text); color: #0b1020; font-weight: 600; }
-
 /* Bottom navigation (safe-area aware) */
 .wx-nav {
   position: fixed;

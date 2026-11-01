@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useForecast } from "@/weather/useForecast";
-import { FALLBACK_PLACE, loadRecent, loadSaved, loadSelected, loadUnits, placeKey, pushRecent, saveRecent, saveSaved, saveSelected, saveUnits } from "@/weather/storage";
+import { FALLBACK_PLACE, loadRecent, loadSaved, loadSelected, loadUnits, placeKey, pushRecent, saveRecent, saveSaved, saveSelected } from "@/weather/storage";
 import { describeWeatherCode, isWetCode } from "@/weather/codes";
 import {
   formatPercent,
@@ -18,13 +18,12 @@ import type { Forecast, Place, Units } from "@/weather/types";
 import { DEFAULT_UNITS } from "@/weather/types";
 import "./weather.css";
 
-type Section = "today" | "hourly" | "forecast" | "saved" | "settings";
+type Section = "today" | "hourly" | "forecast" | "saved";
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: "today", label: "Today", icon: "◉" },
   { id: "hourly", label: "Hourly", icon: "◷" },
   { id: "forecast", label: "16 Days", icon: "▦" },
   { id: "saved", label: "Places", icon: "⌖" },
-  { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
 /** Primary temperature in the chosen unit, with the other unit as a smaller secondary value. */
@@ -160,14 +159,6 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
     });
   }, [selected]);
 
-  const updateUnits = useCallback((patch: Partial<Units>) => {
-    setUnits((u) => {
-      const next = { ...u, ...patch };
-      saveUnits(next);
-      return next;
-    });
-  }, []);
-
   const forecast = weather.status === "idle" ? null : weather.forecast;
   const background = forecast ? describeWeatherCode(forecast.current.weatherCode, forecast.current.isDay).kind : "unknown";
 
@@ -289,7 +280,6 @@ export default function WeatherApp({ onBack }: { onBack: () => void }) {
             }
           />
         ) : null}
-        {section === "settings" ? <SettingsView units={units} onChange={updateUnits} /> : null}
       </section>
     </main>
   );
@@ -795,35 +785,6 @@ function LocationSearch({ onChoose }: { onChoose: (p: Place) => void }) {
           ))}
         </ul>
       ) : null}
-    </div>
-  );
-}
-
-function SettingsView({ units, onChange }: { units: Units; onChange: (patch: Partial<Units>) => void }) {
-  return (
-    <div className="wx-stack">
-      <div className="wx-card">
-        <SettingRow label="Temperature" name="temp" value={units.temperature} onChange={(v) => onChange({ temperature: v as Units["temperature"] })} options={[{ v: "celsius", l: "°C" }, { v: "fahrenheit", l: "°F" }]} />
-        <SettingRow label="Wind" name="wind" value={units.wind} onChange={(v) => onChange({ wind: v as Units["wind"] })} options={[{ v: "kmh", l: "km/h" }, { v: "mph", l: "mph" }]} />
-        <SettingRow label="Precipitation" name="precip" value={units.precipitation} onChange={(v) => onChange({ precipitation: v as Units["precipitation"] })} options={[{ v: "mm", l: "mm" }, { v: "inch", l: "in" }]} />
-        <SettingRow label="Clock" name="clock" value={units.clock} onChange={(v) => onChange({ clock: v as Units["clock"] })} options={[{ v: "24h", l: "24h" }, { v: "12h", l: "12h" }]} />
-      </div>
-    </div>
-  );
-}
-
-/** Compact row with a segmented control; each option is a real button that updates and persists the preference. */
-function SettingRow({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
-  return (
-    <div className="wx-setrow" role="group" aria-labelledby={`${name}-label`}>
-      <span id={`${name}-label`}>{label}</span>
-      <span className="wx-seg">
-        {options.map((o) => (
-          <button key={o.v} type="button" aria-pressed={value === o.v} onClick={() => onChange(o.v)}>
-            {o.l}
-          </button>
-        ))}
-      </span>
     </div>
   );
 }
