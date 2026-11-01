@@ -1,0 +1,339 @@
+/* Homepage launcher. Dark-only, matching the site theme in app/globals.css. */
+
+.launcher {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: calc(1.1rem + var(--safe-top)) 1rem calc(2rem + var(--safe-bottom));
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+@media (min-width: 720px) {
+  .launcher {
+    padding-top: calc(2rem + var(--safe-top));
+    gap: 1.4rem;
+  }
+}
+
+.launcher-header {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.launcher-date {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.launcher-greeting {
+  margin: 0;
+  font-size: clamp(1.7rem, 6vw, 2.4rem);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.launcher-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.launcher-search-icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.launcher-search-input {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0.6rem 2.4rem 0.6rem 2.5rem;
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.launcher-search-input::placeholder {
+  color: var(--muted);
+}
+
+.launcher-search-input:focus {
+  border-color: rgba(255, 209, 102, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.14);
+}
+
+.launcher-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.launcher-search-clear {
+  position: absolute;
+  right: 0.3rem;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.launcher-section,
+.launcher-widgets {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.launcher-section-title,
+.launcher-section-head span {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.launcher-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.launcher-link {
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.launcher-widget-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.6rem;
+}
+
+.widget-card {
+  display: grid;
+  gap: 0.2rem;
+  min-height: 44px;
+  padding: 0.85rem 1rem;
+  border-radius: 1.1rem;
+  border: 1px solid var(--border);
+  background: linear-gradient(160deg, rgba(124, 199, 255, 0.16), transparent 60%), var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+.widget-card:active {
+  transform: scale(0.98);
+}
+
+.widget-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.widget-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.widget-caption {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.launcher-fav-list,
+.launcher-fav-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.launcher-fav-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.launcher-fav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.4rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.launcher-fav-open {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.launcher-fav-name {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launcher-fav-controls {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.launcher-icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.launcher-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.launcher-recent-row {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.launcher-recent-row::-webkit-scrollbar {
+  display: none;
+}
+
+.launcher-recent-chip {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.launcher-chips {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.1rem;
+}
+
+.launcher-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.launcher-chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.launcher-chip.is-active {
+  background: var(--panel-strong);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.1rem 0.5rem;
+}
+
+@media (min-width: 720px) {
+  .launcher-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1.6rem 0.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .launcher-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+.launcher-empty {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 1.1rem;
+}
+
+.launcher-empty-title {
+  margin: 0;
+  font-weight: 650;
+}
+
+.launcher-empty-sub,
+.launcher-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.launcher-hint {
+  text-align: center;
+}

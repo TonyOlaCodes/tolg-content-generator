@@ -1,106 +1,201 @@
 "use client";
 
-export type AppId = "elephant" | "pullup" | "museum" | "weather" | "fuel";
+import { useState } from "react";
+import "./launcher/launcher.css";
+import "./launcher/tiles.css";
+import { AppBadge, AppTile } from "./launcher/AppIcon";
+import { CATEGORIES, appById, matchesQuery, readyApps, type AppId, type Category } from "./launcher/apps";
+import { useLauncherPrefs } from "./launcher/useLauncherPrefs";
+import WeatherWidget from "./launcher/WeatherWidget";
 
-const APPS: Array<{
-  id: AppId;
-  title: string;
-  subtitle: string;
-  blurb: string;
-  tags: string[];
-  accent: string;
-  icon: string;
-}> = [
-  {
-    id: "elephant",
-    title: "Elephant in the Room",
-    subtitle: "Social deduction",
-    blurb: "Hide an enormous elephant from hotel guests while someone sabotages the shift.",
-    tags: ["3–8 players", "6 minutes", "Realtime"],
-    accent: "#ffd166",
-    icon: "🐘",
-  },
-  {
-    id: "pullup",
-    title: "AI Exercise Analysis",
-    subtitle: "Gym video tracking",
-    blurb:
-      "Upload real lift footage for MediaPipe pose tracking across bench, deadlift, squat, pull-ups, crunches, and more.",
-    tags: ["Multi-exercise", "Pose CV", "Export"],
-    accent: "#2ec4b6",
-    icon: "🏋️",
-  },
-  {
-    id: "museum",
-    title: "The Impossible Museum",
-    subtitle: "Extradimensional exploration",
-    blurb:
-      "A cinematic void museum of twelve impossible exhibits, living architecture, artifacts, and endings that remember you.",
-    tags: ["3D atrium", "12 exhibits", "Mystery"],
-    accent: "#e879f9",
-    icon: "◇",
-  },
-  {
-    id: "weather",
-    title: "Weather",
-    subtitle: "Forecasts worldwide",
-    blurb:
-      "Current conditions, hourly and 16-day forecasts, rain summaries, air quality, and saved places from Open-Meteo.",
-    tags: ["Worldwide", "16 days", "Air quality"],
-    accent: "#7cc7ff",
-    icon: "☁️",
-  },
-  {
-    id: "fuel",
-    title: "Fuel Tracker",
-    subtitle: "Toyota Yaris 1.4 D-4D",
-    blurb:
-      "Refuels, drives, station comparison, and analytics for your car, with your Apple Notes history preloaded.",
-    tags: ["EUR · km", "Analytics", "Offline"],
-    accent: "#34d399",
-    icon: "⛽",
-  },
-];
+export type { AppId };
+
+const ALL = "All" as const;
+
+function greetingFor(hour: number): string {
+  if (hour < 5) return "Good night";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function AppChooser({ onChoose }: { onChoose: (id: AppId) => void }) {
+  const { prefs, toggleFavourite, moveFavourite, recordRecent, setWidgetsOpen } = useLauncherPrefs();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<Category | typeof ALL>(ALL);
+
+  const ready = readyApps();
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
+  const open = (id: AppId) => {
+    recordRecent(id);
+    onChoose(id);
+  };
+
+  const filtered = ready.filter(
+    (app) => (category === ALL || app.category === category) && matchesQuery(app, query),
+  );
+
+  const searching = query.trim().length > 0;
+  const favouriteApps = prefs.favourites
+    .map((id) => appById(id))
+    .filter((app): app is NonNullable<typeof app> => !!app && app.status === "ready");
+  const recentApps = prefs.recents
+    .map((id) => appById(id))
+    .filter((app): app is NonNullable<typeof app> => !!app && app.status === "ready" && !prefs.favourites.includes(app.id));
+
+  const showWidgets = appById("weather")?.status === "ready";
+
   return (
-    <div className="chooser-shell">
-      <header className="chooser-header">
-        <p className="chooser-kicker">Start screen</p>
-        <h1 className="chooser-title">Choose an application</h1>
-        <p className="chooser-sub">
-          Open the hotel game, AI gym analysis, The Impossible Museum, or Weather.
-        </p>
+    <div className="launcher">
+      <header className="launcher-header">
+        <p className="launcher-date">{dateLabel}</p>
+        <h1 className="launcher-greeting">{greetingFor(now.getHours())}</h1>
       </header>
 
-      <div className="chooser-grid">
-        {APPS.map((app) => (
+      <div className="launcher-search">
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false" className="launcher-search-icon">
+          <circle cx={11} cy={11} r={6.5} fill="none" stroke="currentColor" strokeWidth={2} />
+          <path d="m16 16 4.5 4.5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+        </svg>
+        <input
+          type="search"
+          className="launcher-search-input"
+          placeholder="Search apps"
+          aria-label="Search apps"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          enterKeyHint="search"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {searching ? (
+          <button type="button" className="launcher-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
+            ×
+          </button>
+        ) : null}
+      </div>
+
+      {showWidgets && !searching ? (
+        <section className="launcher-widgets" aria-label="Widgets">
+          <div className="launcher-section-head">
+            <span>Today</span>
+            <button
+              type="button"
+              className="launcher-link"
+              aria-expanded={prefs.widgetsOpen}
+              onClick={() => setWidgetsOpen(!prefs.widgetsOpen)}
+            >
+              {prefs.widgetsOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+          {prefs.widgetsOpen ? (
+            <div className="launcher-widget-row">
+              <WeatherWidget onOpen={() => open("weather")} />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!searching && favouriteApps.length > 0 ? (
+        <section className="launcher-section" aria-label="Favourites">
+          <h2 className="launcher-section-title">Favourites</h2>
+          <ul className="launcher-fav-list">
+            {favouriteApps.map((app, index) => (
+              <li key={app.id} className="launcher-fav-item">
+                <button type="button" className="launcher-fav-open" onClick={() => open(app.id)}>
+                  <AppBadge app={app} />
+                  <span className="launcher-fav-name">{app.title}</span>
+                </button>
+                <span className="launcher-fav-controls">
+                  <button
+                    type="button"
+                    className="launcher-icon-btn"
+                    onClick={() => moveFavourite(app.id, -1)}
+                    disabled={index === 0}
+                    aria-label={`Move ${app.title} up`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="launcher-icon-btn"
+                    onClick={() => moveFavourite(app.id, 1)}
+                    disabled={index === favouriteApps.length - 1}
+                    aria-label={`Move ${app.title} down`}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="launcher-icon-btn"
+                    onClick={() => toggleFavourite(app.id)}
+                    aria-label={`Unpin ${app.title}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {!searching && recentApps.length > 0 ? (
+        <section className="launcher-section" aria-label="Recently opened">
+          <h2 className="launcher-section-title">Recent</h2>
+          <div className="launcher-recent-row">
+            {recentApps.map((app) => (
+              <button key={app.id} type="button" className="launcher-recent-chip" onClick={() => open(app.id)}>
+                <AppBadge app={app} />
+                <span>{app.title}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="launcher-chips" role="tablist" aria-label="Categories">
+        {[ALL, ...CATEGORIES].map((c) => (
           <button
-            key={app.id}
+            key={c}
             type="button"
-            className="chooser-card"
-            style={{ ["--chooser-accent" as string]: app.accent }}
-            onClick={() => onChoose(app.id)}
+            role="tab"
+            aria-selected={category === c}
+            className={`launcher-chip${category === c ? " is-active" : ""}`}
+            onClick={() => setCategory(c)}
           >
-            <span className="chooser-icon" aria-hidden>
-              {app.icon}
-            </span>
-            <span className="chooser-card-body">
-              <span className="chooser-card-subtitle">{app.subtitle}</span>
-              <span className="chooser-card-title">{app.title}</span>
-              <span className="chooser-card-blurb">{app.blurb}</span>
-              <span className="chooser-tags">
-                {app.tags.map((tag) => (
-                  <span key={tag} className="chooser-tag">
-                    {tag}
-                  </span>
-                ))}
-              </span>
-            </span>
-            <span className="chooser-open">Open →</span>
+            {c}
           </button>
         ))}
       </div>
+
+      {filtered.length > 0 ? (
+        <div className="launcher-grid" role="list">
+          {filtered.map((app) => (
+            <div key={app.id} role="listitem">
+              <AppTile
+                app={app}
+                pinned={prefs.favourites.includes(app.id)}
+                onOpen={open}
+                onLongPress={toggleFavourite}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="launcher-empty">
+          <p className="launcher-empty-title">{searching ? `No apps match “${query.trim()}”` : "No apps in this category"}</p>
+          <p className="launcher-empty-sub">
+            {searching ? "Try a different name or category." : "New mini-apps appear here automatically."}
+          </p>
+        </div>
+      )}
+
+      {!searching && filtered.length > 0 ? (
+        <p className="launcher-hint">Long-press an app to pin it to Favourites.</p>
+      ) : null}
     </div>
   );
 }

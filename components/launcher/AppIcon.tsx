@@ -1,0 +1,144 @@
+"use client";
+
+import { useEffect, useRef, type CSSProperties } from "react";
+import type { AppEntry, AppId, Glyph } from "./apps";
+
+const LONG_PRESS_MS = 500;
+
+function GlyphSvg({ glyph }: { glyph: Glyph }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  switch (glyph) {
+    case "elephant":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path
+            d="M5 10.5C5 7.4 7.6 5.5 11 5.5S17 7.4 17 10.5V15h-2.4v3.1a1.3 1.3 0 0 1-2.6 0V15H9.9v3.1a1.3 1.3 0 0 1-2.6 0V13.2C5.9 12.7 5 11.9 5 10.5Z"
+            fill="currentColor"
+            opacity={0.95}
+          />
+          <path d="M17 9.5c2.4 0 3.4 1.6 3 4.2-.2 1.2-1.1 1.6-1.9.9" {...common} />
+          <circle cx={8.5} cy={8.6} r={2.2} fill="currentColor" opacity={0.35} />
+          <circle cx={14.4} cy={8} r={0.9} fill="#1a1020" />
+        </svg>
+      );
+    case "pullup":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M2.5 12h19" {...common} />
+          <path d="M5.5 8v8M18.5 8v8M3 9.5v5M21 9.5v5" {...common} strokeWidth={2.2} />
+        </svg>
+      );
+    case "museum":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <path d="M3 9.5 12 4l9 5.5" {...common} />
+          <path d="M4.5 10.5v7.5M9.5 10.5v7.5M14.5 10.5v7.5M19.5 10.5v7.5" {...common} />
+          <path d="M3 19.5h18M2.5 21.5h19" {...common} />
+        </svg>
+      );
+    case "weather":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <circle cx={9} cy={8.5} r={3} {...common} />
+          <path d="M9 2.8v1M3.3 8.5h1M4.8 4.3l.7.7M13.2 4.3l-.7.7" {...common} strokeWidth={1.4} />
+          <path d="M8.5 19.5h9.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.3 2.8 2.8 0 0 0 .1 5.7Z" {...common} />
+        </svg>
+      );
+    case "fuel":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <rect x={4.5} y={4} width={9.5} height={16.5} rx={1.6} {...common} />
+          <path d="M8 8h2.5M14 9h2a1.5 1.5 0 0 1 1.5 1.5V16a1.4 1.4 0 0 0 2.8 0V8.5l-2-2" {...common} />
+          <path d="M4.5 20.5h9.5" {...common} />
+        </svg>
+      );
+  }
+}
+
+/** Rounded-square icon with the app's name beneath. Long-press pins or unpins it. */
+export function AppTile({
+  app,
+  pinned,
+  onOpen,
+  onLongPress,
+}: {
+  app: AppEntry;
+  pinned: boolean;
+  onOpen: (id: AppId) => void;
+  onLongPress: (id: AppId) => void;
+}) {
+  const timer = useRef<number | null>(null);
+  const fired = useRef(false);
+
+  const clearTimer = () => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  useEffect(() => clearTimer, []);
+
+  const style = {
+    "--tile-from": app.gradient[0],
+    "--tile-to": app.gradient[1],
+  } as CSSProperties;
+
+  return (
+    <button
+      type="button"
+      className="app-tile"
+      style={style}
+      aria-label={pinned ? `${app.title}, pinned` : app.title}
+      title={`${app.title}. Long-press to ${pinned ? "unpin" : "pin"}.`}
+      onPointerDown={() => {
+        fired.current = false;
+        clearTimer();
+        timer.current = window.setTimeout(() => {
+          timer.current = null;
+          fired.current = true;
+          if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+          onLongPress(app.id);
+        }, LONG_PRESS_MS);
+      }}
+      onPointerUp={clearTimer}
+      onPointerLeave={clearTimer}
+      onPointerCancel={clearTimer}
+      onContextMenu={(event) => event.preventDefault()}
+      onClick={() => {
+        if (fired.current) {
+          fired.current = false;
+          return;
+        }
+        onOpen(app.id);
+      }}
+    >
+      <span className="app-tile-icon-wrap">
+        <span className="app-tile-icon">
+          <GlyphSvg glyph={app.glyph} />
+        </span>
+        {pinned ? <span className="app-tile-pin" aria-hidden>★</span> : null}
+      </span>
+      <span className="app-tile-name">{app.title}</span>
+    </button>
+  );
+}
+
+/** Compact icon used in lists such as the favourites panel. */
+export function AppBadge({ app }: { app: AppEntry }) {
+  return (
+    <span
+      className="app-badge"
+      aria-hidden
+      style={{ "--tile-from": app.gradient[0], "--tile-to": app.gradient[1] } as CSSProperties}
+    >
+      <GlyphSvg glyph={app.glyph} />
+    </span>
+  );
+}
