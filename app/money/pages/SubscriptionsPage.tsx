@@ -188,7 +188,7 @@ function AddSubscription({ api, notify, onDone }: { api: MoneyApi; notify: (m: s
   const [interval, setInterval] = useState<Recurring["interval"]>("monthly");
   const [customDays, setCustomDays] = useState("30");
   const [nextDue, setNextDue] = useState(todayISO());
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(accounts[0] ? `${accounts[0].id}|` : "");
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -196,6 +196,7 @@ function AddSubscription({ api, notify, onDone }: { api: MoneyApi; notify: (m: s
     if (!name.trim()) return setError("Add a name.");
     if (cents === null || cents <= 0) return setError("Enter an amount above zero.");
     if (interval === "custom" && !(Number(customDays) > 0)) return setError("Enter a number of days.");
+    const [srcAccount, srcPocket] = accountId.split("|");
     const input: RecurringInput = {
       kind: "bill",
       name: name.trim(),
@@ -206,7 +207,8 @@ function AddSubscription({ api, notify, onDone }: { api: MoneyApi; notify: (m: s
       dayOfMonth: Number(nextDue.slice(8, 10)),
       nextDue,
       categoryId: null,
-      accountId: accountId || null,
+      accountId: srcAccount || null,
+      pocketId: srcPocket || null,
       notes: "",
     };
     const err = await commit(saveRecurring(snap, input, defaultCtx()));
@@ -232,7 +234,12 @@ function AddSubscription({ api, notify, onDone }: { api: MoneyApi; notify: (m: s
         <label className="money-field"><span>Next payment</span><input type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></label>
         <label className="money-field"><span>Paid from</span>
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {accounts.flatMap((a) => [
+              <option key={`${a.id}|`} value={`${a.id}|`}>{a.name} · Main</option>,
+              ...snap.pockets.filter((p) => p.accountId === a.id && !p.archived).map((p) => (
+                <option key={`${a.id}|${p.id}`} value={`${a.id}|${p.id}`}>{a.name} · {p.name}</option>
+              )),
+            ])}
           </select>
         </label>
       </details>

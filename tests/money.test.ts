@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
-import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory } from "../money/actions";
+import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket } from "../money/actions";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
 
@@ -129,7 +129,7 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   const ok = validateBackup(JSON.parse(json));
   assert.ok(ok.ok);
   const broken = JSON.parse(json);
-  broken.data.transactions = [{ id: "x", kind: "expense", status: "confirmed", date: "2026-11-01", amountCents: 100, accountId: "missing", toAccountId: null, categoryId: null, description: "x", notes: "", recurringId: null, occurrenceDate: null, reverses: false, reversedBy: null, createdAt: "", updatedAt: "" } satisfies Transaction];
+  broken.data.transactions = [{ id: "x", kind: "expense", status: "confirmed", date: "2026-11-01", amountCents: 100, accountId: "missing", pocketId: null, toAccountId: null, toPocketId: null, categoryId: null, description: "x", notes: "", recurringId: null, occurrenceDate: null, reverses: false, reversedBy: null, createdAt: "", updatedAt: "" } satisfies Transaction];
   assert.equal(validateBackup(broken).ok, false);
 }
 
@@ -161,6 +161,84 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   const after = buildTimeline(moved, [], { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"];
   assert.equal(after.totalEnd, before.totalEnd);
   assert.equal(bal(moved, "cur"), bal(base, "cur"));
+}
+
+// --- pockets: €500 Revolut stays, pocket moves are transfers, spending hits one place once
+{
+  const revolut: Snapshot = {
+    ...base,
+    accounts: [
+      { id: "rev", name: "Revolut", kind: "digital", openingCents: 50_000, excludeFromSpendable: false, archived: false, createdAt: "" },
+      { id: "cur", name: "AIB", kind: "current", openingCents: 0, excludeFromSpendable: false, archived: false, createdAt: "" },
+    ],
+    pockets: [
+      { id: "food", accountId: "rev", name: "Food", icon: "🍎", color: "#34d399", targetCents: null, archived: false, createdAt: "" },
+      { id: "travel", accountId: "rev", name: "Travel", icon: "✈", color: "#38bdf8", targetCents: null, archived: false, createdAt: "" },
+    ],
+  };
+  const pocketBal = (snap: Snapshot, id: string) =>
+    buildTimeline(snap, snap.transactions, { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"].pocketEnd[id];
+  const mainBal = (snap: Snapshot) =>
+    buildTimeline(snap, snap.transactions, { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"].mainEnd.rev;
+
+  // Main → Food pocket €100: total unchanged, Main down, Food up.
+  const moved = apply(revolut, must(saveTransaction(revolut, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 10_000, accountId: "rev", pocketId: null, toAccountId: "rev", toPocketId: "food", categoryId: null, description: "To Food", notes: "" }, ctx)));
+  assert.equal(mainBal(moved), 40_000);
+  assert.equal(pocketBal(moved, "food"), 10_000);
+  assert.equal(bal(moved, "rev"), 50_000, "account total = Main + pockets");
+
+  // €50 spent from Food: deducted once, from the Food pocket only.
+  const spent = apply(moved, must(saveTransaction(moved, { kind: "expense", status: "confirmed", date: "2026-11-03", amountCents: 5_000, accountId: "rev", pocketId: "food", toAccountId: null, categoryId: "food", description: "Lunch", notes: "" }, ctx)));
+  assert.equal(pocketBal(spent, "food"), 5_000);
+  assert.equal(mainBal(spent), 40_000);
+  assert.equal(bal(spent, "rev"), 45_000);
+
+  // A pocket from another account is refused.
+  const wrong = saveTransaction(moved, { kind: "expense", status: "confirmed", date: "2026-11-03", amountCents: 100, accountId: "cur", pocketId: "food", toAccountId: null, categoryId: null, description: "x", notes: "" }, ctx);
+  assert.equal(wrong.ok, false);
+
+  // Archiving a pocket with money in it is refused; an empty one can be archived.
+  assert.equal(archivePocket(spent, "food").ok, false);
+  assert.equal(archivePocket(spent, "travel").ok, true);
+
+  // Salary split: one income transaction, then internal transfers. Lines must match exactly.
+  const splitOk = saveIncomeSplit(revolut, {
+    description: "Salary", date: "2026-11-21", amountCents: 250_000, receiveAccountId: "rev",
+    lines: [{ accountId: "rev", pocketId: null, cents: 50_000 }, { accountId: "rev", pocketId: "food", cents: 30_000 }, { accountId: "cur", pocketId: null, cents: 170_000 }],
+  }, ctx);
+  assert.ok(splitOk.ok, splitOk.ok ? "" : splitOk.error);
+  const split = apply(revolut, splitOk.ok ? splitOk.change : { puts: [] });
+  const totalBefore = buildTimeline(revolut, [], { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"].totalEnd;
+  const totalAfter = buildTimeline(split, split.transactions, { from: "2026-11", to: "2026-11", defaultAlloc: "zero" }).byMonth["2026-11"].totalEnd;
+  assert.equal(totalAfter - totalBefore, 250_000, "income counted exactly once");
+  assert.equal(split.transactions.filter((t) => t.kind === "income").length, 1);
+  assert.equal(pocketBal(split, "food"), 30_000, "split line lands in the Food pocket");
+  assert.equal(saveIncomeSplit(revolut, { description: "Salary", date: "2026-11-21", amountCents: 100, receiveAccountId: "rev", lines: [{ accountId: "rev", pocketId: null, cents: 101 }] }, ctx).ok, false, "over-allocation refused");
+  assert.equal(saveIncomeSplit(revolut, { description: "Salary", date: "2026-11-21", amountCents: 100, receiveAccountId: "rev", lines: [{ accountId: "rev", pocketId: null, cents: 50 }] }, ctx).ok, false, "unallocated remainder refused");
+
+  // Subscription paid from a pocket: one expense, deducted from that pocket only.
+  const subSnap: Snapshot = {
+    ...revolut,
+    recurring: [{ id: "gym", kind: "bill", name: "Gym", icon: "•", amountCents: 3000, interval: "monthly", customDays: null, dayOfMonth: 10, nextDue: "2026-11-10", categoryId: null, accountId: "rev", pocketId: "food", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" }],
+  };
+  const funded = apply(subSnap, must(saveTransaction(subSnap, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 10_000, accountId: "rev", pocketId: null, toAccountId: "rev", toPocketId: "food", categoryId: null, description: "To Food", notes: "" }, ctx)));
+  const paid = confirmRecurring(funded, "gym", ctx);
+  assert.ok(paid.ok);
+  const after = apply(funded, paid.ok ? paid.change : { puts: [] });
+  assert.equal(after.transactions.filter((t) => t.recurringId === "gym").length, 1);
+  assert.equal(pocketBal(after, "food"), 7_000, "deducted from the Food pocket once");
+  assert.equal(bal(after, "rev"), 47_000, "account total drops by the payment only");
+  assert.equal(mainBal(after), 40_000, "Main is untouched");
+}
+
+
+// --- backup v1
+{
+  const v1 = { format: "detailflows-money", version: 1, exportedAt: "", data: { accounts: base.accounts, categories: base.categories, transactions: [], recurring: [], allocations: [], closures: [], settings: base.settings } };
+  const parsed = validateBackup(JSON.parse(JSON.stringify(v1)));
+  assert.ok(parsed.ok, parsed.ok ? "" : parsed.error);
+  assert.deepEqual(parsed.ok ? parsed.data.pockets : [], []);
+  assert.equal(parsed.ok ? parsed.data.accounts[0].openingCents : 0, 100_000);
 }
 
 console.log("money tests passed");

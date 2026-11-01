@@ -1,8 +1,8 @@
 import { buildTimeline } from "./engine";
 import { isoDate, nextOccurrence, parseISO, todayISO, type IntervalSpec } from "./money";
-import type { Account, AccountKind, Category, Recurring, Rollover, Snapshot, Transaction, TxKind } from "./types";
+import type { Account, AccountKind, Category, Pocket, Recurring, Rollover, Snapshot, Transaction, TxKind } from "./types";
 
-export type StoreName = "accounts" | "categories" | "transactions" | "recurring" | "allocations" | "closures" | "settings";
+export type StoreName = "accounts" | "pockets" | "categories" | "transactions" | "recurring" | "allocations" | "closures" | "settings";
 export type Change = {
   puts: { store: StoreName; value: unknown }[];
   deletes: { store: StoreName; key: string }[];
@@ -32,7 +32,9 @@ export type TxInput = {
   date: string;
   amountCents: number;
   accountId: string | null;
+  pocketId?: string | null;
   toAccountId: string | null;
+  toPocketId?: string | null;
   categoryId: string | null;
   description: string;
   notes: string;
@@ -57,14 +59,27 @@ export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Resul
     return fail("Reversed transactions cannot be edited. Reverse them or delete the reversal instead.");
   }
 
+  // A pocket must belong to the account it is used with, and must be active.
+  const activePocket = (accountId: string | null, pocketId: string | null | undefined) => {
+    if (!pocketId) return true;
+    return snap.pockets.some((p) => p.id === pocketId && p.accountId === accountId && !p.archived);
+  };
   let toAccountId: string | null = null;
+  let toPocketId: string | null = null;
   let categoryId: string | null = null;
   if (input.kind === "transfer") {
     if (!activeAccount(input.accountId) || !activeAccount(input.toAccountId)) return fail("Choose two active accounts.");
-    if (input.accountId === input.toAccountId) return fail("A transfer needs two different accounts.");
+    if (!activePocket(input.accountId, input.pocketId) || !activePocket(input.toAccountId, input.toPocketId)) {
+      return fail("Choose an active pocket in that account.");
+    }
+    if (input.accountId === input.toAccountId && (input.pocketId ?? null) === (input.toPocketId ?? null)) {
+      return fail("A transfer needs two different places.");
+    }
     toAccountId = input.toAccountId;
+    toPocketId = input.toPocketId ?? null;
   } else {
     if (!activeAccount(input.accountId)) return fail("Choose an active account.");
+    if (!activePocket(input.accountId, input.pocketId)) return fail("Choose an active pocket in that account.");
     if (input.kind === "expense" || input.kind === "refund") {
       if (input.categoryId) {
         const cat = snap.categories.find((c) => c.id === input.categoryId);
@@ -81,7 +96,9 @@ export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Resul
     date: input.date,
     amountCents: input.amountCents,
     accountId: input.accountId,
+    pocketId: input.pocketId ?? null,
     toAccountId,
+    toPocketId,
     categoryId,
     description,
     notes: input.notes.trim().slice(0, 500),
@@ -93,6 +110,70 @@ export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Resul
     updatedAt: ctx.now,
   };
   return ok([{ store: "transactions", value: tx }]);
+}
+
+export type IncomeSplitLine = { accountId: string; pocketId: string | null; cents: number };
+
+/**
+ * Records income received into one account, then moves each allocated part to its pocket or account
+ * with internal transfers. The lines must add up to the income exactly: nothing is counted twice and
+ * nothing is left unassigned. The income transaction goes into `receiveAccountId` (Main by default).
+ */
+export function saveIncomeSplit(
+  snap: Snapshot,
+  input: { description: string; date: string; amountCents: number; receiveAccountId: string; lines: IncomeSplitLine[] },
+  ctx: Ctx,
+): Result {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) return fail("Amount must be greater than zero.");
+  const total = input.lines.reduce((s, l) => s + l.cents, 0);
+  if (input.lines.some((l) => !Number.isInteger(l.cents) || l.cents < 0)) return fail("Each allocation must be a whole, positive amount.");
+  if (total > input.amountCents) return fail("The allocations are more than the income. Reduce them.");
+  if (total < input.amountCents) return fail("Allocate the whole amount, or choose where the remainder goes.");
+
+  const income = saveTransaction(
+    snap,
+    {
+      kind: "income",
+      status: "confirmed",
+      date: input.date,
+      amountCents: input.amountCents,
+      accountId: input.receiveAccountId,
+      pocketId: null,
+      toAccountId: null,
+      categoryId: null,
+      description: input.description,
+      notes: "",
+    },
+    ctx,
+  );
+  if (!income.ok) return income;
+  const puts = [...income.change.puts];
+  const incomeId = (puts[0].value as Transaction).id;
+  const from: { accountId: string; pocketId: string | null } = { accountId: input.receiveAccountId, pocketId: null };
+  for (const line of input.lines) {
+    if (line.cents === 0) continue;
+    if (line.accountId === from.accountId && line.pocketId === from.pocketId) continue; // stays where it landed
+    const t = saveTransaction(
+      snap,
+      {
+        kind: "transfer",
+        status: "confirmed",
+        date: input.date,
+        amountCents: line.cents,
+        accountId: from.accountId,
+        pocketId: from.pocketId,
+        toAccountId: line.accountId,
+        toPocketId: line.pocketId,
+        categoryId: null,
+        description: `${input.description} → split`,
+        notes: `Split from income ${incomeId}`,
+      },
+      ctx,
+    );
+    if (!t.ok) return t;
+    puts.push(...t.change.puts);
+  }
+  return ok(puts);
 }
 
 /** Confirms a planned transaction (it then counts in actual balances). */
@@ -197,6 +278,7 @@ export type RecurringInput = {
   nextDue: string;
   categoryId: string | null;
   accountId: string | null;
+  pocketId?: string | null;
   notes: string;
 };
 
@@ -218,6 +300,10 @@ export function saveRecurring(snap: Snapshot, input: RecurringInput, ctx: Ctx): 
   if (input.categoryId && !snap.categories.some((c) => c.id === input.categoryId && !c.archived)) {
     return fail("Choose an active category.");
   }
+  const pocketId = input.pocketId ?? null;
+  if (pocketId && !snap.pockets.some((p) => p.id === pocketId && p.accountId === input.accountId && !p.archived)) {
+    return fail("Choose an active pocket in that account.");
+  }
   const existing = input.id ? snap.recurring.find((r) => r.id === input.id) : undefined;
   if (input.id && !existing) return fail("That item no longer exists.");
   const rec: Recurring = {
@@ -232,6 +318,7 @@ export function saveRecurring(snap: Snapshot, input: RecurringInput, ctx: Ctx): 
     nextDue: input.nextDue,
     categoryId: input.kind === "bill" ? input.categoryId : null,
     accountId: input.accountId,
+    pocketId,
     status: existing?.status ?? "active",
     notes: input.notes.trim().slice(0, 500),
     history: existing?.history ?? [],
@@ -271,7 +358,9 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
     date: ctx.today,
     amountCents: rec.amountCents,
     accountId,
+    pocketId: rec.accountId ? (rec.pocketId ?? null) : null,
     toAccountId: null,
+    toPocketId: null,
     categoryId: rec.kind === "bill" ? rec.categoryId : null,
     description: rec.name,
     notes: "",
@@ -423,9 +512,81 @@ export function deleteAccount(snap: Snapshot, id: string): Result {
   const used =
     snap.transactions.some((t) => t.accountId === id || t.toAccountId === id) ||
     snap.recurring.some((r) => r.accountId === id) ||
+    snap.pockets.some((p) => p.accountId === id) ||
     snap.settings?.plannedSpendAccountId === id;
   if (used) return fail("This account has transactions or schedules. Archive it instead.");
   return ok([], [{ store: "accounts", key: id }]);
+}
+
+// ---------- Pockets ----------
+
+export type PocketInput = {
+  id?: string;
+  accountId: string;
+  name: string;
+  icon: string;
+  color: string;
+  targetCents: number | null;
+};
+
+export function savePocket(snap: Snapshot, input: PocketInput, ctx: Ctx): Result {
+  const name = input.name.trim();
+  if (!name) return fail("Add a name.");
+  if (name.length > 40) return fail("Name is too long (40 characters max).");
+  if (!snap.accounts.some((a) => a.id === input.accountId && !a.archived)) return fail("Choose an active account.");
+  if (snap.pockets.some((p) => p.id !== input.id && p.accountId === input.accountId && p.name.toLowerCase() === name.toLowerCase())) {
+    return fail("This account already has a pocket with that name.");
+  }
+  if (input.targetCents !== null && (!Number.isInteger(input.targetCents) || input.targetCents < 0)) {
+    return fail("Target must be zero or more.");
+  }
+  const existing = input.id ? snap.pockets.find((p) => p.id === input.id) : undefined;
+  if (input.id && !existing) return fail("That pocket no longer exists.");
+  if (existing && existing.accountId !== input.accountId) {
+    return fail("A pocket cannot move to another account. Create a new pocket instead.");
+  }
+  const pocket: Pocket = {
+    id: input.id ?? ctx.newId(),
+    accountId: input.accountId,
+    name,
+    icon: input.icon || "•",
+    color: input.color,
+    targetCents: input.targetCents,
+    archived: existing?.archived ?? false,
+    createdAt: existing?.createdAt ?? ctx.now,
+  };
+  return ok([{ store: "pockets", value: pocket }]);
+}
+
+/** Pocket balance now (confirmed transactions only). */
+export function pocketNowCents(snap: Snapshot, pocketId: string): number {
+  const confirmed = snap.transactions.filter((t) => t.status === "confirmed");
+  const month = todayISO().slice(0, 7);
+  const tl = buildTimeline(snap, confirmed, { from: month, to: month, defaultAlloc: "zero" });
+  return tl.byMonth[month]?.pocketEnd[pocketId] ?? 0;
+}
+
+/**
+ * Archives a pocket. Its balance must be zero first, so no money is hidden or lost.
+ * Archived pockets keep their history.
+ */
+export function archivePocket(snap: Snapshot, id: string): Result {
+  const pocket = snap.pockets.find((p) => p.id === id);
+  if (!pocket) return fail("That pocket no longer exists.");
+  if (pocketNowCents(snap, id) !== 0) return fail("Move the money out of this pocket before archiving it.");
+  return ok([{ store: "pockets", value: { ...pocket, archived: true } }]);
+}
+
+/** Deletes a pocket only when nothing references it and its balance is zero. */
+export function deletePocket(snap: Snapshot, id: string): Result {
+  const pocket = snap.pockets.find((p) => p.id === id);
+  if (!pocket) return fail("That pocket no longer exists.");
+  if (pocketNowCents(snap, id) !== 0) return fail("Move the money out of this pocket before deleting it.");
+  const used =
+    snap.transactions.some((t) => t.pocketId === id || t.toPocketId === id) ||
+    snap.categories.some((c) => c.defaultPocketId === id);
+  if (used) return fail("This pocket has transactions. Archive it instead.");
+  return ok([], [{ store: "pockets", key: id }]);
 }
 
 // ---------- Categories ----------
@@ -438,6 +599,8 @@ export type CategoryInput = {
   kind: Category["kind"];
   targetCents: number;
   goalCents: number | null;
+  /** Optional pocket that this category's expenses come from. Omit to keep the current link. */
+  defaultPocketId?: string | null;
 };
 
 export function saveCategory(snap: Snapshot, input: CategoryInput, ctx: Ctx): Result {
@@ -453,6 +616,10 @@ export function saveCategory(snap: Snapshot, input: CategoryInput, ctx: Ctx): Re
   }
   const existing = input.id ? snap.categories.find((c) => c.id === input.id) : undefined;
   if (input.id && !existing) return fail("That category no longer exists.");
+  const defaultPocketId = input.defaultPocketId !== undefined ? input.defaultPocketId : (existing?.defaultPocketId ?? null);
+  if (defaultPocketId && !snap.pockets.some((p) => p.id === defaultPocketId && !p.archived)) {
+    return fail("Choose an active pocket for this category.");
+  }
   const order = existing?.order ?? Math.max(-1, ...snap.categories.map((c) => c.order)) + 1;
   const cat: Category = {
     id: input.id ?? ctx.newId(),
@@ -462,6 +629,7 @@ export function saveCategory(snap: Snapshot, input: CategoryInput, ctx: Ctx): Re
     kind: input.kind,
     targetCents: input.targetCents,
     goalCents: input.goalCents,
+    defaultPocketId,
     archived: existing?.archived ?? false,
     order,
   };

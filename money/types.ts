@@ -19,6 +19,19 @@ export type Account = {
   createdAt: string;
 };
 
+/** A sub-balance inside an account. Pocket money is part of its account's total, never extra money. */
+export type Pocket = {
+  id: string;
+  accountId: string;
+  name: string;
+  icon: string;
+  color: string;
+  /** Optional savings target for progress display only. Never moves money. */
+  targetCents: number | null;
+  archived: boolean;
+  createdAt: string;
+};
+
 export type CategoryKind = "spending" | "saving";
 
 export type Category = {
@@ -31,6 +44,8 @@ export type Category = {
   targetCents: number;
   /** Optional savings goal for progress bars. */
   goalCents: number | null;
+  /** Default pocket for expenses in this category. An expense has one pocket, so it is deducted once. */
+  defaultPocketId?: string | null;
   archived: boolean;
   order: number;
 };
@@ -46,8 +61,12 @@ export type Transaction = {
   /** Positive for every kind except adjustment, where it is signed (+ adds money, - removes it). */
   amountCents: number;
   accountId: string | null;
+  /** Pocket within accountId (null = the account's Main balance). */
+  pocketId: string | null;
   /** Destination account for transfers only. */
   toAccountId: string | null;
+  /** Destination pocket for transfers only (null = destination Main). */
+  toPocketId: string | null;
   categoryId: string | null;
   description: string;
   notes: string;
@@ -87,6 +106,8 @@ export type Recurring = {
   nextDue: string;
   categoryId: string | null;
   accountId: string | null;
+  /** Pocket within accountId that this item is paid from (null or missing = Main). */
+  pocketId?: string | null;
   status: "active" | "paused" | "cancelled";
   notes: string;
   history: { date: string; outcome: "paid" | "skipped"; txId: string | null }[];
@@ -98,6 +119,7 @@ export type Settings = { id: "main"; plannedSpendAccountId: string | null };
 
 export type Snapshot = {
   accounts: Account[];
+  pockets: Pocket[];
   categories: Category[];
   transactions: Transaction[];
   recurring: Recurring[];
@@ -108,6 +130,7 @@ export type Snapshot = {
 
 export const EMPTY_SNAPSHOT: Snapshot = {
   accounts: [],
+  pockets: [],
   categories: [],
   transactions: [],
   recurring: [],

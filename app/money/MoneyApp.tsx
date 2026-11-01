@@ -12,15 +12,18 @@ import SubscriptionsPage from "./pages/SubscriptionsPage";
 import ForecastPage from "./pages/ForecastPage";
 import SettingsPage from "./pages/SettingsPage";
 import { QuickAdd } from "./QuickAdd";
+import { ManageSheet } from "./ManageSheet";
+import { IncomeSheet } from "./IncomeSheet";
 import { SetupSheet } from "./SetupSheet";
 
-export type PageId = "overview" | "spending" | "upcoming" | "future" | "settings";
+export type PageId = "overview" | "activity" | "budget" | "upcoming" | "future" | "settings";
 
 const NAV: { id: PageId; label: string; icon: string }[] = [
-  { id: "overview", label: "My Money", icon: "◎" },
-  { id: "spending", label: "My Spending", icon: "◔" },
-  { id: "upcoming", label: "Upcoming", icon: "↻" },
-  { id: "future", label: "My Future", icon: "∿" },
+  { id: "overview", label: "Home", icon: "◎" },
+  { id: "activity", label: "Activity", icon: "≡" },
+  { id: "budget", label: "Budget", icon: "◔" },
+  { id: "upcoming", label: "Bills", icon: "↻" },
+  { id: "future", label: "Future", icon: "∿" },
 ];
 
 /** Shared handle every page uses to read the snapshot and commit validated changes. */
@@ -38,6 +41,8 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
   const [page, setPage] = useState<PageId>("overview");
   const [quickOpen, setQuickOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [incomeOpen, setIncomeOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -127,19 +132,26 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
       )}
 
       <div className="money-body">
-        {page === "overview" && <OverviewPage api={api} onNavigate={setPage} onSetup={() => setSetupOpen(true)} notify={notify} />}
-        {page === "spending" && (
-          <>
-            <BudgetPage api={api} notify={notify} />
-            <TransactionsPage api={api} notify={notify} />
-          </>
+        {page === "overview" && (
+          <OverviewPage
+            api={api}
+            onNavigate={setPage}
+            onSetup={() => setSetupOpen(true)}
+            onManage={() => setManageOpen(true)}
+            onIncome={() => setIncomeOpen(true)}
+            notify={notify}
+          />
         )}
+        {page === "activity" && <TransactionsPage api={api} notify={notify} />}
+        {page === "budget" && <BudgetPage api={api} notify={notify} />}
         {page === "upcoming" && <SubscriptionsPage api={api} notify={notify} onSetup={() => setSetupOpen(true)} />}
         {page === "future" && <ForecastPage api={api} onSetup={() => setSetupOpen(true)} />}
         {page === "settings" && <SettingsPage api={api} notify={notify} onClose={() => setPage("overview")} />}
       </div>
 
       {quickOpen && <QuickAdd api={api} onClose={() => setQuickOpen(false)} notify={notify} />}
+      {manageOpen && <ManageSheet api={api} onClose={() => setManageOpen(false)} notify={notify} />}
+      {incomeOpen && <IncomeSheet api={api} onClose={() => setIncomeOpen(false)} notify={notify} />}
       {setupOpen && <SetupSheet api={api} onClose={() => setSetupOpen(false)} notify={notify} />}
 
       <nav className="money-nav" aria-label="Money Tracker sections">

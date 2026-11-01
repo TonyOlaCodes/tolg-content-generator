@@ -5,22 +5,27 @@ import type { Allocation, Closure, Snapshot, Transaction } from "./types";
  * Money effects of one transaction on accounts. Reversed records negate their effects.
  * Transfers move money between accounts (no net change); adjustments change money only via their signed amount.
  */
-export function accountEffects(tx: Transaction): { accountId: string; cents: number }[] {
+export type Effect = { accountId: string; pocketId: string | null; cents: number };
+
+/** Pocket-aware effects. An account's total is the sum over its Main and pocket effects. */
+export function accountEffects(tx: Transaction): Effect[] {
   const s = tx.reverses ? -1 : 1;
   const a = tx.amountCents * s;
+  const at = (accountId: string | null, pocketId: string | null, cents: number): Effect[] =>
+    accountId ? [{ accountId, pocketId: pocketId ?? null, cents }] : [];
   switch (tx.kind) {
     case "expense":
-      return tx.accountId ? [{ accountId: tx.accountId, cents: -a }] : [];
+      return at(tx.accountId, tx.pocketId, -a);
     case "income":
     case "refund":
-      return tx.accountId ? [{ accountId: tx.accountId, cents: a }] : [];
     case "adjustment":
-      return tx.accountId ? [{ accountId: tx.accountId, cents: a }] : [];
+      return at(tx.accountId, tx.pocketId, a);
     case "transfer": {
       if (!tx.accountId || !tx.toAccountId) return [];
+      // Moving between pockets or Main of the same account is internal: the account total is unchanged.
       return [
-        { accountId: tx.accountId, cents: -a },
-        { accountId: tx.toAccountId, cents: a },
+        ...at(tx.accountId, tx.pocketId, -a),
+        ...at(tx.toAccountId, tx.toPocketId, a),
       ];
     }
   }
@@ -37,7 +42,12 @@ export function envelopeSpend(tx: Transaction): number {
 
 export type MonthRow = {
   month: string;
+  /** Account totals (Main + all pockets, archived included). */
   accountEnd: Record<string, number>;
+  /** Balance per pocket id. */
+  pocketEnd: Record<string, number>;
+  /** Main balance per account (money not in any pocket). */
+  mainEnd: Record<string, number>;
   /** Sum of every account, archived included, so money is never silently dropped. */
   totalEnd: number;
   spendableEnd: number;
@@ -78,7 +88,7 @@ function monthRange(from: string, to: string): string[] {
  * - Unallocated = total money - sum of envelopes. Allocations never change total money.
  */
 export function buildTimeline(
-  snap: Pick<Snapshot, "accounts" | "categories" | "allocations" | "closures">,
+  snap: Pick<Snapshot, "accounts" | "pockets" | "categories" | "allocations" | "closures">,
   txs: Transaction[],
   opts: TimelineOptions,
 ): Timeline {
@@ -101,19 +111,28 @@ export function buildTimeline(
   const rows: MonthRow[] = [];
   const byMonth: Record<string, MonthRow> = {};
   let prev: MonthRow | null = null;
-  const accountBalance: Record<string, number> = Object.fromEntries(snap.accounts.map((a) => [a.id, a.openingCents]));
+  // Main balance per account, and balance per pocket. Pockets start at zero: they are filled by transfers.
+  const mainBalance: Record<string, number> = Object.fromEntries(snap.accounts.map((a) => [a.id, a.openingCents]));
+  const pocketBalance: Record<string, number> = Object.fromEntries((snap.pockets ?? []).map((p) => [p.id, 0]));
+  const pocketAccount: Record<string, string> = Object.fromEntries((snap.pockets ?? []).map((p) => [p.id, p.accountId]));
 
   for (const m of monthRange(earliest, opts.to)) {
     const monthTxs = txByMonth.get(m) ?? [];
     const prevChoices = prev ? closureMap.get(prev.month)?.choices ?? {} : {};
 
-    // Accounts
+    // Accounts and pockets
     for (const tx of monthTxs) {
       for (const e of accountEffects(tx)) {
-        accountBalance[e.accountId] = (accountBalance[e.accountId] ?? 0) + e.cents;
+        if (e.pocketId && e.pocketId in pocketBalance) pocketBalance[e.pocketId] += e.cents;
+        else mainBalance[e.accountId] = (mainBalance[e.accountId] ?? 0) + e.cents;
       }
     }
-    const accountEnd: Record<string, number> = { ...accountBalance };
+    const pocketEnd: Record<string, number> = { ...pocketBalance };
+    const accountEnd: Record<string, number> = { ...mainBalance };
+    for (const [pid, bal] of Object.entries(pocketBalance)) {
+      const accId = pocketAccount[pid];
+      accountEnd[accId] = (accountEnd[accId] ?? 0) + bal;
+    }
     const totalEnd = snap.accounts.reduce((s, a) => s + (accountEnd[a.id] ?? 0), 0);
     const spendableEnd = snap.accounts
       .filter((a) => !a.archived && !a.excludeFromSpendable)
@@ -159,6 +178,8 @@ export function buildTimeline(
     const row: MonthRow = {
       month: m,
       accountEnd,
+      pocketEnd,
+      mainEnd: { ...mainBalance },
       totalEnd,
       spendableEnd,
       catStart,

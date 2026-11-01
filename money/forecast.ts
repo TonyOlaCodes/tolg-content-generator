@@ -77,7 +77,9 @@ export function scheduledItems(snap: Snapshot, today: string, horizonEnd: string
           date: occ < today ? today : occ,
           amountCents: r.amountCents,
           accountId,
+          pocketId: null,
           toAccountId: null,
+          toPocketId: null,
           categoryId: r.kind === "bill" ? r.categoryId : null,
           description: r.name,
           notes: "",
@@ -123,7 +125,9 @@ export function buildForecast(
     date: e.date,
     amountCents: e.amountCents,
     accountId: e.accountId,
+    pocketId: null,
     toAccountId: e.toAccountId,
+    toPocketId: null,
     categoryId: e.categoryId,
     description: e.description,
     notes: "",
@@ -165,7 +169,9 @@ export function buildForecast(
               date: m === thisMonth && date < today ? today : date,
               amountCents: remaining,
               accountId: accountForPlan,
+              pocketId: null,
               toAccountId: null,
+              toPocketId: null,
               categoryId: c.id,
               description: `${c.name} (planned budget)`,
               notes: "",
@@ -185,7 +191,7 @@ export function buildForecast(
   const all = [...base, ...extraItems];
   const categories = snap.categories;
   const tl = buildTimeline(
-    { accounts: snap.accounts, categories, allocations: snap.allocations, closures: snap.closures },
+    { accounts: snap.accounts, pockets: snap.pockets, categories, allocations: snap.allocations, closures: snap.closures },
     all,
     { from: addMonths(thisMonth, -1), to: lastMonth, defaultAlloc: "target", targets: overrides.targets },
   );

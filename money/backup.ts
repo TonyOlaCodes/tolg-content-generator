@@ -1,7 +1,8 @@
 import type { Allocation, Snapshot } from "./types";
 
 export const BACKUP_FORMAT = "detailflows-money";
-export const BACKUP_VERSION = 1;
+/** 2 adds pockets. Version 1 backups are still accepted and upgraded on import. */
+export const BACKUP_VERSION = 2;
 
 export type Backup = { format: string; version: number; exportedAt: string; data: Snapshot };
 
@@ -21,13 +22,21 @@ const isMonth = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}$/.test(v)
 export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { ok: false; error: string } {
   if (!isObj(raw)) return { ok: false, error: "This file is not a Money Tracker backup." };
   if (raw.format !== BACKUP_FORMAT) return { ok: false, error: "This file is not a Money Tracker backup." };
-  if (raw.version !== BACKUP_VERSION) return { ok: false, error: `Unsupported backup version: ${String(raw.version)}.` };
+  if (raw.version !== 1 && raw.version !== BACKUP_VERSION) {
+    return { ok: false, error: `Unsupported backup version: ${String(raw.version)}.` };
+  }
   if (!isObj(raw.data)) return { ok: false, error: "The backup has no data." };
-  const d = raw.data;
+  // Version 1 has no pockets: upgrade it so every record reads as Main money.
+  const d: Record<string, unknown> = { pockets: [], ...raw.data };
+  if (!Array.isArray(d.pockets)) return { ok: false, error: 'Backup is missing "pockets".' };
+  if (raw.version === 1 && Array.isArray(d.transactions)) {
+    d.transactions = (d.transactions as Record<string, unknown>[]).map((t) => ({ pocketId: null, toPocketId: null, ...t }));
+  }
   const lists = ["accounts", "categories", "transactions", "recurring", "allocations", "closures"] as const;
   for (const k of lists) if (!Array.isArray(d[k])) return { ok: false, error: `Backup is missing "${k}".` };
 
   const accounts = d.accounts as unknown[];
+  const pockets = d.pockets as unknown[];
   const categories = d.categories as unknown[];
   const transactions = d.transactions as unknown[];
   const recurring = d.recurring as unknown[];
@@ -41,6 +50,15 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
     }
     if (accountIds.has(a.id)) return { ok: false, error: "The backup has duplicate account IDs." };
     accountIds.add(a.id);
+  }
+
+  const pocketIds = new Set<string>();
+  for (const p of pockets) {
+    if (!isObj(p) || !isStr(p.id) || !isStr(p.name) || !isStr(p.accountId) || !accountIds.has(p.accountId) || typeof p.archived !== "boolean") {
+      return { ok: false, error: "A pocket in the backup is malformed." };
+    }
+    if (pocketIds.has(p.id)) return { ok: false, error: "The backup has duplicate pocket IDs." };
+    pocketIds.add(p.id);
   }
 
   const categoryIds = new Set<string>();
@@ -67,6 +85,12 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
     }
     if (t.toAccountId !== null && !(isStr(t.toAccountId) && accountIds.has(t.toAccountId))) {
       return { ok: false, error: "A transfer refers to an account that is not in the backup." };
+    }
+    if (t.pocketId != null && !(isStr(t.pocketId) && pocketIds.has(t.pocketId))) {
+      return { ok: false, error: "A transaction refers to a pocket that is not in the backup." };
+    }
+    if (t.toPocketId != null && !(isStr(t.toPocketId) && pocketIds.has(t.toPocketId))) {
+      return { ok: false, error: "A transfer refers to a pocket that is not in the backup." };
     }
     if (t.categoryId !== null && !(isStr(t.categoryId) && categoryIds.has(t.categoryId))) {
       return { ok: false, error: "A transaction refers to a category that is not in the backup." };

@@ -183,16 +183,27 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
 }
+/* Scroll lock while a sheet is open, so the page behind never moves or shows through. */
+body:has(.money-sheet-backdrop) { overflow: hidden; }
 .money-sheet {
   width: min(560px, 100vw);
-  max-height: 88dvh;
-  overflow: auto;
+  max-height: calc(88vh);
+  max-height: calc(88dvh);
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  padding: 10px 18px 0;
   background: var(--panel);
   border-radius: 26px 26px 0 0;
   animation: money-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* Body scrolls; the footer (Confirm/Cancel) stays visible above the iPhone home indicator. */
+.money-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 12px; }
+.money-sheet-foot { flex: 0 0 auto; padding: 10px 0 calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); background: var(--panel); }
+.money-sheet-foot .money-btn-primary { margin-top: 0; }
+.money-inline-panel { display: grid; gap: 10px; padding: 12px; margin: 8px 0; border-radius: 16px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.money-row-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.money-btn-secondary { min-height: 44px; padding: 0 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); background: none; color: var(--text); font: inherit; cursor: pointer; }
 @keyframes money-sheet-up { from { transform: translateY(40px); opacity: 0; } }
 .money-sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 25%, transparent); margin: 0 auto 10px; }
 .money-sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 1rem; }
@@ -285,6 +296,26 @@
 .money-plan-split dt { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.95rem; }
 .money-plan-split dd { margin: 0; font-weight: 600; }
 .money-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.money-accounts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.money-account { background: var(--panel); border-radius: 16px; overflow: hidden; }
+.money-account-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.money-account-head strong { font-weight: 650; }
+.money-pockets { list-style: none; margin: 0; padding: 0 16px 12px; display: grid; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.money-pockets li { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.93rem; }
+.money-pockets li > span { display: inline-flex; align-items: center; gap: 8px; }
 .money-dot.is-spent { background: var(--accent); }
 .money-dot.is-planned { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .money-dot.is-available { background: #6ee7b7; }

@@ -39,6 +39,19 @@ export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m:
     notify(err ?? `${c.name} target saved`);
   };
 
+  // Linking a category to a pocket only changes where its expenses come from. The target stays a plan.
+  const savePocketLink = async (c: Category, pocketId: string) => {
+    setBusy(true);
+    const err = await commit(
+      saveCategory(snap, { id: c.id, name: c.name, icon: c.icon, color: c.color, kind: c.kind, targetCents: c.targetCents, goalCents: c.goalCents, defaultPocketId: pocketId || null }, defaultCtx()),
+    );
+    setBusy(false);
+    notify(err ?? `${c.name} pocket saved`);
+  };
+
+  const pocketChoices = snap.pockets.filter((p) => !p.archived);
+  const accountName = (id: string) => snap.accounts.find((a) => a.id === id)?.name ?? "";
+
   const moveBudget = async (from: Category) => {
     const cents = parseEuroToCents(moveAmt);
     const to = cats.find((c) => c.id === moveTo);
@@ -117,6 +130,18 @@ export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m:
                     />
                   </label>
                   <p className="money-small money-muted">Saves automatically when you leave the field.</p>
+
+                  {pocketChoices.length > 0 && (
+                    <label className="money-field">
+                      <span>Spend from pocket</span>
+                      <select value={c.defaultPocketId ?? ""} onChange={(e) => savePocketLink(c, e.target.value)} disabled={busy}>
+                        <option value="">None (use the chosen account)</option>
+                        {pocketChoices.map((p) => (
+                          <option key={p.id} value={p.id}>{accountName(p.accountId)} · {p.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
 
                   {cats.length > 1 && (
                     <div className="money-move">

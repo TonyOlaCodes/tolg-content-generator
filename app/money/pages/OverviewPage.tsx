@@ -1,23 +1,38 @@
 "use client";
 
+import { useState } from "react";
 import { currentPosition } from "@/money/engine";
 import { confirmRecurring, defaultCtx } from "@/money/actions";
 import { currentMonth, daysInMonth, dueLabel, formatEUR, formatMonthIE, todayISO } from "@/money/money";
 import type { MoneyApi, PageId } from "../MoneyApp";
 import { Donut, type Slice } from "../charts";
 
+type DistView = "account" | "pocket" | "category";
+const VIEWS: { id: DistView; label: string }[] = [
+  { id: "account", label: "By account" },
+  { id: "pocket", label: "By pocket" },
+  { id: "category", label: "By category" },
+];
+const ACCOUNT_COLORS = ["#facc15", "#38bdf8", "#34d399", "#f472b6", "#a78bfa", "#fb923c"];
+
 export default function OverviewPage({
   api,
   onNavigate,
   onSetup,
+  onManage,
+  onIncome,
   notify,
 }: {
   api: MoneyApi;
   onNavigate: (p: PageId) => void;
   onSetup: () => void;
+  onManage: () => void;
+  onIncome: () => void;
   notify: (msg: string) => void;
 }) {
   const { snap } = api;
+  const [openAccount, setOpenAccount] = useState<string | null>(null);
+  const [view, setView] = useState<DistView>("account");
   const month = currentMonth();
   const today = todayISO();
   const row = currentPosition(snap, month);
@@ -62,6 +77,19 @@ export default function OverviewPage({
   const used = planCents > 0 ? Math.min(spentPlanCents / planCents, 1) : 0;
 
   const hasAccounts = accounts.length > 0;
+
+  // Every view sums to real money (or real spending), so the numbers always agree with the totals.
+  const distribution: Slice[] =
+    view === "account"
+      ? accounts.map((a, i) => ({ label: a.name, color: ACCOUNT_COLORS[i % ACCOUNT_COLORS.length], value: Math.max(row?.accountEnd[a.id] ?? 0, 0) }))
+      : view === "pocket"
+        ? [
+            ...accounts.map((a) => ({ label: `${a.name} Main`, color: "#64748b", value: Math.max(row?.mainEnd[a.id] ?? 0, 0) })),
+            ...snap.pockets
+              .filter((p) => !p.archived && accounts.some((a) => a.id === p.accountId))
+              .map((p) => ({ label: p.name, color: p.color, value: Math.max(row?.pocketEnd[p.id] ?? 0, 0) })),
+          ]
+        : spendCats.map((c) => ({ label: c.name, color: c.color, value: row?.catSpent[c.id] ?? 0 }));
   const setupNeeded = !hasAccounts || (incomeCents === 0 && planCents === 0);
 
   async function confirmPaid(id: string, name: string) {
@@ -103,8 +131,65 @@ export default function OverviewPage({
 
           <section className="money-block">
             <div className="money-block-head">
+              <h2 className="money-h2">Accounts</h2>
+              <div className="money-row-actions">
+                <button type="button" className="money-link" onClick={onIncome}>+ Income</button>
+                <button type="button" className="money-link" onClick={onManage}>Manage</button>
+              </div>
+            </div>
+            <ul className="money-accounts">
+              {accounts.map((a) => {
+                const isOpen = openAccount === a.id;
+                const accPockets = snap.pockets.filter((p) => p.accountId === a.id && !p.archived);
+                return (
+                  <li key={a.id} className="money-account">
+                    <button type="button" className="money-account-head" aria-expanded={isOpen} onClick={() => setOpenAccount(isOpen ? null : a.id)}>
+                      <span>{a.name}</span>
+                      <strong>{formatEUR(row?.accountEnd[a.id] ?? 0)}</strong>
+                      <span aria-hidden>{isOpen ? "▴" : "▾"}</span>
+                    </button>
+                    {isOpen && (
+                      <ul className="money-pockets">
+                        <li>
+                          <span>Main</span>
+                          <strong>{formatEUR(row?.mainEnd[a.id] ?? 0)}</strong>
+                        </li>
+                        {accPockets.map((p) => (
+                          <li key={p.id}>
+                            <span>
+                              <span className="money-dot" style={{ background: p.color }} />
+                              {p.icon} {p.name}
+                            </span>
+                            <strong>{formatEUR(row?.pocketEnd[p.id] ?? 0)}</strong>
+                          </li>
+                        ))}
+                        {accPockets.length === 0 && <li className="money-muted">No pockets yet.</li>}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section className="money-block">
+            <div className="money-block-head">
+              <h2 className="money-h2">Where your money is</h2>
+            </div>
+            <div className="money-seg" role="radiogroup" aria-label="Chart view">
+              {VIEWS.map((v) => (
+                <button key={v.id} type="button" role="radio" aria-checked={view === v.id} className={`money-seg-btn${view === v.id ? " is-active" : ""}`} onClick={() => setView(v.id)}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <Donut slices={distribution} emptyLabel={view === "category" ? "No spending this month yet." : "Add an account to see it here."} />
+          </section>
+
+          <section className="money-block">
+            <div className="money-block-head">
               <h2 className="money-h2">Spending plan</h2>
-              <button type="button" className="money-link" onClick={() => onNavigate("spending")}>Details</button>
+              <button type="button" className="money-link" onClick={() => onNavigate("budget")}>Details</button>
             </div>
             <Donut slices={slices} emptyLabel="Set monthly targets to see your plan here." />
             <dl className="money-plan-split">
