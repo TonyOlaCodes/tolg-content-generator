@@ -152,6 +152,42 @@
 .money-btn-small { min-height: 38px; padding: 8px 14px; margin-top: 0; font-size: 0.9rem; border-radius: 12px; }
 .money-btn-danger { background: transparent; border: 1px solid color-mix(in srgb, #f87171 50%, transparent); }
 .money-confirm-paid { width: 100%; min-height: 52px; font-size: 1rem; margin-top: 0; }
+.money-pay-row { display: grid; gap: 10px; }
+.money-pay-amount {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  min-height: 48px;
+  border-radius: 14px;
+  background: #121218;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+.money-pay-amount input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  padding: 12px 0;
+  outline: none;
+}
+.money-pay-prefix { color: var(--muted); font-weight: 650; }
+.money-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.money-edit-sub { margin-top: 4px; }
 .money-add { width: 100%; margin-top: 0; }
 .money-sr-only, .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 

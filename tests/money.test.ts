@@ -90,6 +90,28 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   assert.equal(paid.transactions.filter((t) => t.recurringId === "cursor" && t.occurrenceDate === "2026-11-10").length, 1);
 }
 
+// --- partial subscription payment: schedule advances only when the remainder is paid
+{
+  const snap: Snapshot = {
+    ...base,
+    recurring: [{ id: "netflix", kind: "bill", name: "Netflix", icon: "•", amountCents: 1600, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-01", categoryId: "subscriptions", accountId: "cur", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" }],
+  };
+  const part = confirmRecurring(snap, "netflix", ctx, 600);
+  assert.ok(part.ok);
+  const mid = apply(snap, part.ok ? part.change : { puts: [] });
+  assert.equal(mid.recurring[0].nextDue, "2026-11-01", "partial pay keeps the same due date");
+  assert.equal(mid.recurring[0].history.length, 0, "history waits until the occurrence is settled");
+  assert.equal(bal(mid, "cur"), 99_400);
+  assert.equal(confirmRecurring(mid, "netflix", ctx, 1200).ok, false, "cannot overpay the remainder");
+  const rest = confirmRecurring(mid, "netflix", ctx, 1000);
+  assert.ok(rest.ok);
+  const done = apply(mid, rest.ok ? rest.change : { puts: [] });
+  assert.equal(done.recurring[0].nextDue, "2026-12-01");
+  assert.equal(done.recurring[0].history.length, 1);
+  assert.equal(done.transactions.filter((t) => t.recurringId === "netflix").length, 2);
+  assert.equal(bal(done, "cur"), 98_400);
+}
+
 // --- rollover: carry vs release (negative balances never forgiven)
 {
   const snap: Snapshot = { ...base, allocations: [{ key: "2026-10|food", month: "2026-10", categoryId: "food", cents: 30_000 }] };

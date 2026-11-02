@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   saveRecurring,
   confirmRecurring,
   skipRecurring,
-  rescheduleRecurring,
   setRecurringStatus,
+  deleteRecurring,
+  remainingRecurringCents,
   defaultCtx,
   type RecurringInput,
   type Result,
@@ -34,40 +35,44 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const [draftAmt, setDraftAmt] = useState("");
-  const [draftDate, setDraftDate] = useState("");
-  const [rescheduling, setRescheduling] = useState<string | null>(null);
+  const [payDraft, setPayDraft] = useState<Record<string, string>>({});
 
   const bills = snap.recurring.filter((r) => r.kind === "bill");
   const active = bills.filter((r) => r.status === "active").sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
   const paused = bills.filter((r) => r.status === "paused");
-  const cancelled = bills.filter((r) => r.status === "cancelled");
+  const deleted = bills.filter((r) => r.status === "cancelled");
   const monthlyTotal = active.reduce((s, r) => s + monthlyEquivalentCents(r.amountCents, r), 0);
   const hasAccount = snap.accounts.some((a) => !a.archived);
 
   const accountName = (id: string | null) => snap.accounts.find((a) => a.id === id)?.name ?? "No account";
 
-  const act = async (id: string, build: () => Result, ok: string) => {
-    if (busy) return;
+  const act = async (id: string, build: () => Result, ok: string): Promise<boolean> => {
+    if (busy) return false;
     setBusy(id);
     const err = await commit(build());
     setBusy(null);
     notify(err ?? ok);
+    return !err;
   };
 
   const statusOf = (r: Recurring) => {
     if (r.status === "paused") return { label: "Paused", tone: "muted" };
-    if (r.status === "cancelled") return { label: "Cancelled", tone: "muted" };
+    if (r.status === "cancelled") return { label: "Deleted", tone: "muted" };
     const due = dueLabel(r.nextDue);
     if (due.overdue) return { label: "Overdue", tone: "neg" };
     if (due.text.toLowerCase().includes("today")) return { label: "Due today", tone: "warn" };
     return { label: "Upcoming", tone: "muted" };
   };
 
+  const payValue = (r: Recurring, remaining: number) =>
+    payDraft[r.id] ?? (remaining / 100).toFixed(2);
+
   const renderCard = (r: Recurring) => {
     const status = statusOf(r);
+    const remaining = remainingRecurringCents(snap, r);
     const isDue = r.status === "active" && status.tone !== "muted";
     const isBusy = busy === r.id;
+    const paidToward = r.amountCents - remaining;
     return (
       <li key={r.id} className={`money-sub${r.status !== "active" ? " is-inactive" : ""}`}>
         <div className="money-sub-top">
@@ -84,51 +89,77 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
         {r.status === "active" && (
           <p className="money-small money-muted money-sub-next">
             Next {formatDateIE(r.nextDue)}
+            {paidToward > 0 && remaining > 0 ? ` · ${formatEUR(remaining)} left` : ""}
           </p>
         )}
 
-        {r.status === "active" && isDue && (
-          <button type="button" className="money-btn-primary money-confirm-paid" disabled={isBusy} onClick={() => act(r.id, () => confirmRecurring(snap, r.id, defaultCtx()), "Marked as paid")}>
-            {isBusy ? "Saving…" : "Confirm Paid"}
-          </button>
+        {r.status === "active" && isDue && remaining > 0 && (
+          <div className="money-pay-row">
+            <label className="money-pay-amount">
+              <span className="money-sr">Amount to pay</span>
+              <span className="money-pay-prefix" aria-hidden>€</span>
+              <input
+                inputMode="decimal"
+                aria-label={`Pay amount for ${r.name}`}
+                value={payValue(r, remaining)}
+                onChange={(e) => setPayDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+              />
+            </label>
+            <button
+              type="button"
+              className="money-btn-primary money-confirm-paid"
+              disabled={isBusy}
+              onClick={() => {
+                const cents = parseEuroToCents(payValue(r, remaining));
+                if (cents === null || cents <= 0) return notify("Enter an amount above zero");
+                if (cents > remaining) return notify("That is more than what is left");
+                void (async () => {
+                  const okPay = await act(
+                    r.id,
+                    () => confirmRecurring(snap, r.id, defaultCtx(), cents),
+                    cents < remaining ? `Paid ${formatEUR(cents)}` : "Marked as paid",
+                  );
+                  if (!okPay) return;
+                  setPayDraft((d) => {
+                    const next = { ...d };
+                    delete next[r.id];
+                    return next;
+                  });
+                })();
+              }}
+            >
+              {isBusy ? "Saving…" : centsLabel(payValue(r, remaining), remaining)}
+            </button>
+          </div>
         )}
 
         {r.status === "active" && (
           <div className="money-sub-actions">
             <button type="button" className="money-link" disabled={isBusy} onClick={() => act(r.id, () => skipRecurring(snap, r.id, defaultCtx()), "Skipped this payment")}>Skip</button>
-            <button type="button" className="money-link" disabled={isBusy} onClick={() => { setRescheduling(rescheduling === r.id ? null : r.id); setDraftDate(r.nextDue); }}>Reschedule</button>
-            <button type="button" className="money-link" disabled={isBusy} onClick={() => { setEditing(editing === r.id ? null : r.id); setDraftAmt((r.amountCents / 100).toFixed(2)); }}>Edit</button>
+            <button type="button" className="money-link" disabled={isBusy} onClick={() => setEditing(editing === r.id ? null : r.id)}>Edit</button>
             <button type="button" className="money-link" disabled={isBusy} onClick={() => act(r.id, () => setRecurringStatus(snap, r.id, "paused", defaultCtx()), "Paused")}>Pause</button>
             <button type="button" className="money-link is-danger" disabled={isBusy} onClick={() => {
-              if (!window.confirm(`Cancel ${r.name}? It will stop being scheduled.`)) return;
-              void act(r.id, () => setRecurringStatus(snap, r.id, "cancelled", defaultCtx()), "Cancelled");
-            }}>Cancel</button>
-          </div>
-        )}
-
-        {r.status === "active" && rescheduling === r.id && (
-          <div className="money-inline">
-            <input type="date" aria-label={`New date for ${r.name}`} value={draftDate} onChange={(e) => setDraftDate(e.target.value)} />
-            <button type="button" className="money-btn-small" disabled={isBusy || !draftDate} onClick={() => { setRescheduling(null); void act(r.id, () => rescheduleRecurring(snap, r.id, draftDate, defaultCtx()), "Rescheduled"); }}>Save date</button>
+              if (!window.confirm(`Delete ${r.name}?`)) return;
+              void act(r.id, () => deleteRecurring(snap, r.id, defaultCtx()), "Deleted");
+            }}>Delete</button>
           </div>
         )}
 
         {r.status === "active" && editing === r.id && (
-          <div className="money-inline">
-            <input inputMode="decimal" aria-label={`Amount for ${r.name}`} value={draftAmt} onChange={(e) => setDraftAmt(e.target.value)} />
-            <button type="button" className="money-btn-small" disabled={isBusy} onClick={() => {
-              const cents = parseEuroToCents(draftAmt);
-              if (cents === null || cents <= 0) return notify("Enter a valid amount");
-              setEditing(null);
-              void act(r.id, () => saveRecurring(snap, { ...r, id: r.id, amountCents: cents }, defaultCtx()), "Amount updated");
-            }}>Save amount</button>
-          </div>
+          <EditSubscription
+            api={api}
+            rec={r}
+            notify={notify}
+            busy={isBusy}
+            onBusy={(v) => setBusy(v ? r.id : null)}
+            onDone={() => setEditing(null)}
+          />
         )}
 
         {r.status !== "active" && (
           <div className="money-sub-actions">
             <button type="button" className="money-link" disabled={isBusy} onClick={() => act(r.id, () => setRecurringStatus(snap, r.id, "active", defaultCtx()), "Resumed")}>
-              {r.status === "paused" ? "Resume" : "Reactivate"}
+              {r.status === "paused" ? "Resume" : "Restore"}
             </button>
           </div>
         )}
@@ -170,12 +201,117 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
         </section>
       )}
 
-      {cancelled.length > 0 && (
+      {deleted.length > 0 && (
         <section className="money-stack">
-          <h2 className="money-h2">Cancelled</h2>
-          <ul className="money-sub-list">{cancelled.map(renderCard)}</ul>
+          <h2 className="money-h2">Deleted</h2>
+          <ul className="money-sub-list">{deleted.map(renderCard)}</ul>
         </section>
       )}
+    </div>
+  );
+}
+
+function centsLabel(raw: string, remaining: number): string {
+  const cents = parseEuroToCents(raw);
+  if (cents === null || cents <= 0) return "Confirm Paid";
+  if (cents < remaining) return `Pay ${formatEUR(cents)}`;
+  return "Confirm Paid";
+}
+
+function EditSubscription({
+  api,
+  rec,
+  notify,
+  busy,
+  onBusy,
+  onDone,
+}: {
+  api: MoneyApi;
+  rec: Recurring;
+  notify: (m: string) => void;
+  busy: boolean;
+  onBusy: (v: boolean) => void;
+  onDone: () => void;
+}) {
+  const { snap, commit } = api;
+  const accounts = snap.accounts.filter((a) => !a.archived);
+  const [name, setName] = useState(rec.name);
+  const [amount, setAmount] = useState((rec.amountCents / 100).toFixed(2));
+  const [interval, setInterval] = useState<Recurring["interval"]>(rec.interval);
+  const [customDays, setCustomDays] = useState(String(rec.customDays ?? 30));
+  const [nextDue, setNextDue] = useState(rec.nextDue);
+  const [accountId, setAccountId] = useState(`${rec.accountId ?? ""}|${rec.pocketId ?? ""}`);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setName(rec.name);
+    setAmount((rec.amountCents / 100).toFixed(2));
+    setInterval(rec.interval);
+    setCustomDays(String(rec.customDays ?? 30));
+    setNextDue(rec.nextDue);
+    setAccountId(`${rec.accountId ?? ""}|${rec.pocketId ?? ""}`);
+  }, [rec]);
+
+  const save = async () => {
+    const cents = parseEuroToCents(amount);
+    if (!name.trim()) return setError("Add a name.");
+    if (cents === null || cents <= 0) return setError("Enter an amount above zero.");
+    if (interval === "custom" && !(Number(customDays) > 0)) return setError("Enter a number of days.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDue)) return setError("Choose a valid next date.");
+    const [srcAccount, srcPocket] = accountId.split("|");
+    const input: RecurringInput = {
+      id: rec.id,
+      kind: "bill",
+      name: name.trim(),
+      icon: rec.icon,
+      amountCents: cents,
+      interval,
+      customDays: interval === "custom" ? Number(customDays) : null,
+      dayOfMonth: Number(nextDue.slice(8, 10)),
+      nextDue,
+      categoryId: rec.categoryId,
+      accountId: srcAccount || null,
+      pocketId: srcPocket || null,
+      notes: rec.notes,
+    };
+    onBusy(true);
+    const err = await commit(saveRecurring(snap, input, defaultCtx()));
+    onBusy(false);
+    if (err) return setError(err);
+    notify("Updated");
+    onDone();
+  };
+
+  return (
+    <div className="money-inline-panel money-edit-sub">
+      <label className="money-field"><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /></label>
+      <div className="money-grid2">
+        <label className="money-field"><span>Price (€)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="money-field"><span>Billed</span>
+          <select value={interval} onChange={(e) => setInterval(e.target.value as Recurring["interval"])}>
+            {INTERVALS.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+          </select>
+        </label>
+      </div>
+      {interval === "custom" && (
+        <label className="money-field"><span>Every (days)</span><input inputMode="numeric" value={customDays} onChange={(e) => setCustomDays(e.target.value)} /></label>
+      )}
+      <label className="money-field"><span>Next payment</span><input type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></label>
+      <label className="money-field"><span>Paid from</span>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+          {accounts.flatMap((a) => [
+            <option key={`${a.id}|`} value={`${a.id}|`}>{a.name} · Main</option>,
+            ...snap.pockets.filter((p) => p.accountId === a.id && !p.archived).map((p) => (
+              <option key={`${a.id}|${p.id}`} value={`${a.id}|${p.id}`}>{a.name} · {p.name}</option>
+            )),
+          ])}
+        </select>
+      </label>
+      {error && <p className="money-error" role="alert">{error}</p>}
+      <div className="money-row-actions">
+        <button type="button" className="money-btn-secondary" disabled={busy} onClick={onDone}>Close</button>
+        <button type="button" className="money-btn-small" disabled={busy} onClick={save}>Save</button>
+      </div>
     </div>
   );
 }

@@ -193,12 +193,26 @@ export function deleteTransaction(snap: Snapshot, id: string, ctx: Ctx): Result 
     const original = snap.transactions.find((t) => t.reversedBy === id);
     if (original) puts.push({ store: "transactions", value: { ...original, reversedBy: null, updatedAt: ctx.now } });
   }
-  // Undo a recurring payment so the bill is due again.
+  // Undo a recurring payment so any unpaid remainder is due again.
   if (tx.recurringId && tx.occurrenceDate) {
     const rec = snap.recurring.find((r) => r.id === tx.recurringId);
     if (rec) {
       const history = rec.history.filter((h) => h.txId !== id);
-      const nextDue = rec.nextDue > tx.occurrenceDate ? tx.occurrenceDate : rec.nextDue;
+      const othersPaid = snap.transactions
+        .filter(
+          (t) =>
+            t.id !== id &&
+            t.recurringId === tx.recurringId &&
+            t.occurrenceDate === tx.occurrenceDate &&
+            t.status === "confirmed" &&
+            !t.reverses &&
+            !t.reversedBy,
+        )
+        .reduce((s, t) => s + t.amountCents, 0);
+      const nextDue =
+        othersPaid < rec.amountCents && rec.nextDue > tx.occurrenceDate
+          ? tx.occurrenceDate
+          : rec.nextDue;
       puts.push({ store: "recurring", value: { ...rec, history, nextDue, updatedAt: ctx.now } });
     }
   }
@@ -332,37 +346,59 @@ function specOf(r: Recurring): IntervalSpec {
   return { interval: r.interval, customDays: r.customDays, dayOfMonth: r.dayOfMonth };
 }
 
+/** Confirmed, non-reversed payments already posted against one occurrence. */
+export function paidTowardOccurrence(snap: Snapshot, recurringId: string, occurrenceDate: string): number {
+  return snap.transactions
+    .filter(
+      (t) =>
+        t.recurringId === recurringId &&
+        t.occurrenceDate === occurrenceDate &&
+        t.status === "confirmed" &&
+        !t.reverses &&
+        !t.reversedBy,
+    )
+    .reduce((s, t) => s + t.amountCents, 0);
+}
+
+/** Amount still owed for the current due date (full price minus any partial payments). */
+export function remainingRecurringCents(snap: Snapshot, rec: Recurring): number {
+  return Math.max(0, rec.amountCents - paidTowardOccurrence(snap, rec.id, rec.nextDue));
+}
+
 /**
- * Confirms the current occurrence: creates exactly one linked transaction and advances the schedule.
- * Protected against double taps: once an occurrence is paid, nextDue has moved on and the same
- * occurrence cannot be posted again (we also check for an existing linked transaction).
+ * Confirms (part of) the current occurrence: posts a linked transaction.
+ * Pass amountCents to pay a partial amount; omit it (or pass the remaining balance) to settle in full.
+ * The schedule only advances once the occurrence is fully paid.
+ * Protected against double taps via a nextDue guard once the occurrence completes.
  */
-export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
+export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx, amountCents?: number): Result {
   const rec = snap.recurring.find((r) => r.id === id);
   if (!rec) return fail("That item no longer exists.");
   if (rec.status !== "active") return fail("Resume this item before confirming it.");
   const occurrence = rec.nextDue;
-  const alreadyPosted = snap.transactions.some(
-    (t) => t.recurringId === id && t.occurrenceDate === occurrence,
-  );
-  if (alreadyPosted) return fail("This payment is already recorded.");
+  const remaining = remainingRecurringCents(snap, rec);
+  if (remaining <= 0) return fail("This payment is already recorded.");
+  const pay = amountCents === undefined ? remaining : amountCents;
+  if (!Number.isInteger(pay) || pay <= 0) return fail("Enter an amount above zero.");
+  if (pay > remaining) return fail("That is more than what is left on this bill.");
   const accountId = rec.accountId ?? snap.settings?.plannedSpendAccountId ?? null;
   if (!accountId || !snap.accounts.some((a) => a.id === accountId && !a.archived)) {
     return fail("Choose a payment account for this item first.");
   }
   const txId = ctx.newId();
+  const settled = pay === remaining;
   const tx: Transaction = {
     id: txId,
     kind: rec.kind === "bill" ? "expense" : "income",
     status: "confirmed",
     date: ctx.today,
-    amountCents: rec.amountCents,
+    amountCents: pay,
     accountId,
     pocketId: rec.accountId ? (rec.pocketId ?? null) : null,
     toAccountId: null,
     toPocketId: null,
     categoryId: rec.kind === "bill" ? rec.categoryId : null,
-    description: rec.name,
+    description: settled && pay === rec.amountCents ? rec.name : `${rec.name} (partial)`,
     notes: "",
     recurringId: id,
     occurrenceDate: occurrence,
@@ -371,12 +407,14 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
     createdAt: ctx.now,
     updatedAt: ctx.now,
   };
-  const next: Recurring = {
-    ...rec,
-    nextDue: nextOccurrence(specOf(rec), occurrence),
-    history: [...rec.history, { date: occurrence, outcome: "paid", txId }],
-    updatedAt: ctx.now,
-  };
+  const next: Recurring = settled
+    ? {
+        ...rec,
+        nextDue: nextOccurrence(specOf(rec), occurrence),
+        history: [...rec.history, { date: occurrence, outcome: "paid", txId }],
+        updatedAt: ctx.now,
+      }
+    : { ...rec, updatedAt: ctx.now };
   return {
     ok: true,
     change: {
@@ -385,7 +423,7 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
         { store: "recurring", value: next },
       ],
       deletes: [],
-      guards: [{ store: "recurring", key: id, nextDue: occurrence }],
+      guards: settled ? [{ store: "recurring", key: id, nextDue: occurrence }] : undefined,
     },
   };
 }
@@ -417,12 +455,16 @@ export function setRecurringStatus(snap: Snapshot, id: string, status: Recurring
   return ok([{ store: "recurring", value: { ...rec, status, updatedAt: ctx.now } }]);
 }
 
-/** Deletes an item only when nothing references it; otherwise it must be cancelled to keep history. */
-export function deleteRecurring(snap: Snapshot, id: string): Result {
+/**
+ * Removes a bill/subscription. Unused items are hard-deleted; items with payment history
+ * are marked cancelled so past transactions stay linked.
+ */
+export function deleteRecurring(snap: Snapshot, id: string, ctx?: Ctx): Result {
   const rec = snap.recurring.find((r) => r.id === id);
   if (!rec) return fail("That item no longer exists.");
   if (rec.history.length > 0 || snap.transactions.some((t) => t.recurringId === id)) {
-    return fail("This item has payment history. Cancel it instead to keep the history.");
+    const now = ctx?.now ?? new Date().toISOString();
+    return ok([{ store: "recurring", value: { ...rec, status: "cancelled", updatedAt: now } }]);
   }
   return ok([], [{ store: "recurring", key: id }]);
 }

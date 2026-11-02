@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { currentPosition } from "@/money/engine";
-import { confirmRecurring, defaultCtx } from "@/money/actions";
+import { confirmRecurring, defaultCtx, remainingRecurringCents } from "@/money/actions";
 import { currentMonth, daysInMonth, dueLabel, formatEUR, formatMonthIE, todayISO } from "@/money/money";
 import type { MoneyApi, PageId } from "../MoneyApp";
 import { Donut, type Slice } from "../charts";
@@ -52,7 +52,7 @@ export default function OverviewPage({
     .filter((r) => r.status === "active" && r.kind === "bill")
     .sort((a, b) => (a.nextDue < b.nextDue ? -1 : a.nextDue > b.nextDue ? 1 : 0));
   const dueThisMonth = bills.filter((r) => r.nextDue <= monthEnd);
-  const billsDueCents = dueThisMonth.reduce((s, r) => s + r.amountCents, 0);
+  const billsDueCents = dueThisMonth.reduce((s, r) => s + remainingRecurringCents(snap, r), 0);
   const availableCents = spendableCents - billsDueCents;
 
   // Spending plan: monthly target per spending category. Targets are plans and never reduce the balance.
@@ -238,7 +238,7 @@ export default function OverviewPage({
                       <span className="money-upcoming-text">
                         <span className="money-upcoming-name">{r.icon ? `${r.icon} ` : ""}{r.name}</span>
                         <span className={due.overdue ? "money-small is-neg" : "money-small money-muted"}>
-                          {due.text} · {formatEUR(r.amountCents)}
+                          {due.text} · {formatEUR(remainingRecurringCents(snap, r))}
                         </span>
                       </span>
                       {isDue && (
