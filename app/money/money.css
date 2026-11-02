@@ -345,8 +345,79 @@ body:has(.money-sheet-backdrop) { overflow: hidden; }
 .money-dot.is-spent { background: var(--accent); }
 .money-dot.is-planned { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .money-dot.is-available { background: #6ee7b7; }
-.money-progress { display: grid; gap: 8px; }
-.money-progress-time, .money-progress-used { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); }
+.money-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; font-size: 0.95rem; }
+.money-progress {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  overflow: hidden;
+}
+.money-progress-time,
+.money-progress-used {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  display: block;
+}
+.money-progress-time { background: color-mix(in srgb, var(--text) 18%, transparent); }
+.money-progress-used { background: var(--accent); }
+.money-manage-account {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--panel);
+  margin-bottom: 10px;
+}
+.money-manage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.money-manage-pocket {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  font-size: 0.93rem;
+}
+.money-manage-name { flex: 1; min-width: 4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+.money-split-remaining {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.money-split-remaining[data-state="over"] {
+  color: #f87171;
+  background: color-mix(in srgb, #f87171 12%, transparent);
+}
+.money-split-remaining[data-state="done"] { color: #6ee7b7; }
+.money-split-row {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
 .money-upcoming { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .money-upcoming-item { display: flex; align-items: center; gap: 12px; }
 .money-upcoming-text { flex: 1; min-width: 0; display: grid; gap: 2px; }

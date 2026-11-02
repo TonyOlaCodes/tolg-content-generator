@@ -76,7 +76,7 @@ export function ProgressBar({
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(value)}
+      aria-valuenow={percent === null ? undefined : Math.round(value)}
       aria-label={label}
     >
       <span style={{ width: `${value}%`, background: over ? undefined : color }} />
@@ -176,7 +176,7 @@ export function BarChart({
         transform: `translateX(${leftPercent < 16 ? "0%" : leftPercent > 84 ? "-100%" : "-50%"})`,
       }}
     >
-      <strong>{activeBar.value === null ? "Not logged" : formatValue(activeBar.value)}</strong>
+      <strong>{activeBar.value === null ? "—" : formatValue(activeBar.value)}</strong>
       <span>{activeBar.fullLabel ?? activeBar.label}</span>
     </div>
   ) : null;
@@ -309,7 +309,7 @@ export function LineChart({
         transform: `translateX(${leftPercent < 16 ? "0%" : leftPercent > 84 ? "-100%" : "-50%"})`,
       }}
     >
-      <strong>{activePoint.value === null ? "Not logged" : formatValue(activePoint.value)}</strong>
+      <strong>{activePoint.value === null ? "—" : formatValue(activePoint.value)}</strong>
       <span>{shortTooltipDate(activePoint.date)}</span>
     </div>
   ) : null;

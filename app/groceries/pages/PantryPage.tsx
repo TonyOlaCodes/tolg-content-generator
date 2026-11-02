@@ -4,17 +4,15 @@ import { useMemo, useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { CATEGORIES, type Food, formatBase } from "@/groceries/model";
 import { statusOf, STATUS_LABEL, estimateDailyUse, type Status } from "@/groceries/logic";
-import { adjustStock, deleteFood, todayLocal } from "@/groceries/actions";
-import { FoodSheet } from "./FoodSheet";
+import { adjustStock, todayLocal } from "@/groceries/actions";
 
 type Filter = "all" | "low" | "empty";
 
 export default function PantryPage({ api }: { api: GroceriesApi }) {
-  const { snap, act, notify } = api;
+  const { snap, act, notify, openFoodSheet } = api;
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("All");
   const [filter, setFilter] = useState<Filter>("all");
-  const [editing, setEditing] = useState<Food | "new" | null>(null);
   const today = todayLocal();
 
   const rows = useMemo(
@@ -39,13 +37,6 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
   const nudge = async (food: Food, delta: number) => {
     const err = await act(adjustStock(food.id, delta));
     if (err) notify(err);
-  };
-
-  const remove = async (food: Food) => {
-    if (!window.confirm(`Delete ${food.name}? Its saved prices and meal links are removed too. Past logs keep their names.`)) return;
-    const err = await act(deleteFood(food.id));
-    notify(err ?? "Deleted");
-    if (!err) setEditing(null);
   };
 
   return (
@@ -75,7 +66,7 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
         ))}
       </div>
 
-      <button className="gr-primary" onClick={() => setEditing("new")}>+ Add food</button>
+      <button className="gr-primary" onClick={() => openFoodSheet(null)}>+ Add food</button>
 
       {snap.foods.length === 0 ? (
         <div className="gr-card gr-empty">
@@ -88,7 +79,7 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
         <ul className="gr-food-list">
           {visible.map(({ food, status, daily }) => (
             <li key={food.id} className="gr-food">
-              <button className="gr-food-main" onClick={() => setEditing(food)} aria-label={`Edit ${food.name}`}>
+              <button className="gr-food-main" onClick={() => openFoodSheet(food)} aria-label={`Edit ${food.name}`}>
                 <span className="gr-food-name">{food.name}</span>
                 <span className="gr-muted">
                   {formatBase(food.stockBase, food.measure)}
@@ -106,15 +97,6 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
             </li>
           ))}
         </ul>
-      )}
-
-      {editing && (
-        <FoodSheet
-          api={api}
-          food={editing === "new" ? null : editing}
-          onClose={() => setEditing(null)}
-          onDelete={remove}
-        />
       )}
     </div>
   );

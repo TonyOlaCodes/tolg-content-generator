@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveIncomeSplit, defaultCtx, type IncomeSplitLine } from "@/money/actions";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
 import type { MoneyApi } from "./MoneyApp";
@@ -20,6 +20,8 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
     { value: `${a.id}|`, label: `${a.name} · Main` },
     ...pockets.filter((p) => p.accountId === a.id).map((p) => ({ value: `${a.id}|${p.id}`, label: `${a.name} · ${p.name}` })),
   ]);
+  // Income always lands in an account Main first; pockets are only allocation destinations.
+  const receiveOptions = accounts.map((a) => ({ value: `${a.id}|`, label: a.name }));
   const firstDest = destinations[0]?.value ?? "";
   const [description, setDescription] = useState("Salary");
   const [amount, setAmount] = useState("");
@@ -29,6 +31,14 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
   const [remainderTo, setRemainderTo] = useState(receive);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const totalCents = parseEuroToCents(amount) ?? 0;
   const allocated = rows.reduce((s, r) => s + (parseEuroToCents(r.value) ?? 0), 0);
@@ -77,11 +87,16 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
     onClose();
   };
 
-  const select = (value: string, onChange: (v: string) => void, title: string) => (
+  const select = (
+    value: string,
+    onChange: (v: string) => void,
+    title: string,
+    options: { value: string; label: string }[] = destinations,
+  ) => (
     <label className="money-field">
       <span>{title}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {destinations.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
   );
@@ -116,7 +131,7 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </label>
               </div>
-              {select(receive, (v) => { setReceive(v); if (remainderTo === receive) setRemainderTo(v); }, "Received into")}
+              {select(receive, (v) => { setReceive(v); if (remainderTo === receive) setRemainderTo(v); }, "Received into", receiveOptions)}
 
               <div className="money-split-remaining" aria-live="polite" data-state={overAllocated ? "over" : remaining === 0 && totalCents > 0 ? "done" : "open"}>
                 <span className="money-muted money-small">{overAllocated ? "Over-allocated by" : "Remaining"}</span>

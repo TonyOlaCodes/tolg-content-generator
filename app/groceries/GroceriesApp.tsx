@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "./groceries.css";
 import { loadSnapshot, commit, type Builder } from "@/groceries/store";
-import { EMPTY_SNAPSHOT, type Snapshot } from "@/groceries/model";
+import { EMPTY_SNAPSHOT, type Food, type Meal, type Snapshot } from "@/groceries/model";
 import HomePage from "./pages/HomePage";
 import PantryPage from "./pages/PantryPage";
 import MealsPage from "./pages/MealsPage";
@@ -11,6 +11,10 @@ import ShoppingPage from "./pages/ShoppingPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import { ensureDefaults } from "./defaults";
 import { BackupSheet } from "./pages/BackupSheet";
+import { FoodSheet } from "./pages/FoodSheet";
+import { MealSheet } from "./pages/MealSheet";
+import { FinishSheet } from "./pages/FinishSheet";
+import { deleteFood } from "@/groceries/actions";
 
 export type PageId = "home" | "pantry" | "meals" | "shopping" | "analytics";
 
@@ -22,6 +26,12 @@ const NAV: { id: PageId; label: string; icon: string }[] = [
   { id: "analytics", label: "Analytics", icon: "∿" },
 ];
 
+type AppSheet =
+  | { type: "backup" }
+  | { type: "food"; food: Food | null }
+  | { type: "meal"; meal: Meal | null }
+  | { type: "finish"; listId: string };
+
 /** Handle every page uses to read the data and run guarded changes. */
 export type GroceriesApi = {
   snap: Snapshot;
@@ -30,6 +40,10 @@ export type GroceriesApi = {
   setPage: (p: PageId) => void;
   /** Shows a short confirmation at the bottom of the screen. */
   notify: (message: string) => void;
+  openFoodSheet: (food: Food | null) => void;
+  openMealSheet: (meal: Meal | null) => void;
+  openFinishSheet: (listId: string) => void;
+  closeSheet: () => void;
 };
 
 export default function GroceriesApp({ onBack }: { onBack: () => void }) {
@@ -38,12 +52,13 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState<PageId>("home");
   const [notice, setNotice] = useState<string | null>(null);
-  const [showBackup, setShowBackup] = useState(false);
+  const [sheet, setSheet] = useState<AppSheet | null>(null);
 
   const reload = useCallback(async () => {
     setSnap(await loadSnapshot());
   }, []);
   const notify = useCallback((message: string) => setNotice(message), []);
+  const closeSheet = useCallback(() => setSheet(null), []);
 
   useEffect(() => {
     let alive = true;
@@ -78,17 +93,38 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
     return () => clearTimeout(t);
   }, [notice]);
 
-  const api: GroceriesApi = { snap, act, setPage, notify };
+  const removeFood = useCallback(
+    async (food: Food) => {
+      if (!window.confirm(`Delete ${food.name}? Its saved prices and meal links are removed too. Past logs keep their names.`)) return;
+      const err = await act(deleteFood(food.id));
+      notify(err ?? "Deleted");
+      if (!err) closeSheet();
+    },
+    [act, notify, closeSheet],
+  );
+
+  const api: GroceriesApi = {
+    snap,
+    act,
+    setPage,
+    notify,
+    openFoodSheet: (food) => setSheet({ type: "food", food }),
+    openMealSheet: (meal) => setSheet({ type: "meal", meal }),
+    openFinishSheet: (listId) => setSheet({ type: "finish", listId }),
+    closeSheet,
+  };
+
+  const sheetOpen = sheet !== null;
 
   return (
     <div className="groceries">
-      <header className="groceries-top">
+      <header className="groceries-top" inert={sheetOpen ? true : undefined}>
         <button className="groceries-back" onClick={onBack} aria-label="Back to apps">
           ‹ Apps
         </button>
         <h1 className="groceries-title">Groceries &amp; Pantry</h1>
         {ready && !loadError ? (
-          <button className="groceries-back" onClick={() => setShowBackup(true)} aria-label="Backup and data">
+          <button className="groceries-back" onClick={() => setSheet({ type: "backup" })} aria-label="Backup and data">
             Data
           </button>
         ) : (
@@ -103,7 +139,7 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
           <p>Could not open pantry: {loadError}</p>
         </div>
       ) : (
-        <main className="groceries-body">
+        <main className="groceries-body" inert={sheetOpen ? true : undefined}>
           {page === "home" && <HomePage api={api} />}
           {page === "pantry" && <PantryPage api={api} />}
           {page === "meals" && <MealsPage api={api} />}
@@ -112,11 +148,20 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
         </main>
       )}
 
-      {showBackup && <BackupSheet api={api} onClose={() => setShowBackup(false)} />}
+      {sheet?.type === "backup" && <BackupSheet api={api} onClose={closeSheet} />}
+      {sheet?.type === "food" && (
+        <FoodSheet api={api} food={sheet.food} onClose={closeSheet} onDelete={removeFood} />
+      )}
+      {sheet?.type === "meal" && <MealSheet api={api} meal={sheet.meal} onClose={closeSheet} />}
+      {sheet?.type === "finish" && <FinishSheet api={api} listId={sheet.listId} onClose={closeSheet} />}
 
-      {notice && <div className="groceries-toast" role="status">{notice}</div>}
+      {notice && (
+        <div className="groceries-toast" role="status" inert={sheetOpen ? true : undefined}>
+          {notice}
+        </div>
+      )}
 
-      <nav className="groceries-nav" aria-label="Groceries sections">
+      <nav className="groceries-nav" aria-label="Groceries sections" inert={sheetOpen ? true : undefined}>
         {NAV.map((n) => (
           <button
             key={n.id}
@@ -132,4 +177,3 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
-

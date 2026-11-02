@@ -69,7 +69,10 @@ function FavChip({ place }: { place: Place }) {
       {place.name}
       {cond && forecast ? (
         <span className="wx-fav-wx">
-          <span role="img" aria-label={cond.label}>{cond.icon}</span> {Math.round(forecast.current.temperature ?? 0)}°
+          <span role="img" aria-label={cond.label}>{cond.icon}</span>{" "}
+          {forecast.current.temperature !== null && Number.isFinite(forecast.current.temperature)
+            ? `${Math.round(forecast.current.temperature)}°`
+            : "—"}
         </span>
       ) : null}
     </>
@@ -467,12 +470,21 @@ function LineChart({ values, format }: { values: (number | null)[]; format: (v: 
   const w = 100;
   const h = 60;
   const pts = values.map((v, i) => (v === null ? null : { x: (i / (values.length - 1)) * w, y: h - ((v - lo) / span) * (h - 8) - 4 }));
-  const d = pts.reduce((acc, p) => (p ? `${acc}${acc.endsWith("M") || acc === "" ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)} ` : acc), "");
+  let d = "";
+  let penUp = true;
+  for (const p of pts) {
+    if (!p) {
+      penUp = true;
+      continue;
+    }
+    d += `${penUp ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)} `;
+    penUp = false;
+  }
   const first = values.find((v) => v !== null);
   const last = [...values].reverse().find((v) => v !== null);
   return (
     <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`Temperature from ${first === undefined || first === null ? "—" : tempParts(first).primary} to ${last === undefined || last === null ? "—" : tempParts(last).primary}; low ${format(lo)}, high ${format(hi)}`}>
-      <path d={d} fill="none" stroke="#ffd166" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="var(--wx-focus)" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -486,7 +498,7 @@ function BarChart({ values }: { values: (number | null)[] }) {
     <svg className="wx-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="Rain chance by hour" style={{ height: 52 }}>
       {values.map((v, i) =>
         v === null ? null : (
-          <rect key={i} x={i * bw + bw * 0.15} y={h - (v / 100) * h} width={bw * 0.7} height={(v / 100) * h} rx="1" fill="#7cc7ff" opacity={0.85} />
+          <rect key={i} x={i * bw + bw * 0.15} y={h - (v / 100) * h} width={bw * 0.7} height={(v / 100) * h} rx="1" fill="var(--wx-accent)" opacity={0.85} />
         ),
       )}
     </svg>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { saveSettings, type Result } from "@/daily/actions";
 import { exportSnapshot, validateBackup } from "@/daily/backup";
 import { todayKey } from "@/daily/date";
@@ -17,18 +17,35 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function goalsFromSettings(settings: ReturnType<typeof settingsOf>) {
+  return {
+    stepGoal: String(settings.stepGoal),
+    calorieGoal: settings.calorieGoal !== null ? String(settings.calorieGoal) : "",
+    waterGoal: String(settings.waterGoalMl),
+    weightGoal:
+      settings.weightGoalKg !== null
+        ? String(Math.round(kgToUnit(settings.weightGoalKg, settings.weightUnit) * 100) / 100)
+        : "",
+  };
+}
+
 export default function SettingsPage({ api }: { api: DailyApi }) {
   const settings = settingsOf(api.snap);
-  const [stepGoal, setStepGoal] = useState(String(settings.stepGoal));
-  const [calorieGoal, setCalorieGoal] = useState(settings.calorieGoal !== null ? String(settings.calorieGoal) : "");
-  const [waterGoal, setWaterGoal] = useState(String(settings.waterGoalMl));
-  const [weightGoal, setWeightGoal] = useState(
-    settings.weightGoalKg !== null
-      ? String(Math.round(kgToUnit(settings.weightGoalKg, settings.weightUnit) * 100) / 100)
-      : "",
-  );
+  const [stepGoal, setStepGoal] = useState(() => goalsFromSettings(settings).stepGoal);
+  const [calorieGoal, setCalorieGoal] = useState(() => goalsFromSettings(settings).calorieGoal);
+  const [waterGoal, setWaterGoal] = useState(() => goalsFromSettings(settings).waterGoal);
+  const [weightGoal, setWeightGoal] = useState(() => goalsFromSettings(settings).weightGoal);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // After restore/erase, snap settings change while this page stays mounted — resync the inputs.
+  useEffect(() => {
+    const next = goalsFromSettings(settings);
+    setStepGoal(next.stepGoal);
+    setCalorieGoal(next.calorieGoal);
+    setWaterGoal(next.waterGoal);
+    setWeightGoal(next.weightGoal);
+  }, [settings.stepGoal, settings.calorieGoal, settings.waterGoalMl, settings.weightGoalKg, settings.weightUnit]);
 
   const saveGoals = async () => {
     setError(null);

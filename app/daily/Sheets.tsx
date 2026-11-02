@@ -13,7 +13,7 @@ import {
   updateWater,
   type Result,
 } from "@/daily/actions";
-import { weightsForDate, waterTotalForDate } from "@/daily/logic";
+import { latestWeightOn, waterTotalForDate } from "@/daily/logic";
 import { dayLabel } from "@/daily/date";
 import { formatDuration, formatWater, kgToUnit, unitToKg } from "@/daily/format";
 import { METRIC_META } from "@/daily/model";
@@ -234,7 +234,7 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
       <MetricHeader
         metric="steps"
         value={hasEntry ? day!.steps!.toLocaleString() : "—"}
-        sub={percent !== null ? `${Math.round(percent)}% of ${goalValue.toLocaleString()} goal` : "No goal comparison yet"}
+        sub={percent !== null ? `${Math.round(percent)}% of ${goalValue.toLocaleString()}` : undefined}
         percent={percent}
       />
       <NumberField
@@ -242,7 +242,7 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         value={value}
         onChange={setValue}
         inputMode="numeric"
-        placeholder="e.g. 7450"
+        placeholder="—"
       />
     </SheetShell>
   );
@@ -320,7 +320,7 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         value={value}
         onChange={setValue}
         inputMode="numeric"
-        placeholder="e.g. 3450"
+        placeholder="—"
       />
     </SheetShell>
   );
@@ -391,12 +391,12 @@ export function SleepSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
       <MetricHeader
         metric="sleep"
         value={hasEntry ? formatDuration(day!.sleepMinutes!) : "—"}
-        sub={totalMinutes !== null && totalMinutes > 0 ? `${(totalMinutes / 60).toFixed(1)} hours logged` : "No bedtime or wake time needed"}
+        sub={totalMinutes !== null && totalMinutes > 0 ? formatDuration(totalMinutes) : undefined}
         percent={null}
       />
       <div className="daily-grid2">
-        <NumberField label="Hours" value={hours} onChange={setHours} suffix="h" placeholder="7" />
-        <NumberField label="Minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="15" />
+        <NumberField label="Hours" value={hours} onChange={setHours} suffix="h" placeholder="—" />
+        <NumberField label="Minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="—" />
       </div>
     </SheetShell>
   );
@@ -440,7 +440,6 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
     >
       <div className="daily-water-head">
         <div>
-          <p className="daily-sheet-kicker">Today</p>
           <p className="daily-water-value">
             {total === null ? "—" : formatWater(total)}
             <span> / {formatWater(goal)}</span>
@@ -448,21 +447,31 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         </div>
         <p className="daily-water-percent">{percent === null ? "—" : `${Math.round(percent)}%`}</p>
       </div>
-      <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water progress" />
+      {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water progress" /> : null}
 
       <div className="daily-quick-row">
         <button
           type="button"
           className="daily-quick"
           disabled={busy || (total ?? 0) <= 0}
+          aria-label="Remove 250 millilitres of water"
           onClick={() => {
             const result = adjustWater(api.snap, { date, deltaMl: -250 }, uiCtx(api.today));
-            void run(() => api.commit(result, "−250 ml"));
+            void run(() => api.commit(result, "−250"));
           }}
         >
           −250
         </button>
-        <button type="button" className="daily-quick" disabled={busy} onClick={() => void add(250)}>
+        <button
+          type="button"
+          className="daily-quick"
+          disabled={busy}
+          aria-label="Add 250 millilitres of water"
+          onClick={() => {
+            const result = adjustWater(api.snap, { date, deltaMl: 250 }, uiCtx(api.today));
+            void run(() => api.commit(result, "+250"));
+          }}
+        >
           +250
         </button>
       </div>
@@ -473,7 +482,7 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
           onChange={setCustom}
           inputMode={customUnit === "L" ? "decimal" : "numeric"}
           suffix={customUnit}
-          placeholder={customUnit === "L" ? "e.g. 0.5" : "e.g. 330"}
+          placeholder="—"
         />
         <div className="daily-field daily-field-action">
           <span>&nbsp;</span>
@@ -502,12 +511,12 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
           setCustomUnit((unit) => (unit === "ml" ? "L" : "ml"));
         }}
       >
-        {customUnit === "ml" ? "Enter litres instead" : "Enter millilitres instead"}
+        {customUnit === "ml" ? "Use litres" : "Use millilitres"}
       </button>
 
       {entries.length > 0 ? (
         <div className="daily-block">
-          <p className="daily-block-title">Entries today</p>
+          <p className="daily-block-title">Entries</p>
           <ul className="daily-list">
             {entries.map((entry) => (
               <li key={entry.id} className="daily-list-row">
@@ -580,7 +589,7 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
 export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => void }) {
   const date = api.selected;
   const unit = api.settings.weightUnit;
-  const existing = weightsForDate(api.snap, date)[0] ?? null;
+  const existing = latestWeightOn(api.snap, date);
   const [value, setValue] = useState(existing ? numberInput(kgToUnit(existing.kg, unit)) : "");
   const { error, setError, busy, run } = useSaving();
 
@@ -636,7 +645,7 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
   const date = api.selected;
   const day = api.snap.days.find((d) => d.date === date) ?? null;
   const unit = api.settings.weightUnit;
-  const dayWeight = weightsForDate(api.snap, date)[0] ?? null;
+  const dayWeight = latestWeightOn(api.snap, date);
   const [steps, setSteps] = useState(day?.steps != null ? String(day.steps) : "");
   const [calories, setCalories] = useState(day?.calories != null ? String(day.calories) : "");
   const [hours, setHours] = useState(day?.sleepMinutes != null ? String(Math.floor(day.sleepMinutes / 60)) : "");
@@ -708,7 +717,7 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         <NumberField label="Sleep minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="—" />
       </div>
       <div className="daily-grid2">
-        <NumberField label="Add water" value={water} onChange={setWater} suffix="ml" placeholder="e.g. 500" />
+        <NumberField label="Add water" value={water} onChange={setWater} suffix="ml" placeholder="—" />
         <NumberField
           label={`Weight (${unit})`}
           value={weight}

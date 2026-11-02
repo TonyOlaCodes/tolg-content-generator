@@ -307,7 +307,7 @@ function WaterCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
         </div>
       }
     >
-      <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water goal progress" />
+      {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water goal progress" /> : null}
       {view.waterMl !== null ? (
         <span className="daily-card-meta">
           <span>{formatPercent(percent ?? 0)}</span>
@@ -429,7 +429,7 @@ export default function TodayPage({ api }: { api: DailyApi }) {
           </div>
           {missing > 0 ? (
             <>
-              <span className="daily-summary-missing">{missing} not logged</span>
+              <span className="daily-summary-missing">{missing} missing</span>
               <span>
                 {logged} of {metrics.length} entered
               </span>

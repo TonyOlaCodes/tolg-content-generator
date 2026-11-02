@@ -6,12 +6,14 @@ import { formatEUR } from "@/money/money";
 import { listEstimate, shiftDate } from "@/groceries/logic";
 import { todayLocal } from "@/groceries/actions";
 import type { Purchase, Log } from "@/groceries/model";
+import { activeList } from "./shared";
 
 export default function AnalyticsPage({ api }: { api: GroceriesApi }) {
   const { snap } = api;
   const today = todayLocal();
   const weekStart = shiftDate(today, -6);
   const monthStart = `${today.slice(0, 7)}-01`;
+  const list = activeList(snap);
 
   const sumSince = (from: string) =>
     snap.purchases.filter((p) => p.date >= from && p.date <= today).reduce((s, p) => s + p.costCents, 0);
@@ -22,7 +24,7 @@ export default function AnalyticsPage({ api }: { api: GroceriesApi }) {
   const topBought = useMemo(() => rank(snap.purchases.map((p) => ({ key: p.name, qty: p.packs }))), [snap.purchases]);
   const topEaten = useMemo(() => rank(snap.logs.filter((l) => l.kind === "eat").flatMap(eatenLines)), [snap.logs]);
   const history = useMemo(() => [...snap.purchases].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 12), [snap.purchases]);
-  const future = listEstimate(snap.items.filter((i) => !i.purchased));
+  const future = listEstimate(snap.items.filter((i) => !i.purchased && i.listId === list?.id));
 
   return (
     <div className="gr-stack">

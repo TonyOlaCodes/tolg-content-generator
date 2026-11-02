@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveTransaction, saveAccount, saveCategory, defaultCtx, type TxInput } from "@/money/actions";
 import { parseEuroToCents, todayISO } from "@/money/money";
 import { ACCOUNT_KINDS, type AccountKind, type TxKind } from "@/money/types";
@@ -35,7 +35,7 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(todayISO());
   const [source, setSource] = useState(firstSource);
-  const [destination, setDestination] = useState(accounts[1] ? encode(accounts[1].id, null) : "");
+  const [destination, setDestination] = useState("");
   const [more, setMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,9 +44,11 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
   const [newAccountName, setNewAccountName] = useState("");
   const [newAccountKind, setNewAccountKind] = useState<AccountKind>("current");
   const [newAccountOpening, setNewAccountOpening] = useState("");
+  const [pendingSourceName, setPendingSourceName] = useState<string | null>(null);
 
   const [addingCategory, setAddingCategory] = useState(categories.length === 0);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [pendingCategoryName, setPendingCategoryName] = useState<string | null>(null);
 
   const isTransfer = kind === "transfer";
   const isIncome = kind === "income";
@@ -65,6 +67,40 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
     ...pockets.filter((p) => p.accountId === a.id).map((p) => ({ value: encode(a.id, p.id), label: label(a.id, p.id) })),
   ]);
 
+  // Prefer a different location than source for transfers (another account Main, or a pocket).
+  useEffect(() => {
+    if (destination) return;
+    const fallback = sourceOptions.find((o) => o.value !== source)?.value ?? "";
+    if (fallback) setDestination(fallback);
+    // sourceOptions is rebuilt each render from accounts/pockets; length is enough to re-seed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, destination, accounts.length, pockets.length]);
+
+  // After inline create, snap reloads — pick the new account/category by the name we just saved.
+  useEffect(() => {
+    if (!pendingSourceName) return;
+    const acc = accounts.find((a) => a.name === pendingSourceName);
+    if (!acc) return;
+    setSource(encode(acc.id, null));
+    setPendingSourceName(null);
+  }, [accounts, pendingSourceName]);
+
+  useEffect(() => {
+    if (!pendingCategoryName) return;
+    const cat = categories.find((c) => c.name === pendingCategoryName);
+    if (!cat) return;
+    setCategoryId(cat.id);
+    setPendingCategoryName(null);
+  }, [categories, pendingCategoryName]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const addAccount = async () => {
     const name = newAccountName.trim();
     const opening = newAccountOpening.trim() === "" ? 0 : parseEuroToCents(newAccountOpening);
@@ -77,6 +113,7 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
       ),
     );
     if (err) return setError(err);
+    setPendingSourceName(name);
     setAddingAccount(false);
     setError(null);
     setNewAccountName("");
@@ -85,14 +122,16 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
   };
 
   const addCategory = async () => {
+    const name = newCategoryName.trim();
     const err = await commit(
       saveCategory(
         snap,
-        { name: newCategoryName, icon: "🏷️", color: "#c9a84c", kind: "spending", targetCents: 0, goalCents: null },
+        { name, icon: "🏷️", color: "#c9a84c", kind: "spending", targetCents: 0, goalCents: null },
         defaultCtx(),
       ),
     );
     if (err) return setError(err);
+    setPendingCategoryName(name);
     setAddingCategory(false);
     setNewCategoryName("");
     setError(null);
@@ -113,7 +152,8 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
       kind: kind === "planned" ? "expense" : kind,
       status: kind === "planned" ? "planned" : "confirmed",
       date,
-      amountCents: Math.abs(cents),
+      // Adjustments keep their sign; every other kind is stored as a positive magnitude.
+      amountCents: kind === "adjustment" ? cents : Math.abs(cents),
       accountId: src.accountId || null,
       pocketId: src.pocketId,
       toAccountId: isTransfer ? dst.accountId || null : null,

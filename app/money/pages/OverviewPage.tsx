@@ -232,6 +232,7 @@ export default function OverviewPage({
               <ul className="money-upcoming">
                 {bills.slice(0, 4).map((r) => {
                   const due = dueLabel(r.nextDue, today);
+                  const isDue = due.overdue || due.text === "Due today";
                   return (
                     <li key={r.id} className="money-upcoming-item">
                       <span className="money-upcoming-text">
@@ -240,9 +241,11 @@ export default function OverviewPage({
                           {due.text} · {formatEUR(r.amountCents)}
                         </span>
                       </span>
-                      <button type="button" className="money-btn-small" onClick={() => confirmPaid(r.id, r.name)}>
-                        Confirm Paid
-                      </button>
+                      {isDue && (
+                        <button type="button" className="money-btn-small" onClick={() => confirmPaid(r.id, r.name)}>
+                          Confirm Paid
+                        </button>
+                      )}
                     </li>
                   );
                 })}

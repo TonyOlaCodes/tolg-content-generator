@@ -62,7 +62,7 @@
 .fuel-range-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #34d399, #fde68a);
+  background: linear-gradient(90deg, var(--fuel-accent), var(--fuel-focus));
   transition: width 0.6s ease;
 }
 

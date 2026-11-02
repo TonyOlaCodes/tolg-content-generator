@@ -140,7 +140,7 @@
   padding: 0.85rem 1rem;
   border-radius: 1.1rem;
   border: 1px solid var(--border);
-  background: linear-gradient(160deg, rgba(124, 199, 255, 0.16), transparent 60%), var(--panel);
+  background: linear-gradient(160deg, rgba(201, 184, 150, 0.14), transparent 60%), var(--panel);
   color: var(--text);
   text-align: left;
   cursor: pointer;

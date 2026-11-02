@@ -294,7 +294,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {notice ? (
-        <div className="daily-toast" role="status" inert={sheetOpen ? true : undefined}>
+        <div className="daily-toast" role="status">
           <span>{notice.message}</span>
           {notice.undo ? (
             <button type="button" className="daily-toast-undo" onClick={() => void undo()}>

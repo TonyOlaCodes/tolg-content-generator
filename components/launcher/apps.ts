@@ -61,7 +61,7 @@ export const APPS: AppEntry[] = [
     title: "Daily Tracker",
     subtitle: "Steps, weight, calories, sleep and water",
     category: "Fitness",
-    gradient: ["#7cc7ff", "#8b7cff"],
+    gradient: ["#c9b896", "#8b8794"],
     glyph: "daily",
     status: "ready",
   },

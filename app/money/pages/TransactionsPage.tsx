@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { deleteTransaction, reverseTransaction, defaultCtx } from "@/money/actions";
+import { confirmPlannedTransaction, deleteTransaction, reverseTransaction, defaultCtx } from "@/money/actions";
 import { formatEUR, formatDateIE } from "@/money/money";
 import type { Transaction } from "@/money/types";
 import type { MoneyApi } from "../MoneyApp";
@@ -66,6 +66,10 @@ export default function TransactionsPage({ api, notify }: { api: MoneyApi; notif
     void run(t.id, () => reverseTransaction(snap, t.id, defaultCtx()), "Reversed");
   };
 
+  const confirmPlanned = (t: Transaction) => {
+    void run(t.id, () => confirmPlannedTransaction(snap, t.id, defaultCtx()), "Confirmed");
+  };
+
   return (
     <div className="money-page">
       <div className="money-search">
@@ -114,6 +118,7 @@ export default function TransactionsPage({ api, notify }: { api: MoneyApi; notif
                   )}
                   {t.status === "planned" && (
                     <div className="money-tx-actions">
+                      <button type="button" className="money-link" disabled={busyId === t.id} onClick={() => confirmPlanned(t)}>Confirm</button>
                       <button type="button" className="money-link is-danger" disabled={busyId === t.id} onClick={() => remove(t)}>Delete</button>
                     </div>
                   )}

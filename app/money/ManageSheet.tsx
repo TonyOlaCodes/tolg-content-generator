@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   saveAccount,
   savePocket,
   archivePocket,
   deletePocket,
   deleteAccount,
+  setAccountArchived,
   pocketNowCents,
   saveTransaction,
   defaultCtx,
@@ -33,6 +34,7 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
   const [busy, setBusy] = useState(false);
 
   const accounts = snap.accounts.filter((a) => !a.archived);
+  const archivedAccounts = snap.accounts.filter((a) => a.archived);
   const run = async (fn: () => ReturnType<typeof saveAccount>, ok: string) => {
     if (busy) return;
     setBusy(true);
@@ -43,6 +45,14 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
     notify(ok);
     setEditor(null);
   };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
@@ -75,6 +85,29 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
                 </button>
                 <button type="button" className="money-btn-primary" onClick={() => setEditor({ type: "account" })}>+ Account</button>
               </div>
+              {archivedAccounts.length > 0 && (
+                <section className="money-manage-account">
+                  <div className="money-manage-head">
+                    <strong>Archived</strong>
+                  </div>
+                  {archivedAccounts.map((a) => (
+                    <div key={a.id} className="money-manage-pocket">
+                      <span className="money-manage-name">{a.name}</span>
+                      <button
+                        type="button"
+                        className="money-link"
+                        onClick={async () => {
+                          const err = await commit(setAccountArchived(snap, a.id, false));
+                          if (err) return setError(err);
+                          notify("Account restored");
+                        }}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </section>
+              )}
               {error && <p className="money-error" role="alert">{error}</p>}
             </>
           )}
@@ -148,6 +181,11 @@ function AccountBlock({
     if (err) return onError(err);
     notify("Account deleted");
   };
+  const archiveAccount = async () => {
+    const err = await commit(setAccountArchived(snap, account.id, true));
+    if (err) return onError(err);
+    notify("Account archived");
+  };
   const removePocket = async (id: string) => {
     const err = await commit(deletePocket(snap, id));
     if (err) return onError(err);
@@ -168,7 +206,8 @@ function AccountBlock({
         </div>
         <div className="money-row-actions">
           <button type="button" className="money-link" onClick={onEdit}>Edit</button>
-          <button type="button" className="money-link" onClick={removeAccount}>Delete</button>
+          <button type="button" className="money-link" onClick={archiveAccount}>Archive</button>
+          <button type="button" className="money-link is-danger" onClick={removeAccount}>Delete</button>
         </div>
       </div>
       {pockets.map((p) => (

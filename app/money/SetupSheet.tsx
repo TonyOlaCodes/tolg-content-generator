@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveAccount, saveCategory, saveRecurring, defaultCtx, type RecurringInput, type Change } from "@/money/actions";
 import { ACCOUNT_KINDS, type AccountKind } from "@/money/types";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
@@ -34,8 +34,18 @@ export function SetupSheet({ api, onClose, notify }: { api: MoneyApi; onClose: (
     else finish();
   };
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      try { window.localStorage.removeItem(RESUME_KEY); } catch { /* optional */ }
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
+    <div className="money-sheet-backdrop" role="presentation" onClick={finish}>
       <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Guided setup" onClick={(e) => e.stopPropagation()}>
         <div className="money-sheet-grip" aria-hidden />
         <div className="money-sheet-head">
@@ -46,10 +56,12 @@ export function SetupSheet({ api, onClose, notify }: { api: MoneyApi; onClose: (
           {STEPS.map((s, i) => <span key={s} className={i <= step ? "is-on" : ""} />)}
         </div>
 
-        {step === 0 && <AccountsStep api={api} notify={notify} onNext={() => goTo(1)} onSkip={skip} />}
-        {step === 1 && <SalaryStep api={api} notify={notify} onNext={() => goTo(2)} onSkip={skip} />}
-        {step === 2 && <PlanStep api={api} notify={notify} onDone={finish} onSkip={skip} />}
-        {snap.accounts.length === 0 && step > 0 && <p className="money-muted money-small">No accounts yet.</p>}
+        <div className="money-sheet-body">
+          {step === 0 && <AccountsStep api={api} notify={notify} onNext={() => goTo(1)} onSkip={skip} />}
+          {step === 1 && <SalaryStep api={api} notify={notify} onNext={() => goTo(2)} onSkip={skip} />}
+          {step === 2 && <PlanStep api={api} notify={notify} onDone={finish} onSkip={skip} />}
+          {snap.accounts.length === 0 && step > 0 && <p className="money-muted money-small">No accounts yet.</p>}
+        </div>
       </div>
     </div>
   );

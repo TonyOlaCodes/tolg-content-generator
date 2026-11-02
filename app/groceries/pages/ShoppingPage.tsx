@@ -1,20 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { formatBase, type ListItem } from "@/groceries/model";
 import { lineCents, listEstimate } from "@/groceries/logic";
 import { formatEUR, parseEuroToCents } from "@/money/money";
 import { markPurchased, unmarkPurchased, removeItem, upsertItem, newId, todayLocal } from "@/groceries/actions";
 import { activeList } from "./shared";
-import { FinishSheet } from "./FinishSheet";
 
 export default function ShoppingPage({ api }: { api: GroceriesApi }) {
-  const { snap, act, notify } = api;
+  const { snap, act, notify, openFinishSheet } = api;
   const list = activeList(snap);
   const [name, setName] = useState("");
   const [showDone, setShowDone] = useState(false);
-  const [finishing, setFinishing] = useState(false);
 
   const items = useMemo(() => snap.items.filter((i) => i.listId === list?.id), [snap.items, list?.id]);
   const open = items.filter((i) => !i.purchased);
@@ -144,16 +142,17 @@ export default function ShoppingPage({ api }: { api: GroceriesApi }) {
       )}
 
       {done.length > 0 && (
-        <button className="gr-primary" onClick={() => setFinishing(true)}>Finish Shopping</button>
+        <button className="gr-primary" onClick={() => openFinishSheet(list.id)}>Finish Shopping</button>
       )}
-
-      {finishing && <FinishSheet api={api} listId={list.id} onClose={() => setFinishing(false)} />}
     </div>
   );
 }
 
 function PriceInput({ cents, onSave }: { cents: number | null; onSave: (text: string) => void }) {
   const [text, setText] = useState(cents === null ? "" : (cents / 100).toFixed(2));
+  useEffect(() => {
+    setText(cents === null ? "" : (cents / 100).toFixed(2));
+  }, [cents]);
   return (
     <label className="gr-price">
       <span className="gr-muted">€</span>

@@ -58,7 +58,7 @@ export default function ForecastPage({ api, onSetup }: { api: MoneyApi; onSetup?
       </section>
 
       {needsSetup && (
-        <section className="money-block money-setup-card">
+        <section className="money-block">
           <p><strong>Finish setup to forecast</strong></p>
           {onSetup && <button type="button" className="money-btn-small" onClick={onSetup}>Set up</button>}
         </section>

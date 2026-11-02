@@ -139,11 +139,11 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
   return (
     <div className="money-page">
       <section className="money-block">
-        <p className="money-kicker">Subscriptions</p>
+        <p className="money-kicker">Bills</p>
         <p className="money-big">{formatEUR(monthlyTotal)} <span className="money-muted">a month</span></p>
         <p className="money-muted money-small">About {formatEUR(monthlyTotal * 12)} a year</p>
         <button type="button" className="money-btn-primary money-add" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>
-          {adding ? "Close" : "+ Add Subscription"}
+          {adding ? "Close" : "+ Add Bill"}
         </button>
         {adding && (
           hasAccount
@@ -153,7 +153,7 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
       </section>
 
       {bills.length === 0 && !adding && (
-        <p className="money-muted money-empty">No subscriptions yet.</p>
+        <p className="money-muted money-empty">No bills yet.</p>
       )}
 
       {active.length > 0 && (

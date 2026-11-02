@@ -1,4 +1,4 @@
-import type { ChartPeriod, Highlight, MetricKey, Settings, Snapshot, WeightEntry } from "./model";
+import type { ChartPeriod, MetricKey, Settings, Snapshot, WeightEntry } from "./model";
 import { settingsOf } from "./model";
 
 /** Today-card completion: empty, started but unfinished, or fully done for the day. */
@@ -145,28 +145,6 @@ export function metricValueForDay(snapshot: Snapshot, date: string, metric: Metr
 
 export function seriesForMetric(snapshot: Snapshot, dates: string[], metric: MetricKey): SeriesPoint[] {
   return dates.map((date) => ({ date, value: metricValueForDay(snapshot, date, metric) }));
-}
-
-export function latestEntryDate(snapshot: Snapshot): string | null {
-  const dates: string[] = [
-    ...snapshot.days.map((d) => d.date),
-    ...snapshot.weights.map((w) => w.date),
-    ...snapshot.water.map((w) => w.date),
-    ...snapshot.highlights.map((h) => h.date),
-  ];
-  if (dates.length === 0) return null;
-  return dates.reduce((max, d) => (d > max ? d : max), dates[0]);
-}
-
-export function earliestEntryDate(snapshot: Snapshot): string | null {
-  const dates: string[] = [
-    ...snapshot.days.map((d) => d.date),
-    ...snapshot.weights.map((w) => w.date),
-    ...snapshot.water.map((w) => w.date),
-    ...snapshot.highlights.map((h) => h.date),
-  ];
-  if (dates.length === 0) return null;
-  return dates.reduce((min, d) => (d < min ? d : min), dates[0]);
 }
 
 /**
@@ -459,7 +437,7 @@ export function buildInsights(snapshot: Snapshot, period: ChartPeriod, today: st
 export function currentStreak(snapshot: Snapshot, today: string): number {
   let streak = 0;
   let cursor = today;
-  const first = earliestEntryDate(snapshot);
+  const first = earliestMetricDate(snapshot);
   if (!first) return 0;
   for (let i = 0; i < 4_000; i += 1) {
     if (cursor < first) break;
@@ -468,16 +446,6 @@ export function currentStreak(snapshot: Snapshot, today: string): number {
     cursor = addDays(cursor, -1);
   }
   return streak;
-}
-
-export function highlightsInMonth(snapshot: Snapshot, month: string): Highlight[] {
-  return snapshot.highlights
-    .filter((h) => h.date.startsWith(month))
-    .sort((a, b) => compareDateKeys(a.date, b.date));
-}
-
-export function highlightsOn(snapshot: Snapshot, date: string): Highlight[] {
-  return snapshot.highlights.filter((h) => h.date === date);
 }
 
 /** Days in the current ISO week (Monday–Sunday) that are on or before today. */

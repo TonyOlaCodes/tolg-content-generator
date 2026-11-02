@@ -15,7 +15,9 @@ export function MealSheet({ api, meal, onClose }: { api: GroceriesApi; meal: Mea
     meal?.ingredients.length
       ? meal.ingredients.map((i) => {
           const f = snap.foods.find((x) => x.id === i.foodId);
-          return { foodId: i.foodId, qty: String(i.qtyBase), unit: firstUnit(f) };
+          // Edit in base units so pack foods are not shown as "packs" of gram totals.
+          const unit = baseUnit(f);
+          return { foodId: i.foodId, qty: displayFromBase(i.qtyBase, unit, f?.packBase ?? null), unit };
         })
       : [{ foodId: "", qty: "", unit: "g" }],
   );
@@ -105,4 +107,21 @@ export function MealSheet({ api, meal, onClose }: { api: GroceriesApi; meal: Mea
 function firstUnit(food: { measure: "count" | "mass" | "volume"; packBase: number | null } | undefined): Unit {
   if (!food) return "g";
   return unitsFor(food.measure, food.packBase != null)[0];
+}
+
+function baseUnit(food: { measure: "count" | "mass" | "volume" } | undefined): Unit {
+  if (!food) return "g";
+  return food.measure === "count" ? "piece" : food.measure === "mass" ? "g" : "ml";
+}
+
+function displayFromBase(base: number, unit: Unit, packBase: number | null): string {
+  switch (unit) {
+    case "pack":
+      return packBase ? String(base / packBase) : String(base);
+    case "kg":
+    case "l":
+      return String(base / 1000);
+    default:
+      return String(base);
+  }
 }

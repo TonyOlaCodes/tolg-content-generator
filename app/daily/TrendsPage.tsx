@@ -15,7 +15,7 @@ import {
 } from "@/daily/logic";
 import { shortDate, startOfWeek } from "@/daily/date";
 import { formatCalories, formatDuration, formatInt, formatPercent, formatWater, formatWeight, formatWeightChange } from "@/daily/format";
-import { CHART_PERIODS, METRIC_META, type MetricKey } from "@/daily/model";
+import { CHART_PERIODS, METRIC_META, settingsOf, visibleMetrics, type MetricKey } from "@/daily/model";
 import { BarChart, LineChart } from "./charts";
 import type { DailyApi } from "./api";
 
@@ -60,9 +60,14 @@ function BucketStats({ buckets }: { buckets: Bucket[] }) {
 
 export default function TrendsPage({ api }: { api: DailyApi }) {
   const period = api.settings.chartPeriod;
+  const shown = visibleMetrics(settingsOf(api.snap));
+  const show = (metric: MetricKey) => shown.includes(metric);
   const dates = useMemo(() => periodDates(api.snap, period, api.today), [api.snap, period, api.today]);
   const from = dates[0] ?? api.today;
-  const insights = useMemo(() => buildInsights(api.snap, period, api.today), [api.snap, period, api.today]);
+  const insights = useMemo(
+    () => buildInsights(api.snap, period, api.today).filter((i) => i.metric === null || shown.includes(i.metric)),
+    [api.snap, period, api.today, shown],
+  );
 
   const stepBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "steps"), api.today), [api.snap, dates, api.today]);
   const calorieBuckets = useMemo(() => bucketSeries(seriesForMetric(api.snap, dates, "calories"), api.today), [api.snap, dates, api.today]);
@@ -170,6 +175,7 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
         </section>
       ) : null}
 
+      {show("steps") ? (
       <TrendSection metric="steps" title="Steps" empty={stepValues.length === 0}>
         <BarChart
           bars={stepBuckets.map((bucket) => ({ label: bucket.label, value: bucket.value }))}
@@ -180,16 +186,18 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
         />
         <div className="daily-stats">
           <Stat label="Average" value={stepValues.length ? `${formatInt(average(stepValues) ?? 0)} steps` : "—"} />
-          <Stat label="Days logged" value={`${stepStats.loggedDays}`} hint="in this range" />
+          <Stat label="Days logged" value={`${stepStats.loggedDays}`} />
           <Stat
             label="Goal reached"
             value={stepStats.rate === null ? "—" : formatPercent(stepStats.rate)}
-            hint={`${stepStats.goalDays} of ${stepStats.loggedDays} logged days`}
+            hint={`${stepStats.goalDays} of ${stepStats.loggedDays}`}
           />
         </div>
         <BucketStats buckets={stepBuckets} />
       </TrendSection>
+      ) : null}
 
+      {show("weight") ? (
       <TrendSection metric="weight" title="Weight" empty={weight.count === 0}>
         <LineChart
           points={weight.daily}
@@ -249,7 +257,9 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           </div>
         ) : null}
       </TrendSection>
+      ) : null}
 
+      {show("calories") ? (
       <TrendSection metric="calories" title="Calories" empty={calorieValues.length === 0}>
         <BarChart
           bars={calorieBuckets.map((bucket) => ({ label: bucket.label, value: bucket.value }))}
@@ -272,7 +282,9 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           />
         </div>
       </TrendSection>
+      ) : null}
 
+      {show("sleep") ? (
       <TrendSection metric="sleep" title="Sleep" empty={sleepValues.length === 0}>
         <BarChart
           bars={sleepBuckets.map((bucket) => ({ label: bucket.label, value: bucket.value }))}
@@ -286,7 +298,9 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           <Stat label="Spread" value={sleepSd === null ? "—" : `±${Math.round(sleepSd)}m`} />
         </div>
       </TrendSection>
+      ) : null}
 
+      {show("water") ? (
       <TrendSection metric="water" title="Water" empty={waterValues.length === 0}>
         <BarChart
           bars={waterBuckets.map((bucket) => ({ label: bucket.label, value: bucket.value }))}
@@ -320,6 +334,7 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           </div>
         ) : null}
       </TrendSection>
+      ) : null}
 
     </div>
   );

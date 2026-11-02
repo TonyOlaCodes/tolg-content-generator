@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { dayMetrics, waterTotalForDate } from "@/daily/logic";
 import { addMonths, dayLabel, longDate, monthGrid, monthKey, monthLabel, weekdayInitialsMondayFirst, dayOfMonth } from "@/daily/date";
 import { formatCalories, formatDuration, formatInt, formatWater, formatWeight } from "@/daily/format";
-import { METRIC_META, METRIC_KEYS, type MetricKey } from "@/daily/model";
+import { METRIC_META, settingsOf, visibleMetrics, type MetricKey } from "@/daily/model";
 import type { DailyApi } from "./api";
 
 export default function HistoryPage({ api }: { api: DailyApi }) {
@@ -51,6 +51,7 @@ export default function HistoryPage({ api }: { api: DailyApi }) {
   }, [api.snap.days, waterByDate, weightByDate]);
 
   const selected = dayMetrics(api.snap, api.selected);
+  const metrics = visibleMetrics(settingsOf(api.snap));
   const monthLogs = [...daysWith.keys()].filter((date) => date.startsWith(month)).length;
 
   const valueFor = (metric: MetricKey): string => {
@@ -126,7 +127,7 @@ export default function HistoryPage({ api }: { api: DailyApi }) {
         <div className="daily-calendar-grid" role="grid">
           {cells.map((date, index) => {
             if (!date) return <span key={`blank-${index}`} className="daily-calendar-blank" aria-hidden />;
-            const metrics = daysWith.get(date) ?? [];
+            const logged = (daysWith.get(date) ?? []).filter((metric) => metrics.includes(metric));
             const isSelected = date === api.selected;
             const isToday = date === api.today;
             const isFuture = date > api.today;
@@ -137,13 +138,13 @@ export default function HistoryPage({ api }: { api: DailyApi }) {
                 role="gridcell"
                 className={`daily-calendar-day${isSelected ? " is-selected" : ""}${isToday ? " is-today" : ""}${isFuture ? " is-future" : ""}`}
                 aria-selected={isSelected}
-                aria-label={`${longDate(date)}${metrics.length ? `, ${metrics.length} metrics logged` : ""}`}
+                aria-label={`${longDate(date)}${logged.length ? `, ${logged.length} metrics logged` : ""}`}
                 disabled={isFuture}
                 onClick={() => api.setSelected(date)}
               >
                 <span className="daily-calendar-number">{dayOfMonth(date)}</span>
                 <span className="daily-calendar-dots" aria-hidden>
-                  {METRIC_KEYS.filter((metric) => metrics.includes(metric)).map((metric) => (
+                  {logged.map((metric) => (
                     <span key={metric} style={{ background: METRIC_META[metric].accent }} />
                   ))}
                 </span>
@@ -164,7 +165,7 @@ export default function HistoryPage({ api }: { api: DailyApi }) {
           </button>
         </div>
         <ul className="daily-metric-rows">
-          {METRIC_KEYS.map((metric) => {
+          {metrics.map((metric) => {
             const meta = METRIC_META[metric];
             const value = valueFor(metric);
             return (

@@ -69,7 +69,7 @@
 .wx-card h2, .wx-card h3 { margin: 0 0 8px; }
 .wx-card h3 { font-size: 1rem; }
 .wx-note, .wx-sub, .wx-disclaimer, .wx-clock { color: var(--wx-muted); font-size: 0.9rem; margin: 4px 0; }
-.wx-stale { color: #ffd166; }
+.wx-stale { color: var(--wx-focus); }
 .wx-error-text { color: #ff9b9b; }
 .wx-meta { display: flex; justify-content: space-between; align-items: center; color: var(--wx-muted); font-size: 0.85rem; }
 
@@ -107,7 +107,7 @@
 .wx-day-name small { color: var(--wx-muted); }
 .wx-day-range { font-variant-numeric: tabular-nums; text-align: right; }
 .wx-range { position: relative; height: 6px; border-radius: 3px; background: var(--wx-border); }
-.wx-range > span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+.wx-range > span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--wx-accent), var(--wx-focus)); }
 
 .wx-hours { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
 .wx-hours > li { flex: 0 0 auto; min-width: 72px; }
@@ -208,7 +208,7 @@
 .wx-drow-hl { text-align: right; font-size: 0.9rem; }
 .wx-drow-hl small { color: var(--wx-muted); }
 .wx-range-track { position: relative; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
-.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--wx-accent), var(--wx-focus)); }
 
 /* Bottom navigation (safe-area aware) */
 .wx-nav {

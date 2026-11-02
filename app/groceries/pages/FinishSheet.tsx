@@ -4,8 +4,9 @@ import { useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { lineCents } from "@/groceries/logic";
 import { formatEUR, parseEuroToCents } from "@/money/money";
-import type { Snapshot } from "@/groceries/model";
+import { DEFAULT_LIST_NAME, type Snapshot } from "@/groceries/model";
 import type { Op } from "@/groceries/store";
+import { newId } from "@/groceries/actions";
 
 /** Review of bought lines with an editable actual cost, then the list is closed. */
 export function FinishSheet({ api, listId, onClose }: { api: GroceriesApi; listId: string; onClose: () => void }) {
@@ -39,6 +40,18 @@ export function FinishSheet({ api, listId, onClose }: { api: GroceriesApi; listI
         }
       }
       ops.push({ store: "lists", put: { ...list, finishedAt: new Date().toISOString(), version: list.version + 1 } });
+      // Open a fresh list so Shopping / Home never keep writing into the finished one.
+      const nextList = {
+        id: newId(),
+        name: DEFAULT_LIST_NAME,
+        shopId: list.shopId,
+        createdAt: new Date().toISOString(),
+        finishedAt: null,
+        version: 1,
+      };
+      ops.push({ store: "lists", put: nextList });
+      const base = s.settings ?? { id: "main" as const, defaultShopId: list.shopId || null, activeListId: null, routine: [], version: 1 };
+      ops.push({ store: "settings", put: { ...base, activeListId: nextList.id, version: (base.version ?? 1) + 1 } });
       return { ops };
     });
     if (err) return setError(err);
