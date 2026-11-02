@@ -198,7 +198,12 @@ export function MoneyFlowSheet({
 
             {error && <p className="money-error" role="alert">{error}</p>}
             <button type="button" className="money-btn-primary money-confirm" disabled={busy || locations.length === 0} onClick={submit}>
-              {busy ? "Saving…" : `Confirm · ${formatEUR(parseEuroToCents(amount) ?? 0)}`}
+              {busy
+                ? "Saving…"
+                : (() => {
+                    const cents = parseEuroToCents(amount) ?? 0;
+                    return cents > 0 ? `Confirm ${formatEUR(cents)}` : "Confirm";
+                  })()}
             </button>
             {locations.length === 0 && <p className="money-muted money-small">Add an account first.</p>}
           </div>
