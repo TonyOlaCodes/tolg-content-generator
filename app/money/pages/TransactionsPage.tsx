@@ -25,7 +25,7 @@ function signed(t: Transaction): number {
 export default function TransactionsPage({ api, notify }: { api: MoneyApi; notify: (m: string) => void }) {
   const { snap, commit } = api;
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "planned" | Transaction["kind"]>("all");
+  const [filter, setFilter] = useState<"all" | "in" | "out" | "transfer">("all");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const accountName = (id: string | null) => snap.accounts.find((a) => a.id === id)?.name ?? "—";
@@ -35,7 +35,12 @@ export default function TransactionsPage({ api, notify }: { api: MoneyApi; notif
     const q = query.trim().toLowerCase();
     const catName = (id: string | null) => snap.categories.find((c) => c.id === id)?.name ?? "";
     const list = snap.transactions
-      .filter((t) => (filter === "all" ? true : filter === "planned" ? t.status === "planned" : t.kind === filter))
+      .filter((t) => {
+        if (filter === "all") return true;
+        if (filter === "in") return t.kind === "income" || t.kind === "refund" || (t.kind === "adjustment" && t.amountCents > 0);
+        if (filter === "out") return t.kind === "expense" || (t.kind === "adjustment" && t.amountCents < 0);
+        return t.kind === "transfer";
+      })
       .filter((t) => !q || t.description.toLowerCase().includes(q) || catName(t.categoryId).toLowerCase().includes(q))
       .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1));
     const map = new Map<string, Transaction[]>();
@@ -76,9 +81,14 @@ export default function TransactionsPage({ api, notify }: { api: MoneyApi; notif
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search description or category" aria-label="Search transactions" />
       </div>
       <div className="money-chips" role="radiogroup" aria-label="Filter">
-        {(["all", "planned", "expense", "income", "transfer", "refund", "adjustment"] as const).map((f) => (
-          <button key={f} type="button" role="radio" aria-checked={filter === f} className={`money-chip${filter === f ? " is-active" : ""}`} onClick={() => setFilter(f)}>
-            {f === "all" ? "All" : f === "planned" ? "Planned" : KIND_LABEL[f]}
+        {([
+          { id: "all", label: "All" },
+          { id: "in", label: "Money In" },
+          { id: "out", label: "Money Out" },
+          { id: "transfer", label: "Transfers" },
+        ] as const).map((f) => (
+          <button key={f.id} type="button" role="radio" aria-checked={filter === f.id} className={`money-chip${filter === f.id ? " is-active" : ""}`} onClick={() => setFilter(f.id)}>
+            {f.label}
           </button>
         ))}
       </div>

@@ -42,7 +42,7 @@ export function Donut({ slices, emptyLabel }: { slices: Slice[]; emptyLabel: str
           <li key={s.label}>
             <span className="money-dot" style={{ background: s.color }} />
             <span>{s.label}</span>
-            <strong>{Math.round((s.value / total) * 100)}%</strong>
+            <strong>{formatEUR(s.value)} · {Math.round((s.value / total) * 100)}%</strong>
           </li>
         ))}
       </ul>

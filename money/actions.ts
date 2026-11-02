@@ -245,12 +245,42 @@ export function reverseTransaction(snap: Snapshot, id: string, ctx: Ctx): Result
 
 /** Records a reconciliation: the difference between the bank's balance and the app's is posted as an adjustment. */
 export function reconcileAccount(snap: Snapshot, accountId: string, actualCents: number, ctx: Ctx): Result {
-  const acc = snap.accounts.find((a) => a.id === accountId);
+  return reconcileBalance(snap, accountId, null, actualCents, ctx, "account");
+}
+
+/**
+ * Sets Main or a pocket to an exact balance via a labelled adjustment.
+ * Account total stays Main + pockets; never creates extra money outside that partition.
+ */
+export function reconcileBalance(
+  snap: Snapshot,
+  accountId: string,
+  pocketId: string | null,
+  actualCents: number,
+  ctx: Ctx,
+  scope: "account" | "main" | "pocket" = pocketId ? "pocket" : "main",
+): Result {
+  const acc = snap.accounts.find((a) => a.id === accountId && !a.archived);
   if (!acc) return fail("Choose an account.");
   if (!Number.isInteger(actualCents)) return fail("Enter a valid balance.");
-  const recorded = accountNowCents(snap, accountId);
+  if (pocketId) {
+    const pocket = snap.pockets.find((p) => p.id === pocketId && p.accountId === accountId && !p.archived);
+    if (!pocket) return fail("Choose a pocket.");
+  }
+  const recorded =
+    scope === "account"
+      ? accountNowCents(snap, accountId)
+      : pocketId
+        ? pocketNowCents(snap, pocketId)
+        : mainNowCents(snap, accountId);
   const diff = actualCents - recorded;
   if (diff === 0) return fail("The balance already matches.");
+  const label =
+    scope === "account"
+      ? acc.name
+      : pocketId
+        ? snap.pockets.find((p) => p.id === pocketId)?.name ?? "Pocket"
+        : `${acc.name} Main`;
   return saveTransaction(
     snap,
     {
@@ -259,13 +289,24 @@ export function reconcileAccount(snap: Snapshot, accountId: string, actualCents:
       date: ctx.today,
       amountCents: diff,
       accountId,
+      pocketId: scope === "account" ? null : pocketId,
       toAccountId: null,
       categoryId: null,
-      description: "Balance reconciliation",
-      notes: `Recorded balance ${(recorded / 100).toFixed(2)}, statement ${(actualCents / 100).toFixed(2)}.`,
+      description: "Balance correction",
+      notes: `${label}: recorded ${(recorded / 100).toFixed(2)}, set to ${(actualCents / 100).toFixed(2)}.`,
     },
     ctx,
   );
+}
+
+/** Main balance of an account (money not in any pocket). */
+export function mainNowCents(snap: Snapshot, accountId: string): number {
+  const acc = snap.accounts.find((a) => a.id === accountId);
+  if (!acc) return 0;
+  const confirmed = snap.transactions.filter((t) => t.status === "confirmed");
+  const month = todayISO().slice(0, 7);
+  const tl = buildTimeline(snap, confirmed, { from: month, to: month, defaultAlloc: "zero" });
+  return tl.byMonth[month]?.mainEnd[accountId] ?? acc.openingCents;
 }
 
 /** Confirmed balance of one account today (includes only confirmed transactions). */
@@ -365,25 +406,51 @@ export function remainingRecurringCents(snap: Snapshot, rec: Recurring): number 
   return Math.max(0, rec.amountCents - paidTowardOccurrence(snap, rec.id, rec.nextDue));
 }
 
+export type ConfirmRecurringOpts = {
+  amountCents?: number;
+  /** Pay from this account for this occurrence only (unless saveAsDefault). */
+  accountId?: string;
+  pocketId?: string | null;
+  /** Persist account/pocket as the bill's default source. */
+  saveAsDefault?: boolean;
+};
+
 /**
  * Confirms (part of) the current occurrence: posts a linked transaction.
- * Pass amountCents to pay a partial amount; omit it (or pass the remaining balance) to settle in full.
+ * Pass amountCents (or opts.amountCents) to pay a partial amount; omit to settle the remainder.
  * The schedule only advances once the occurrence is fully paid.
  * Protected against double taps via a nextDue guard once the occurrence completes.
  */
-export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx, amountCents?: number): Result {
+export function confirmRecurring(
+  snap: Snapshot,
+  id: string,
+  ctx: Ctx,
+  amountOrOpts?: number | ConfirmRecurringOpts,
+): Result {
+  const opts: ConfirmRecurringOpts =
+    typeof amountOrOpts === "number" ? { amountCents: amountOrOpts } : amountOrOpts ?? {};
   const rec = snap.recurring.find((r) => r.id === id);
   if (!rec) return fail("That item no longer exists.");
   if (rec.status !== "active") return fail("Resume this item before confirming it.");
   const occurrence = rec.nextDue;
   const remaining = remainingRecurringCents(snap, rec);
   if (remaining <= 0) return fail("This payment is already recorded.");
-  const pay = amountCents === undefined ? remaining : amountCents;
+  const pay = opts.amountCents === undefined ? remaining : opts.amountCents;
   if (!Number.isInteger(pay) || pay <= 0) return fail("Enter an amount above zero.");
   if (pay > remaining) return fail("That is more than what is left on this bill.");
-  const accountId = rec.accountId ?? snap.settings?.plannedSpendAccountId ?? null;
+  const accountId =
+    opts.accountId ?? rec.accountId ?? snap.settings?.plannedSpendAccountId ?? null;
   if (!accountId || !snap.accounts.some((a) => a.id === accountId && !a.archived)) {
     return fail("Choose a payment account for this item first.");
+  }
+  const pocketId =
+    opts.pocketId !== undefined
+      ? opts.pocketId
+      : rec.accountId
+        ? (rec.pocketId ?? null)
+        : null;
+  if (pocketId && !snap.pockets.some((p) => p.id === pocketId && p.accountId === accountId && !p.archived)) {
+    return fail("Choose a pocket in that account.");
   }
   const txId = ctx.newId();
   const settled = pay === remaining;
@@ -394,7 +461,7 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx, amountCen
     date: ctx.today,
     amountCents: pay,
     accountId,
-    pocketId: rec.accountId ? (rec.pocketId ?? null) : null,
+    pocketId,
     toAccountId: null,
     toPocketId: null,
     categoryId: rec.kind === "bill" ? rec.categoryId : null,
@@ -407,7 +474,7 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx, amountCen
     createdAt: ctx.now,
     updatedAt: ctx.now,
   };
-  const next: Recurring = settled
+  let nextRec: Recurring = settled
     ? {
         ...rec,
         nextDue: nextOccurrence(specOf(rec), occurrence),
@@ -415,12 +482,15 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx, amountCen
         updatedAt: ctx.now,
       }
     : { ...rec, updatedAt: ctx.now };
+  if (opts.saveAsDefault) {
+    nextRec = { ...nextRec, accountId, pocketId, updatedAt: ctx.now };
+  }
   return {
     ok: true,
     change: {
       puts: [
         { store: "transactions", value: tx },
-        { store: "recurring", value: next },
+        { store: "recurring", value: nextRec },
       ],
       deletes: [],
       guards: settled ? [{ store: "recurring", key: id, nextDue: occurrence }] : undefined,

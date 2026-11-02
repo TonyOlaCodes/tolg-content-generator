@@ -30,7 +30,17 @@ const PERIOD: Record<Recurring["interval"], string> = {
   custom: "",
 };
 
-export default function SubscriptionsPage({ api, notify, onSetup }: { api: MoneyApi; notify: (m: string) => void; onSetup?: () => void }) {
+export default function SubscriptionsPage({
+  api,
+  notify,
+  onSetup,
+  onConfirmBill,
+}: {
+  api: MoneyApi;
+  notify: (m: string) => void;
+  onSetup?: () => void;
+  onConfirmBill?: (id: string) => void;
+}) {
   const { snap, commit } = api;
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,43 +104,49 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
         )}
 
         {r.status === "active" && isDue && remaining > 0 && (
-          <div className="money-pay-row">
-            <label className="money-pay-amount">
-              <span className="money-sr">Amount to pay</span>
-              <span className="money-pay-prefix" aria-hidden>€</span>
-              <input
-                inputMode="decimal"
-                aria-label={`Pay amount for ${r.name}`}
-                value={payValue(r, remaining)}
-                onChange={(e) => setPayDraft((d) => ({ ...d, [r.id]: e.target.value }))}
-              />
-            </label>
-            <button
-              type="button"
-              className="money-btn-primary money-confirm-paid"
-              disabled={isBusy}
-              onClick={() => {
-                const cents = parseEuroToCents(payValue(r, remaining));
-                if (cents === null || cents <= 0) return notify("Enter an amount above zero");
-                if (cents > remaining) return notify("That is more than what is left");
-                void (async () => {
-                  const okPay = await act(
-                    r.id,
-                    () => confirmRecurring(snap, r.id, defaultCtx(), cents),
-                    cents < remaining ? `Paid ${formatEUR(cents)}` : "Marked as paid",
-                  );
-                  if (!okPay) return;
-                  setPayDraft((d) => {
-                    const next = { ...d };
-                    delete next[r.id];
-                    return next;
-                  });
-                })();
-              }}
-            >
-              {isBusy ? "Saving…" : centsLabel(payValue(r, remaining), remaining)}
+          onConfirmBill ? (
+            <button type="button" className="money-btn-primary money-confirm-paid" disabled={isBusy} onClick={() => onConfirmBill(r.id)}>
+              Confirm Paid
             </button>
-          </div>
+          ) : (
+            <div className="money-pay-row">
+              <label className="money-pay-amount">
+                <span className="money-sr">Amount to pay</span>
+                <span className="money-pay-prefix" aria-hidden>€</span>
+                <input
+                  inputMode="decimal"
+                  aria-label={`Pay amount for ${r.name}`}
+                  value={payValue(r, remaining)}
+                  onChange={(e) => setPayDraft((d) => ({ ...d, [r.id]: e.target.value }))}
+                />
+              </label>
+              <button
+                type="button"
+                className="money-btn-primary money-confirm-paid"
+                disabled={isBusy}
+                onClick={() => {
+                  const cents = parseEuroToCents(payValue(r, remaining));
+                  if (cents === null || cents <= 0) return notify("Enter an amount above zero");
+                  if (cents > remaining) return notify("That is more than what is left");
+                  void (async () => {
+                    const okPay = await act(
+                      r.id,
+                      () => confirmRecurring(snap, r.id, defaultCtx(), cents),
+                      cents < remaining ? `Paid ${formatEUR(cents)}` : "Marked as paid",
+                    );
+                    if (!okPay) return;
+                    setPayDraft((d) => {
+                      const next = { ...d };
+                      delete next[r.id];
+                      return next;
+                    });
+                  })();
+                }}
+              >
+                {isBusy ? "Saving…" : centsLabel(payValue(r, remaining), remaining)}
+              </button>
+            </div>
+          )
         )}
 
         {r.status === "active" && (

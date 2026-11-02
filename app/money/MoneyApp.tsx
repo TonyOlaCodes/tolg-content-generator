@@ -5,31 +5,30 @@ import "./money.css";
 import { ensureSeeded, loadSnapshot, applyChange } from "@/money/store";
 import type { Change, Result } from "@/money/actions";
 import { EMPTY_SNAPSHOT, type Snapshot } from "@/money/types";
-import OverviewPage from "./pages/OverviewPage";
+import HomePage from "./pages/HomePage";
+import AccountsPage from "./pages/AccountsPage";
+import SubscriptionsPage from "./pages/SubscriptionsPage";
+import MorePage from "./pages/MorePage";
 import TransactionsPage from "./pages/TransactionsPage";
 import BudgetPage from "./pages/BudgetPage";
-import SubscriptionsPage from "./pages/SubscriptionsPage";
 import ForecastPage from "./pages/ForecastPage";
 import SettingsPage from "./pages/SettingsPage";
-import { QuickAdd } from "./QuickAdd";
-import { ManageSheet } from "./ManageSheet";
+import { MoneyFlowSheet, type FlowMode } from "./MoneyFlowSheet";
 import { IncomeSheet } from "./IncomeSheet";
 import { SetupSheet } from "./SetupSheet";
+import { ConfirmBillSheet } from "./ConfirmBillSheet";
 
-export type PageId = "overview" | "activity" | "budget" | "upcoming" | "future" | "settings";
+export type PageId = "home" | "accounts" | "bills" | "more" | "activity" | "budget" | "future" | "settings";
 
 const NAV: { id: PageId; label: string; icon: string }[] = [
-  { id: "overview", label: "Home", icon: "◎" },
-  { id: "activity", label: "Activity", icon: "≡" },
-  { id: "budget", label: "Budget", icon: "◔" },
-  { id: "upcoming", label: "Bills", icon: "↻" },
-  { id: "future", label: "Future", icon: "∿" },
+  { id: "home", label: "Home", icon: "◎" },
+  { id: "accounts", label: "Accounts", icon: "▭" },
+  { id: "bills", label: "Bills", icon: "↻" },
+  { id: "more", label: "More", icon: "···" },
 ];
 
-/** Shared handle every page uses to read the snapshot and commit validated changes. */
 export type MoneyApi = {
   snap: Snapshot;
-  /** Applies a validated change atomically. Returns an error message on failure. */
   commit: (result: Result) => Promise<string | null>;
   reload: () => Promise<void>;
 };
@@ -38,11 +37,12 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
   const [snap, setSnap] = useState<Snapshot>(EMPTY_SNAPSHOT);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [page, setPage] = useState<PageId>("overview");
-  const [quickOpen, setQuickOpen] = useState(false);
+  const [page, setPage] = useState<PageId>("home");
+  const [focusAccountId, setFocusAccountId] = useState<string | null>(null);
+  const [flow, setFlow] = useState<{ mode: FlowMode; from?: string; to?: string } | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
+  const [confirmBillId, setConfirmBillId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -90,7 +90,13 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
 
   const api: MoneyApi = { snap, commit, reload };
   const notify = (msg: string) => setNotice(msg);
-  const sheetOpen = quickOpen || setupOpen || manageOpen || incomeOpen;
+  const sheetOpen = !!flow || setupOpen || incomeOpen || !!confirmBillId;
+  const confirmBill = confirmBillId ? snap.recurring.find((r) => r.id === confirmBillId) : null;
+
+  const go = (p: PageId, accountId?: string) => {
+    setPage(p);
+    setFocusAccountId(accountId ?? null);
+  };
 
   if (loadError) {
     return (
@@ -113,16 +119,19 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
     );
   }
 
+  const mainTab = page === "home" || page === "accounts" || page === "bills" || page === "more";
+
   return (
     <div className={`money${sheetOpen ? " is-sheet-open" : ""}`}>
       <header className="money-top" inert={sheetOpen ? true : undefined}>
         <button type="button" className="money-back" onClick={onBack}>← Apps</button>
         <h1 className="money-title">Money Tracker</h1>
         <div className="money-top-actions">
-          <button type="button" className="money-icon-btn" onClick={() => setQuickOpen(true)} aria-label="Add transaction">+</button>
-          <button type="button" className="money-icon-btn" onClick={() => setPage("settings")} aria-label="Settings & backup">
-            ⚙
-          </button>
+          {page !== "home" && page !== "more" ? (
+            <button type="button" className="money-icon-btn" onClick={() => setFlow({ mode: "add" })} aria-label="Add money">+</button>
+          ) : (
+            <span />
+          )}
         </div>
       </header>
 
@@ -133,42 +142,87 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
       )}
 
       <div className="money-body" inert={sheetOpen ? true : undefined}>
-        {page === "overview" && (
-          <OverviewPage
+        {page === "home" && (
+          <HomePage
             api={api}
-            onNavigate={setPage}
-            onSetup={() => setSetupOpen(true)}
-            onManage={() => setManageOpen(true)}
+            onNavigate={go}
+            onFlow={(mode) => setFlow({ mode })}
             onIncome={() => setIncomeOpen(true)}
+            onSetup={() => setSetupOpen(true)}
+            onConfirmBill={setConfirmBillId}
             notify={notify}
           />
         )}
-        {page === "activity" && <TransactionsPage api={api} notify={notify} />}
-        {page === "budget" && <BudgetPage api={api} notify={notify} />}
-        {page === "upcoming" && <SubscriptionsPage api={api} notify={notify} onSetup={() => setSetupOpen(true)} />}
-        {page === "future" && <ForecastPage api={api} onSetup={() => setSetupOpen(true)} />}
-        {page === "settings" && <SettingsPage api={api} notify={notify} onClose={() => setPage("overview")} />}
+        {page === "accounts" && (
+          <AccountsPage
+            api={api}
+            notify={notify}
+            focusAccountId={focusAccountId}
+            onFlow={(mode, preset) => setFlow({ mode, from: preset?.from, to: preset?.to })}
+          />
+        )}
+        {page === "bills" && (
+          <SubscriptionsPage
+            api={api}
+            notify={notify}
+            onSetup={() => setSetupOpen(true)}
+            onConfirmBill={setConfirmBillId}
+          />
+        )}
+        {page === "more" && <MorePage api={api} onNavigate={go} />}
+        {page === "activity" && (
+          <div className="money-page">
+            <button type="button" className="money-link" onClick={() => setPage("more")}>← More</button>
+            <TransactionsPage api={api} notify={notify} />
+          </div>
+        )}
+        {page === "budget" && (
+          <div className="money-page">
+            <button type="button" className="money-link" onClick={() => setPage("more")}>← More</button>
+            <BudgetPage api={api} notify={notify} />
+          </div>
+        )}
+        {page === "future" && (
+          <div className="money-page">
+            <button type="button" className="money-link" onClick={() => setPage("more")}>← More</button>
+            <ForecastPage api={api} onSetup={() => setSetupOpen(true)} />
+          </div>
+        )}
+        {page === "settings" && <SettingsPage api={api} notify={notify} onClose={() => setPage("more")} />}
       </div>
 
-      {quickOpen && <QuickAdd api={api} onClose={() => setQuickOpen(false)} notify={notify} />}
-      {manageOpen && <ManageSheet api={api} onClose={() => setManageOpen(false)} notify={notify} />}
+      {flow && (
+        <MoneyFlowSheet
+          api={api}
+          mode={flow.mode}
+          presetFrom={flow.from}
+          presetTo={flow.to}
+          onClose={() => setFlow(null)}
+          notify={notify}
+        />
+      )}
       {incomeOpen && <IncomeSheet api={api} onClose={() => setIncomeOpen(false)} notify={notify} />}
       {setupOpen && <SetupSheet api={api} onClose={() => setSetupOpen(false)} notify={notify} />}
+      {confirmBill && (
+        <ConfirmBillSheet api={api} bill={confirmBill} onClose={() => setConfirmBillId(null)} notify={notify} />
+      )}
 
-      <nav className="money-nav" aria-label="Money Tracker sections" inert={sheetOpen ? true : undefined}>
-        {NAV.map((n) => (
-          <button
-            key={n.id}
-            type="button"
-            className={`money-nav-item${page === n.id ? " is-active" : ""}`}
-            onClick={() => setPage(n.id)}
-            aria-current={page === n.id ? "page" : undefined}
-          >
-            <span className="money-nav-icon" aria-hidden>{n.icon}</span>
-            <span>{n.label}</span>
-          </button>
-        ))}
-      </nav>
+      {mainTab && (
+        <nav className="money-nav" aria-label="Money Tracker sections" inert={sheetOpen ? true : undefined}>
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              className={`money-nav-item${page === n.id ? " is-active" : ""}`}
+              onClick={() => go(n.id)}
+              aria-current={page === n.id ? "page" : undefined}
+            >
+              <span className="money-nav-icon" aria-hidden>{n.icon}</span>
+              <span>{n.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

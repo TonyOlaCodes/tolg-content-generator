@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
-import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount } from "../money/actions";
+import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount, reconcileBalance, mainNowCents, pocketNowCents, savePocket } from "../money/actions";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
 
@@ -253,6 +253,35 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   assert.equal(mainBal(after), 40_000, "Main is untouched");
 }
 
+
+// --- pocket balance correction adjusts only that pocket; account total = main + pockets
+{
+  const withPocket = apply(base, must(savePocket(base, { accountId: "cur", name: "Food", icon: "🍎", color: "#34d399", targetCents: null }, ctx)));
+  const funded = apply(withPocket, must(saveTransaction(withPocket, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 20_000, accountId: "cur", pocketId: null, toAccountId: "cur", toPocketId: withPocket.pockets[0].id, categoryId: null, description: "To Food", notes: "" }, ctx)));
+  const foodId = funded.pockets[0].id;
+  assert.equal(mainNowCents(funded, "cur"), 80_000);
+  assert.equal(pocketNowCents(funded, foodId), 20_000);
+  const fix = reconcileBalance(funded, "cur", foodId, 15_000, ctx, "pocket");
+  assert.ok(fix.ok);
+  const after = apply(funded, fix.ok ? fix.change : { puts: [] });
+  assert.equal(pocketNowCents(after, foodId), 15_000);
+  assert.equal(mainNowCents(after, "cur"), 80_000);
+  assert.equal(bal(after, "cur"), 95_000);
+  assert.equal(after.transactions.some((t) => t.kind === "adjustment" && t.description === "Balance correction"), true);
+}
+
+// --- confirm bill can override payment source for one occurrence
+{
+  const snap: Snapshot = {
+    ...base,
+    recurring: [{ id: "cursor", kind: "bill", name: "Cursor", icon: "•", amountCents: 2000, interval: "monthly", customDays: null, dayOfMonth: 10, nextDue: "2026-11-10", categoryId: "subscriptions", accountId: "cur", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" }],
+  };
+  const paid = confirmRecurring(snap, "cursor", ctx, { amountCents: 2000, accountId: "sav", pocketId: null });
+  assert.ok(paid.ok);
+  const after = apply(snap, paid.ok ? paid.change : { puts: [] });
+  assert.equal(after.transactions[0].accountId, "sav");
+  assert.equal(after.recurring[0].accountId, "cur", "default source unchanged unless saveAsDefault");
+}
 
 // --- delete account: unused hard-deletes; used accounts are soft-deleted (archived)
 {
