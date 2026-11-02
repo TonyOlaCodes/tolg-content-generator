@@ -56,7 +56,6 @@ export function FinishSheet({ api, listId, onClose }: { api: GroceriesApi; listI
           <span />
         </div>
         <div className="gr-form">
-          <p className="gr-muted">Check what you paid. Edit any line that differs from the estimate.</p>
           {bought.map((i) => (
             <div key={i.id} className="gr-finish-row">
               <span className="gr-name">{i.name} × {i.packs}</span>

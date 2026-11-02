@@ -61,7 +61,7 @@ export function MealSheet({ api, meal, onClose }: { api: GroceriesApi; meal: Mea
         </div>
         <div className="gr-form">
           {snap.foods.length === 0 ? (
-            <p className="gr-muted">Add foods in Pantry first, then build a meal from them.</p>
+            <p className="gr-muted">No foods in pantry.</p>
           ) : (
             <>
               <label className="gr-field">

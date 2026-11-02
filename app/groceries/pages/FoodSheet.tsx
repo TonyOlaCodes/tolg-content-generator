@@ -175,8 +175,8 @@ export function FoodSheet({
             </label>
           </div>
           <label className="gr-field">
-            <span>Daily use (estimate, optional)</span>
-            <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="Leave blank to estimate from logs" />
+            <span>Daily use</span>
+            <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="Optional" />
           </label>
           <label className="gr-field">
             <span>Notes</span>

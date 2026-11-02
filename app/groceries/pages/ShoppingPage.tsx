@@ -91,7 +91,7 @@ export default function ShoppingPage({ api }: { api: GroceriesApi }) {
       {open.length === 0 ? (
         <div className="gr-card gr-empty">
           <p className="gr-h3">{done.length ? "Everything is bought" : "Your list is empty"}</p>
-          <p className="gr-muted">Add items above, or tap Add to Shopping List on a low food in Pantry or Home.</p>
+          <p className="gr-muted">Add items above.</p>
         </div>
       ) : (
         <ul className="gr-list">

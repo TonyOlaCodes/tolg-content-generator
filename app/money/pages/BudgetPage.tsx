@@ -77,7 +77,7 @@ export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m:
         <p className="money-kicker">Spending plan · {formatMonthIE(month)}</p>
         <p className="money-big">{formatEUR(spentTotal)} <span className="money-muted">of {formatEUR(planTotal)}</span></p>
         <p className="money-muted money-small">
-          {planTotal === 0 ? "Set a monthly target for each category below." : `${formatEUR(Math.max(planTotal - spentTotal, 0))} left in your plan. Targets never reduce your balance.`}
+          {planTotal === 0 ? "No targets set." : `${formatEUR(Math.max(planTotal - spentTotal, 0))} left`}
         </p>
       </section>
 

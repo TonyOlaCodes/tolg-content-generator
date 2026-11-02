@@ -146,7 +146,6 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
       {!hasAnyData ? (
         <section className="daily-empty">
           <h2>Nothing tracked yet</h2>
-          <p>Log a day and your averages, trends and goal completion appear here automatically — no placeholders.</p>
           <button type="button" className="daily-btn-primary" onClick={() => api.setPage("today")}>
             Go to Today
           </button>

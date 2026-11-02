@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   addWater,
   addWeight,
   adjustWater,
-  deleteHighlight,
   deleteWater,
   deleteWeight,
   mergeChanges,
-  saveHighlight,
   setDayMetric,
   setDayMetrics,
   updateWater,
@@ -18,9 +16,8 @@ import {
 import { weightsForDate, waterTotalForDate } from "@/daily/logic";
 import { dayLabel } from "@/daily/date";
 import { formatDuration, formatWater, kgToUnit, unitToKg } from "@/daily/format";
-import { METRIC_META, type Highlight } from "@/daily/model";
+import { METRIC_META } from "@/daily/model";
 import { ProgressBar, ProgressRing } from "./charts";
-import { shrinkPhoto } from "./photo";
 import { parseDecimal, parseWhole, uiCtx, type DailyApi } from "./api";
 
 /* ------------------------------------------------------------- primitives */
@@ -718,155 +715,6 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
           onChange={setWeight}
           inputMode="decimal"
           placeholder="—"
-        />
-      </div>
-    </SheetShell>
-  );
-}
-
-/* -------------------------------------------------------------- highlight */
-
-export function HighlightSheet({
-  api,
-  highlight,
-  onClose,
-}: {
-  api: DailyApi;
-  highlight: Highlight | null;
-  onClose: () => void;
-}) {
-  const date = highlight?.date ?? api.selected;
-  const [title, setTitle] = useState(highlight?.title ?? "");
-  const [description, setDescription] = useState(highlight?.description ?? "");
-  const [tags, setTags] = useState(highlight?.tags.join(", ") ?? "");
-  const [photo, setPhoto] = useState<string | null>(highlight?.photo ?? null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const { error, setError, busy, run } = useSaving();
-
-  const save = async () => {
-    const result = saveHighlight(
-      api.snap,
-      {
-        id: highlight?.id,
-        date,
-        title,
-        description,
-        tags: tags.split(","),
-        photo,
-      },
-      uiCtx(api.today),
-    );
-    const ok = await run(() => api.commit(result, highlight ? "Highlight updated" : "Highlight saved"));
-    if (ok) onClose();
-  };
-
-  return (
-    <SheetShell
-      title={highlight ? "Edit highlight" : "Add highlight"}
-      kicker={dayLabel(date, api.today)}
-      onClose={onClose}
-      footer={
-        <>
-          <ErrorLine message={error} />
-          <div className="daily-sheet-actions">
-            {highlight ? (
-              <button
-                type="button"
-                className="daily-btn-ghost is-danger"
-                disabled={busy}
-                onClick={() => {
-                  if (!window.confirm("Delete this highlight? The photo will be removed too.")) return;
-                  void run(async () => {
-                    const message = await api.commit(deleteHighlight(api.snap, highlight.id), "Highlight deleted");
-                    if (!message) onClose();
-                    return message;
-                  });
-                }}
-              >
-                Delete
-              </button>
-            ) : null}
-            <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void save()}>
-              {highlight ? "Save changes" : "Save highlight"}
-            </button>
-          </div>
-        </>
-      }
-    >
-      <label className="daily-field">
-        <span>Title</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            maxLength={80}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. First 10k run"
-          />
-        </span>
-      </label>
-      <label className="daily-field">
-        <span>Description (optional)</span>
-        <span className="daily-input-wrap">
-          <textarea
-            className="daily-input daily-textarea"
-            maxLength={500}
-            rows={3}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="A short note, if you want one."
-          />
-        </span>
-      </label>
-      <label className="daily-field">
-        <span>Tags (optional, comma separated)</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="running, milestone"
-          />
-        </span>
-      </label>
-      <div className="daily-field">
-        <span>Photo (optional)</span>
-        {photo ? (
-          <div className="daily-photo-preview">
-            {/* Local data URL only; never uploaded. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="Highlight photo preview" />
-            <button type="button" className="daily-link is-danger" onClick={() => setPhoto(null)}>
-              Remove photo
-            </button>
-          </div>
-        ) : (
-          <button type="button" className="daily-btn-ghost" disabled={photoBusy} onClick={() => fileRef.current?.click()}>
-            {photoBusy ? "Processing…" : "Choose a photo"}
-          </button>
-        )}
-        <input
-          ref={fileRef}
-          className="daily-sr-only"
-          type="file"
-          accept="image/*"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            setPhotoBusy(true);
-            setError(null);
-            try {
-              setPhoto(await shrinkPhoto(file));
-            } catch (photoError) {
-              setError(photoError instanceof Error ? photoError.message : "That photo could not be read.");
-            } finally {
-              setPhotoBusy(false);
-            }
-          }}
         />
       </div>
     </SheetShell>

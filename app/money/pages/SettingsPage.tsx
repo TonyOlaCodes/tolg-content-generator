@@ -65,26 +65,18 @@ export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; 
   return (
     <div className="money-page">
       <section className="money-panel">
-        <h2 className="money-h2">Your data stays on this device</h2>
-        <p className="money-muted">
-          Money Tracker stores everything in this browser. Clearing site data, using a private window or uninstalling the app can erase your records.
-          Export a backup regularly. No financial data is sent to any server.
-        </p>
-      </section>
-
-      <section className="money-panel">
         <h2 className="money-h2">Backup</h2>
-        <button type="button" className="money-btn-primary" onClick={download}>Export JSON backup</button>
+        <button type="button" className="money-btn-primary" onClick={download}>Export backup</button>
         <label className="money-field">
-          <span>Restore from a backup file</span>
+          <span>Restore</span>
           <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void restore(f); e.target.value = ""; }} />
         </label>
         {error && <p className="money-error" role="alert">{error}</p>}
       </section>
 
       <section className="money-panel">
-        <h2 className="money-h2">Erase data</h2>
-        <button type="button" className="money-btn-danger" disabled={busy} onClick={reset}>Erase all data on this device</button>
+        <h2 className="money-h2">Erase</h2>
+        <button type="button" className="money-btn-danger" disabled={busy} onClick={() => void reset()}>Erase all data</button>
       </section>
     </div>
   );

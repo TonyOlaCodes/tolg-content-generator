@@ -80,7 +80,7 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
       {snap.foods.length === 0 ? (
         <div className="gr-card gr-empty">
           <p className="gr-h3">Your pantry is empty</p>
-          <p className="gr-muted">Add the foods you keep at home. Quantities and prices start blank, so nothing is invented for you.</p>
+          <p className="gr-muted">No foods yet.</p>
         </div>
       ) : visible.length === 0 ? (
         <p className="gr-muted gr-center">No foods match these filters.</p>

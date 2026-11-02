@@ -74,7 +74,6 @@ function Card({
   onOpen,
   label,
   value,
-  addLabel,
   status,
   children,
   footer,
@@ -84,7 +83,6 @@ function Card({
   onOpen: () => void;
   label: string;
   value: string;
-  addLabel: string;
   status: CardStatus;
   children?: ReactNode;
   footer?: ReactNode;
@@ -101,7 +99,7 @@ function Card({
         type="button"
         className="daily-card-tap"
         onClick={onOpen}
-        aria-label={`${label}: ${empty ? `no entry, ${addLabel}` : value}${statusText}. Open editor.`}
+        aria-label={`${label}: ${empty ? "no entry" : value}${statusText}. Open editor.`}
       >
         <span className="daily-card-top">
           <span className="daily-card-icon" aria-hidden>
@@ -142,7 +140,6 @@ function StepsCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       wide={wide}
       label="Steps"
       value={view.steps === null ? "—" : `${formatInt(view.steps)}`}
-      addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "steps" })}
     >
@@ -185,7 +182,6 @@ function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetri
       wide={wide}
       label="Weight"
       value={dayEntry !== null ? formatWeight(dayEntry, unit) : "—"}
-      addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "weight" })}
     >
@@ -219,7 +215,6 @@ function CaloriesCard({ api, view, wide, status }: { api: DailyApi; view: DayMet
       wide={wide}
       label="Calories"
       value={view.calories === null ? "—" : formatCalories(view.calories)}
-      addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "calories" })}
     >
@@ -253,7 +248,6 @@ function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       wide={wide}
       label="Sleep"
       value={view.sleepMinutes === null ? "—" : formatDuration(view.sleepMinutes)}
-      addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "sleep" })}
     >
@@ -289,7 +283,6 @@ function WaterCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       wide={wide}
       label="Water"
       value={view.waterMl === null ? "—" : `${formatWater(view.waterMl)} / ${formatWater(goal)}`}
-      addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "water" })}
       footer={

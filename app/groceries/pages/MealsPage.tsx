@@ -64,7 +64,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
           <button className="gr-chip" onClick={() => setEditing("new")}>+ New meal</button>
         </div>
         {snap.meals.length === 0 ? (
-          <p className="gr-muted">Create a meal with the ingredients you use, then tap I Ate This to deduct them in one go.</p>
+          <p className="gr-muted">No meals yet.</p>
         ) : (
           SLOTS.map((slot) =>
             bySlot(slot).length === 0 ? null : (
@@ -96,7 +96,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Quick log a food</h3>
         {snap.foods.length === 0 ? (
-          <p className="gr-muted">Add foods in Pantry first.</p>
+          <p className="gr-muted">No foods in pantry.</p>
         ) : (
           <div className="gr-quick">
             <select className="gr-input" value={quickFood} onChange={(e) => setQuickFood(e.target.value)} aria-label="Food">
@@ -112,7 +112,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Today</h3>
         {todaysLogs.length === 0 ? (
-          <p className="gr-muted">Nothing eaten yet today. Skipped meals deduct nothing.</p>
+          <p className="gr-muted">Nothing eaten yet today.</p>
         ) : (
           <ul className="gr-list">
             {todaysLogs.map((l) => (

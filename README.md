@@ -6,8 +6,8 @@ A Next.js mini-app collection that opens from one home screen:
 - **Fuel Tracker**: car fuel records, costs and analytics.
 - **Money Tracker**: accounts, budgets, bills and forecasts.
 - **Groceries & Pantry**: stock, meals and shopping.
-- **Daily Tracker**: steps, bodyweight, calories, sleep and water with goals, history,
-  trends and optional highlights.
+- **Daily Tracker**: steps, bodyweight, calories, sleep and water with goals, history
+  and trends.
 
 ## Scripts
 
@@ -21,12 +21,11 @@ A Next.js mini-app collection that opens from one home screen:
 
 Daily Tracker is local-first. Entries are stored in this browser with IndexedDB under the
 `detailflows-daily` database, keyed by the local calendar date. No account is required and
-nothing is sent to a server; Apple Health is not accessed.
+nothing is sent to a server.
 
 - Today dashboard with editable metric cards, a date selector and quick daily logging.
 - Steps, bodyweight (one weigh-in per day), calories, sleep and water.
-- Calendar history, chart trends and automatically calculated insights from recorded data only.
-- Optional highlights with a title, description, tags and a downsized photo.
+- Calendar history and chart trends from recorded data only.
 - Settings for goals, weight unit, chart period, card order/visibility and JSON backup.
 - Missing data always stays missing, never zero.
 

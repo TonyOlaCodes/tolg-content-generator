@@ -126,7 +126,7 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
 
   const erase = async () => {
     if (!window.confirm("Erase ALL Daily Tracker data on this device? Export a backup first if you might need it.")) return;
-    if (!window.confirm("Final confirmation: every day, weigh-in, water entry and highlight here will be permanently deleted.")) return;
+    if (!window.confirm("Final confirmation: every day, weigh-in and water entry here will be permanently deleted.")) return;
     setBusy(true);
     const message = await api.replace(EMPTY_SNAPSHOT);
     setBusy(false);

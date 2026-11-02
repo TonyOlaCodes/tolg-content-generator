@@ -1,4 +1,4 @@
-# One-click deployment for the Next.js app (Weather and Fuel Tracker).
+# One-click deployment for the DetailFlows Next.js mini-apps.
 services:
   - type: web
     name: tolg-content-generator

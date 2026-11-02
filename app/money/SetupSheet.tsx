@@ -49,7 +49,7 @@ export function SetupSheet({ api, onClose, notify }: { api: MoneyApi; onClose: (
         {step === 0 && <AccountsStep api={api} notify={notify} onNext={() => goTo(1)} onSkip={skip} />}
         {step === 1 && <SalaryStep api={api} notify={notify} onNext={() => goTo(2)} onSkip={skip} />}
         {step === 2 && <PlanStep api={api} notify={notify} onDone={finish} onSkip={skip} />}
-        {snap.accounts.length === 0 && step > 0 && <p className="money-muted money-small">No accounts yet. You can add one later.</p>}
+        {snap.accounts.length === 0 && step > 0 && <p className="money-muted money-small">No accounts yet.</p>}
       </div>
     </div>
   );
@@ -81,7 +81,6 @@ function AccountsStep({ api, notify, onNext, onSkip }: { api: MoneyApi; notify: 
   return (
     <div className="money-setup-step">
       <h2 className="money-h2">Where is your money?</h2>
-      <p className="money-muted money-small">Add the accounts you use and their current balances. Start with €0 if you prefer.</p>
       {accounts.length > 0 && (
         <ul className="money-list">
           {accounts.map((a) => <li key={a.id} className="money-row"><span>{a.name}</span><strong>{formatEUR(a.openingCents)}</strong></li>)}
@@ -147,7 +146,6 @@ function SalaryStep({ api, notify, onNext, onSkip }: { api: MoneyApi; notify: (m
   return (
     <div className="money-setup-step">
       <h2 className="money-h2">When do you get paid?</h2>
-      <p className="money-muted money-small">Used for your future balances. Salary is not added to your balance until you confirm it.</p>
       <div className="money-form">
         <label className="money-field"><span>Monthly take-home (€)</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="2400.00" /></label>
         <label className="money-field"><span>Payday (day of month)</span><input inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value)} /></label>
@@ -204,9 +202,8 @@ function PlanStep({ api, notify, onDone, onSkip }: { api: MoneyApi; notify: (m: 
   return (
     <div className="money-setup-step">
       <h2 className="money-h2">Your monthly plan</h2>
-      <p className="money-muted money-small">These are plans, not money set aside. Your balance never changes because of them.</p>
       {cats.length === 0 ? (
-        <p className="money-muted">No spending categories. You can add them later.</p>
+        <p className="money-muted">No categories yet.</p>
       ) : (
         <div className="money-form">
           {cats.map((c) => (

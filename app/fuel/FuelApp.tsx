@@ -89,7 +89,6 @@ function Dashboard({ state, onGoRefuel, onGoDrives }: { state: FuelState; onGoRe
             <div className="fuel-range" role="img" aria-label={`Estimated range ${latest.rangeKm} km`}>
               <div className="fuel-range-fill" style={{ width: `${Math.min(100, (latest.rangeKm / 600) * 100)}%` }} />
             </div>
-            <p className="fuel-note">Range is the car’s own estimate, not measured fuel.</p>
           </>
         )}
       </section>
@@ -168,7 +167,7 @@ function Drives({ state, onChange }: { state: FuelState; onChange: (s: FuelState
           <article key={d.id} className="fuel-card">
             <p className="fuel-muted">{new Date(d.startedAt).toLocaleString()}</p>
             <p className="fuel-value">{km(m.distanceKm)}</p>
-            <p className="fuel-note">Estimated range consumed {km(m.rangeConsumedKm)} · change in estimated total range {km(m.totalRangeChangeKm)}. Estimates only, not measured fuel.</p>
+            <p className="fuel-note">Range used {km(m.rangeConsumedKm)} · total range Δ {km(m.totalRangeChangeKm)}</p>
           </article>
         );
       })}
@@ -189,7 +188,6 @@ function Analytics({ state }: { state: FuelState }) {
       <section className="fuel-card">
         <p className="fuel-muted">Cheapest average price per litre</p>
         <p className="fuel-value">{cheapest ? `${cheapest.name} · ${cheapest.avgPrice!.toFixed(3)} €/L` : "No priced refuels yet"}</p>
-        <p className="fuel-note">Based on recorded prices only. Price does not measure fuel quality.</p>
       </section>
       {rows.map((r) => (
         <div key={r.name} className="fuel-card fuel-stat">

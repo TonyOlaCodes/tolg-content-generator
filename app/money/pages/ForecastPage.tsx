@@ -54,22 +54,13 @@ export default function ForecastPage({ api, onSetup }: { api: MoneyApi; onSetup?
           <button type="button" role="radio" aria-checked={scenario === "scheduled"} className={`money-seg-btn${scenario === "scheduled" ? " is-active" : ""}`} onClick={() => setScenario("scheduled")}>Bills & salary</button>
           <button type="button" role="radio" aria-checked={scenario === "planned"} className={`money-seg-btn${scenario === "planned" ? " is-active" : ""}`} onClick={() => setScenario("planned")}>+ Spending plan</button>
         </div>
-        <p className="money-muted money-small">
-          {scenario === "scheduled"
-            ? "Your confirmed balance plus expected salary, bills and planned items."
-            : "Also includes what is left in each category's monthly plan. Bills already in categories are not counted twice."}
-        </p>
         {forecast.warning && <p className="money-error" role="status">{forecast.warning}</p>}
       </section>
 
       {needsSetup && (
         <section className="money-block money-setup-card">
-          <p><strong>Forecasts need a little information.</strong></p>
-          <p className="money-muted money-small">
-            {!hasAccount ? "Add an account and its balance. " : ""}
-            {!hasIncome ? "Add your salary and payday." : ""}
-          </p>
-          {onSetup && <button type="button" className="money-btn-small" onClick={onSetup}>Finish setup</button>}
+          <p><strong>Finish setup to forecast</strong></p>
+          {onSetup && <button type="button" className="money-btn-small" onClick={onSetup}>Set up</button>}
         </section>
       )}
 

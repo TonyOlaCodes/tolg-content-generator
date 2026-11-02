@@ -653,55 +653,6 @@
   background: linear-gradient(90deg, #ffd166, #ff9f6b);
 }
 
-/* -------------------------------------------------------------- highlight */
-
-.daily-highlight-strip {
-  margin-top: 16px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid var(--daily-line);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.daily-highlight-strip-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--daily-muted);
-}
-
-.daily-highlight-mini-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.daily-highlight-mini {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgba(255, 209, 102, 0.08);
-  color: var(--daily-ink);
-  font: inherit;
-  font-size: 0.84rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.daily-highlight-star {
-  color: #ffd166;
-}
-
 .daily-footnote {
   margin: 18px 0 4px;
   font-size: 0.72rem;
@@ -714,6 +665,12 @@
   margin: 0;
   font-size: 0.76rem;
   line-height: 1.5;
+  color: var(--daily-muted);
+}
+
+.daily-meta-line {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
   color: var(--daily-muted);
 }
 
@@ -825,13 +782,6 @@
   border-radius: 50%;
 }
 
-.daily-calendar-star {
-  position: absolute;
-  top: 2px;
-  right: 3px;
-  font-size: 0.5rem;
-  color: #ffd166;
-}
 
 .daily-calendar-legend {
   display: flex;
@@ -931,129 +881,6 @@
 
 .daily-metric-row-main em.is-missing {
   color: rgba(255, 255, 255, 0.34);
-}
-
-/* ------------------------------------------------------------- highlights */
-
-.daily-block {
-  margin-top: 14px;
-  padding: 14px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--daily-line);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.daily-block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.daily-block-title,
-.daily-block > p.daily-block-title {
-  margin: 0;
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--daily-muted);
-}
-
-.daily-highlight-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.daily-highlight-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  padding: 10px;
-  border-radius: 14px;
-  border: 1px solid var(--daily-line);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--daily-ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.daily-highlight-thumb {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  border-radius: 11px;
-  object-fit: cover;
-}
-
-.daily-highlight-badge {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  background: rgba(255, 209, 102, 0.12);
-  color: #ffd166;
-}
-
-.daily-highlight-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.daily-highlight-text strong {
-  font-size: 0.86rem;
-  font-weight: 620;
-}
-
-.daily-highlight-text em {
-  font-style: normal;
-  font-size: 0.76rem;
-  color: var(--daily-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.daily-tags {
-  font-size: 0.68rem;
-  color: var(--daily-link);
-}
-
-.daily-month-highlights {
-  margin-top: 14px;
-}
-
-.daily-month-highlights ul {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.daily-month-highlight {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  padding: 6px 2px;
-  border: 0;
-  background: none;
-  color: var(--daily-ink);
-  font: inherit;
-  font-size: 0.78rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.daily-month-highlight-date {
-  color: var(--daily-muted);
-  flex: none;
-  width: 62px;
 }
 
 /* ----------------------------------------------------------------- trends */

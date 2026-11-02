@@ -141,19 +141,19 @@ export default function SubscriptionsPage({ api, notify, onSetup }: { api: Money
       <section className="money-block">
         <p className="money-kicker">Subscriptions</p>
         <p className="money-big">{formatEUR(monthlyTotal)} <span className="money-muted">a month</span></p>
-        <p className="money-muted money-small">About {formatEUR(monthlyTotal * 12)} a year. Money leaves your balance only when you confirm a payment.</p>
+        <p className="money-muted money-small">About {formatEUR(monthlyTotal * 12)} a year</p>
         <button type="button" className="money-btn-primary money-add" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>
           {adding ? "Close" : "+ Add Subscription"}
         </button>
         {adding && (
           hasAccount
             ? <AddSubscription api={api} notify={notify} onDone={() => setAdding(false)} />
-            : <p className="money-setup-note">Add an account before adding a subscription, so payments know where to come from. {onSetup && <button type="button" className="money-link" onClick={onSetup}>Set up accounts</button>}</p>
+            : <p className="money-setup-note">Add an account first. {onSetup && <button type="button" className="money-link" onClick={onSetup}>Set up</button>}</p>
         )}
       </section>
 
       {bills.length === 0 && !adding && (
-        <p className="money-muted money-empty">No subscriptions yet. Add the things you pay for regularly, like Cursor, streaming or your phone bill. Groceries and shopping stay under My Spending.</p>
+        <p className="money-muted money-empty">No subscriptions yet.</p>
       )}
 
       {active.length > 0 && (

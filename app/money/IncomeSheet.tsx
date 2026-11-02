@@ -103,7 +103,7 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
           </label>
 
           {accounts.length === 0 ? (
-            <p className="money-muted">Add an account first, so the income has somewhere to land.</p>
+            <p className="money-muted">Add an account first.</p>
           ) : (
             <>
               <div className="money-grid2">

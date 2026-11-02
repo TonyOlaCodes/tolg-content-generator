@@ -111,9 +111,6 @@ export default function OverviewPage({
         <button type="button" className="money-setup-card" onClick={onSetup}>
           <span>
             <strong>{hasAccounts ? "Set up your monthly plan" : "Add your accounts"}</strong>
-            <span className="money-muted">
-              {hasAccounts ? "Add your salary and budget targets in a minute." : "Start with your balances. Takes a minute."}
-            </span>
           </span>
           <span aria-hidden>›</span>
         </button>
@@ -230,7 +227,7 @@ export default function OverviewPage({
               <button type="button" className="money-link" onClick={() => onNavigate("upcoming")}>See all</button>
             </div>
             {bills.length === 0 ? (
-              <p className="money-muted">No recurring bills. Add subscriptions or bills under Upcoming.</p>
+              <p className="money-muted">No upcoming bills.</p>
             ) : (
               <ul className="money-upcoming">
                 {bills.slice(0, 4).map((r) => {

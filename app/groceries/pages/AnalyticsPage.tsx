@@ -33,7 +33,7 @@ export default function AnalyticsPage({ api }: { api: GroceriesApi }) {
           <Metric label="This month" value={monthCents} />
         </div>
         {!hasPurchases && (
-          <p className="gr-muted">No spending yet. Tick items as bought in Shopping and their cost is recorded here.</p>
+          <p className="gr-muted">No spending yet.</p>
         )}
       </section>
 

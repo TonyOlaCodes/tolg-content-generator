@@ -97,11 +97,10 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
       </header>
 
       {!ready ? (
-        <p className="groceries-hint">Opening your local pantry…</p>
+        <p className="groceries-hint">Opening…</p>
       ) : loadError ? (
         <div className="groceries-card">
-          <p>Your pantry could not be opened: {loadError}</p>
-          <p className="groceries-hint">Nothing has been changed. Reload the page to try again.</p>
+          <p>Could not open pantry: {loadError}</p>
         </div>
       ) : (
         <main className="groceries-body">

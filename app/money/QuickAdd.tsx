@@ -166,7 +166,7 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
 
           {accounts.length === 0 && !addingAccount && (
             <div className="money-inline-panel">
-              <p className="money-muted">No accounts yet. Add one to start recording money.</p>
+              <p className="money-muted">No accounts yet.</p>
               <button type="button" className="money-btn-secondary" onClick={() => setAddingAccount(true)}>+ Add account</button>
             </div>
           )}
