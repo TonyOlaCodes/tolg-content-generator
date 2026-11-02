@@ -97,7 +97,7 @@ export default function ForecastPage({ api, onSetup }: { api: MoneyApi; onSetup?
 
         <LineChart points={points} />
         <p className="money-muted money-small">
-          Solid line: confirmed history. Later months are projections based on your plan.
+          History and projected months.
         </p>
       </section>
 
@@ -128,7 +128,6 @@ export default function ForecastPage({ api, onSetup }: { api: MoneyApi; onSetup?
 
       <section className="money-block">
         <p className="money-kicker">What if I spend or save?</p>
-        <p className="money-muted money-small">Preview an extra expense today. It is not saved.</p>
         <div className="money-inline">
           <input inputMode="decimal" aria-label="Hypothetical expense" value={whatIfAmt} placeholder="0.00" onChange={(e) => setWhatIfAmt(e.target.value)} />
           {whatIfAmt && <button type="button" className="money-link" onClick={() => setWhatIfAmt("")}>Clear</button>}

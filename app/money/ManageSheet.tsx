@@ -380,7 +380,6 @@ function MoveForm({
         <span>Amount €</span>
         <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
       </label>
-      <p className="money-muted money-small">Moving money is a transfer, so your total stays the same.</p>
       {(localError || error) && <p className="money-error" role="alert">{localError ?? error}</p>}
       <div className="money-row-actions">
         <button type="button" className="money-btn-secondary" onClick={onCancel}>Cancel</button>

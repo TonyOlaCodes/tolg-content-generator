@@ -10,7 +10,7 @@ import TodayPage from "./TodayPage";
 import HistoryPage from "./HistoryPage";
 import TrendsPage from "./TrendsPage";
 import SettingsPage from "./SettingsPage";
-import { CaloriesSheet, HighlightSheet, QuickLogSheet, SleepSheet, StepsSheet, WaterSheet, WeightSheet } from "./Sheets";
+import { CaloriesSheet, QuickLogSheet, SleepSheet, StepsSheet, WaterSheet, WeightSheet } from "./Sheets";
 import type { DailyApi, PageId, SheetState } from "./api";
 
 const NAV: { id: PageId; label: string; icon: ReactNode }[] = [
@@ -310,9 +310,6 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       {sheet?.kind === "water" ? <WaterSheet api={api} onClose={closeSheet} /> : null}
       {sheet?.kind === "weight" ? <WeightSheet api={api} onClose={closeSheet} /> : null}
       {sheet?.kind === "quicklog" ? <QuickLogSheet api={api} onClose={closeSheet} /> : null}
-      {sheet?.kind === "highlight" ? (
-        <HighlightSheet api={api} highlight={sheet.highlight} onClose={closeSheet} />
-      ) : null}
     </div>
   );
 }

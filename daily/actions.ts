@@ -188,6 +188,42 @@ export function addWater(snapshot: Snapshot, input: { date: string; ml: number }
   return change([{ store: "water", value: entry }]);
 }
 
+/**
+ * Add or remove water for a day. Positive delta appends an entry; negative delta
+ * trims newest entries first. Removing more than remains is a no-op success.
+ */
+export function adjustWater(snapshot: Snapshot, input: { date: string; deltaMl: number }, ctx: Ctx): Result {
+  const delta = round0(input.deltaMl);
+  if (delta === 0) return change([]);
+  if (delta > 0) return addWater(snapshot, { date: input.date, ml: delta }, ctx);
+
+  const dateError = checkDate(input.date, ctx.today);
+  if (dateError) return fail(dateError);
+
+  let remaining = Math.abs(delta);
+  const entries = snapshot.water
+    .filter((w) => w.date === input.date)
+    .sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+      return a.id < b.id ? 1 : -1;
+    });
+  if (entries.length === 0) return change([]);
+
+  const puts: Change["puts"] = [];
+  const deletes: Change["deletes"] = [];
+  for (const entry of entries) {
+    if (remaining <= 0) break;
+    if (entry.ml <= remaining) {
+      deletes.push({ store: "water", key: entry.id });
+      remaining -= entry.ml;
+    } else {
+      puts.push({ store: "water", value: { ...entry, ml: entry.ml - remaining } });
+      remaining = 0;
+    }
+  }
+  return change(puts, deletes);
+}
+
 export function updateWater(snapshot: Snapshot, id: string, ml: number): Result {
   const entry = snapshot.water.find((w) => w.id === id);
   if (!entry) return fail("That water entry no longer exists.");

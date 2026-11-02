@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   addWater,
   addWeight,
+  adjustWater,
   applyChangeLocally,
   deleteHighlight,
   deleteWater,
@@ -153,6 +154,20 @@ assert.equal(restored.water.length, waterSnap.water.length);
 waterSnap = apply(waterSnap, deleteWater(waterSnap, firstWaterId));
 assert.equal(waterTotalForDate(waterSnap, TODAY), 1000);
 assert.ok(addWater(waterSnap, { date: TODAY, ml: 0 }, ctx).ok === false);
+
+// ±250 adjust: subtract trims newest entries; over-subtract is a quiet no-op when empty.
+{
+  let adj = emptySnapshot();
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: 250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 250);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: 250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 500);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 250);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), null, "removing the last glass clears the day");
+  assert.ok(adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx).ok, "subtract with nothing logged stays ok");
+}
 assert.equal(formatWater(250), "250 ml");
 assert.equal(formatWater(3000), "3 L");
 

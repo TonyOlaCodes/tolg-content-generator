@@ -129,7 +129,6 @@ export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m:
                       disabled={busy}
                     />
                   </label>
-                  <p className="money-small money-muted">Saves automatically when you leave the field.</p>
 
                   {pocketChoices.length > 0 && (
                     <label className="money-field">
@@ -171,7 +170,7 @@ export default function BudgetPage({ api, notify }: { api: MoneyApi; notify: (m:
         })}
       </ul>
 
-      {cats.length === 0 && <p className="money-muted">No spending categories yet. Add them in the guided setup.</p>}
+      {cats.length === 0 && <p className="money-muted">No categories yet.</p>}
     </div>
   );
 }

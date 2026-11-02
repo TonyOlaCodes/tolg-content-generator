@@ -1,15 +1,17 @@
 .wx {
-  --wx-bg: #0d1424;
-  --wx-card: rgba(255, 255, 255, 0.08);
-  --wx-border: rgba(255, 255, 255, 0.14);
-  --wx-text: #f4f7ff;
-  --wx-muted: #a9b6d1;
-  --wx-accent: #7cc7ff;
-  --wx-focus: #ffd166;
+  --wx-bg: #07070a;
+  --wx-card: rgba(255, 255, 255, 0.035);
+  --wx-border: rgba(255, 255, 255, 0.08);
+  --wx-text: #f2f0ea;
+  --wx-muted: #8b8794;
+  --wx-accent: #9aa7b8;
+  --wx-focus: #c9b896;
   min-height: 100dvh;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   color: var(--wx-text);
-  background: linear-gradient(180deg, #13203a 0%, var(--wx-bg) 60%);
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(154, 167, 184, 0.1), transparent 70%),
+    var(--wx-bg);
   transition: background 0.6s ease;
 }
 .wx[data-wx="clear"] { background: linear-gradient(180deg, #1f5fa8 0%, #0d1f3d 70%); }
@@ -29,7 +31,13 @@
 .wx a:focus-visible { outline: 3px solid var(--wx-focus); outline-offset: 2px; }
 
 .wx-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
-.wx-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+.wx-title {
+  margin: 0;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
 .wx-back { color: var(--wx-accent); background: none; border: none; font: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; }
 .wx-spacer { min-width: 44px; }
 

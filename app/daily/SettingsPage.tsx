@@ -4,15 +4,14 @@ import { useState, type ReactNode } from "react";
 import { saveSettings, type Result } from "@/daily/actions";
 import { exportSnapshot, validateBackup } from "@/daily/backup";
 import { todayKey } from "@/daily/date";
-import { formatWater, formatWeight, kgToUnit, unitToKg } from "@/daily/format";
+import { kgToUnit, unitToKg } from "@/daily/format";
 import { CHART_PERIODS, EMPTY_SNAPSHOT, METRIC_META, settingsOf, type MetricKey } from "@/daily/model";
 import { parseDecimal, parseWhole, type DailyApi } from "./api";
 
-function Section({ title, children, hint }: { title: string; children: ReactNode; hint?: string }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="daily-settings-section">
       <h2>{title}</h2>
-      {hint ? <p className="daily-hint">{hint}</p> : null}
       {children}
     </section>
   );
@@ -137,14 +136,11 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
   const stepCount = api.snap.days.length;
   const weighInCount = api.snap.weights.length;
   const waterCount = api.snap.water.length;
-  const highlightCount = api.snap.highlights.length;
-
   return (
     <div className="daily-page">
       <header className="daily-hero">
         <p className="daily-eyebrow">Settings</p>
         <h1 className="daily-hero-title">Preferences</h1>
-        <p className="daily-hero-date">Goals, display and your local data.</p>
       </header>
 
       {error ? (
@@ -153,9 +149,9 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
         </p>
       ) : null}
 
-      <Section title="Daily goals" hint="You can change these any time. Calories are optional.">
+      <Section title="Goals">
         <label className="daily-field">
-          <span>Step goal</span>
+          <span>Steps</span>
           <span className="daily-input-wrap">
             <input
               className="daily-input"
@@ -168,13 +164,13 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
           </span>
         </label>
         <label className="daily-field">
-          <span>Calorie goal (leave blank for none)</span>
+          <span>Calories</span>
           <span className="daily-input-wrap">
             <input
               className="daily-input"
               type="text"
               inputMode="numeric"
-              placeholder="No goal"
+              placeholder="None"
               value={calorieGoal}
               onChange={(event) => setCalorieGoal(event.target.value)}
             />
@@ -182,7 +178,7 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
           </span>
         </label>
         <label className="daily-field">
-          <span>Water goal</span>
+          <span>Water</span>
           <span className="daily-input-wrap">
             <input
               className="daily-input"
@@ -194,24 +190,20 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             <em className="daily-input-suffix">ml</em>
           </span>
         </label>
-        <p className="daily-hint">Currently {formatWater(settings.waterGoalMl)} per day.</p>
         <label className="daily-field">
-          <span>Weight goal (optional)</span>
+          <span>Weight</span>
           <span className="daily-input-wrap">
             <input
               className="daily-input"
               type="text"
               inputMode="decimal"
-              placeholder="No goal"
+              placeholder="None"
               value={weightGoal}
               onChange={(event) => setWeightGoal(event.target.value)}
             />
             <em className="daily-input-suffix">{settings.weightUnit}</em>
           </span>
         </label>
-        <p className="daily-hint">
-          Shown as a dashed line on the weight chart. {settings.weightGoalKg !== null ? `Currently ${formatWeight(settings.weightGoalKg, settings.weightUnit)}.` : "No goal set."}
-        </p>
         <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void saveGoals()}>
           Save goals
         </button>
@@ -229,13 +221,13 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
                 aria-pressed={settings.weightUnit === unit}
                 onClick={() => changeUnit(unit)}
               >
-                {unit === "kg" ? "Kilograms" : "Pounds"}
+                {unit}
               </button>
             ))}
           </div>
         </div>
         <div className="daily-settings-row">
-          <span>Default chart period</span>
+          <span>Chart period</span>
           <div className="daily-seg is-wrap" role="group" aria-label="Default chart period">
             {CHART_PERIODS.map((option) => (
               <button
@@ -250,17 +242,9 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             ))}
           </div>
         </div>
-        <div className="daily-settings-row">
-          <span>Theme</span>
-          <span className="daily-settings-value">DetailFlows dark</span>
-        </div>
-        <p className="daily-hint">Theme follows your existing DetailFlows appearance. Times use 24-hour format.</p>
       </Section>
 
-      <Section
-        title="Metric cards"
-        hint="Reorder cards with the arrows. Hidden cards keep all of their stored data. Today keeps empty and in-progress cards in your order, and only moves fully completed ones to the bottom."
-      >
+      <Section title="Cards">
         <ul className="daily-order-list">
           {settings.metricOrder.map((metric, index) => {
             const hidden = settings.hiddenMetrics.includes(metric);
@@ -303,25 +287,17 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
         </ul>
       </Section>
 
-      <Section
-        title="Your data"
-        hint="Everything is stored in this browser with IndexedDB. There is no account requirement and nothing is sent to a server."
-      >
+      <Section title="Data">
         <div className="daily-data-counts">
           <span>{stepCount} days</span>
           <span>{weighInCount} weigh-ins</span>
-          <span>{waterCount} water entries</span>
-          <span>{highlightCount} highlights</span>
-        </div>
-        <div className="daily-warning">
-          Clearing your browser&apos;s site data, using a private window or uninstalling the app can erase all of this. Export a backup
-          regularly — highlight photos are included in the file, so it can be large.
+          <span>{waterCount} water</span>
         </div>
         <button type="button" className="daily-btn-primary" onClick={download}>
-          Export JSON backup
+          Export backup
         </button>
         <label className="daily-field">
-          <span>Restore from a backup</span>
+          <span>Restore</span>
           <input
             className="daily-file"
             type="file"
@@ -334,23 +310,10 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             }}
           />
         </label>
-        <p className="daily-hint">
-          Cloud sync is not enabled yet. The storage layer is ready for an optional account-based sync later, but for now this device is
-          the only copy.
-        </p>
         <button type="button" className="daily-btn-danger" disabled={busy} onClick={() => void erase()}>
-          Erase all data on this device
+          Erase all data
         </button>
       </Section>
-
-      <Section title="Separate trackers" hint="Gym sessions and groceries stay in their own apps. Daily Tracker only reads the five metrics above.">
-        <p className="daily-hint">
-          When a Gym Tracker is available it can be linked here as a small read-only summary. Nothing from it is duplicated or logged
-          inside this app.
-        </p>
-      </Section>
-
-      <p className="daily-footnote">Daily Tracker · local-first · no reminders, notifications or health-kit access.</p>
     </div>
   );
 }

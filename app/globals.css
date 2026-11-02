@@ -1,30 +1,31 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+  --font-sans: var(--font-instrument-sans), "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 :root {
-  --bg: #0d0b14;
-  --bg-2: #16121f;
-  --panel: rgba(255, 255, 255, 0.055);
-  --panel-strong: rgba(255, 255, 255, 0.1);
-  --border: rgba(255, 255, 255, 0.12);
-  --text: #f7f4ee;
-  --muted: #a49fb2;
-  --accent: #ffd166;
-  --accent-2: #ff8ad8;
-  --staff: #4dd4ff;
-  --imposter: #ff6b8a;
-  --good: #63e6be;
-  --warn: #ffb347;
-  --bad: #ff7a90;
+  --bg: #07070a;
+  --bg-2: #111117;
+  --panel: rgba(255, 255, 255, 0.035);
+  --panel-strong: rgba(255, 255, 255, 0.065);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f2f0ea;
+  --muted: #8b8794;
+  --accent: #c9b896;
+  --accent-2: #9aa7b8;
+  --staff: #7eb8d4;
+  --imposter: #d9899a;
+  --good: #7dcfb6;
+  --warn: #d4a574;
+  --bad: #d9899a;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  --radius: 14px;
+  --font-display: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
   color-scheme: dark;
 }
 
@@ -43,14 +44,14 @@ body {
 
 body {
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-instrument-sans), "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   background-color: var(--bg);
   background-image:
-    radial-gradient(48rem 32rem at 8% -10%, rgba(255, 209, 102, 0.16), transparent 60%),
-    radial-gradient(46rem 30rem at 100% 0%, rgba(255, 138, 216, 0.16), transparent 55%),
-    radial-gradient(40rem 28rem at 50% 120%, rgba(77, 212, 255, 0.12), transparent 60%);
+    radial-gradient(42rem 28rem at 50% -18%, rgba(201, 184, 150, 0.09), transparent 68%),
+    radial-gradient(36rem 26rem at 100% 110%, rgba(120, 140, 165, 0.07), transparent 62%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
 }
 
 button {
@@ -61,7 +62,13 @@ h1,
 h2,
 h3 {
   margin: 0 0 0.35rem;
-  line-height: 1.15;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+h1 {
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-weight: 400;
 }
 
 p {

@@ -8,7 +8,6 @@ import {
   buildInsights,
   goalStats,
   periodDates,
-  periodStart,
   seriesForMetric,
   standardDeviation,
   weightStats,
@@ -48,19 +47,15 @@ function TrendSection({
         <h2>{title}</h2>
         <span className="daily-trend-dot" style={{ background: meta.accent }} aria-hidden />
       </div>
-      {empty ? <p className="daily-hint">Nothing logged in this range yet. Missing days are never counted as zero.</p> : children}
+      {empty ? <p className="daily-empty">No data</p> : children}
     </section>
   );
 }
 
 function BucketStats({ buckets }: { buckets: Bucket[] }) {
   const logged = buckets.filter((b) => b.value !== null).length;
-  return (
-    <p className="daily-hint">
-      {logged === 1 ? "1 period with data" : `${logged} periods with data`}
-      {buckets.some((b) => b.value === null) ? " · empty periods are left blank" : ""}
-    </p>
-  );
+  if (logged === 0) return null;
+  return <p className="daily-meta-line">{logged === 1 ? "1 period" : `${logged} periods`}</p>;
 }
 
 export default function TrendsPage({ api }: { api: DailyApi }) {
@@ -127,7 +122,7 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
       <header className="daily-hero">
         <p className="daily-eyebrow">Trends</p>
         <h1 className="daily-hero-title">Progress</h1>
-        <p className="daily-hero-date">Averages, trends and goal completion {rangePhrase}.</p>
+        <p className="daily-hero-date">{rangePhrase}</p>
       </header>
 
       <div className="daily-period-chips" role="tablist" aria-label="Chart period">
@@ -215,17 +210,12 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
             </>
           ) : null}
         </p>
-        {api.settings.weightGoalKg !== null ? (
-          <p className="daily-hint">
-            Goal line at {formatWeight(api.settings.weightGoalKg, api.settings.weightUnit)} · change it in Settings.
-          </p>
-        ) : null}
         <div className="daily-stats">
           <Stat label="Latest" value={weight.latest ? formatWeight(weight.latest.kg, api.settings.weightUnit) : "—"} hint={weight.latest ? shortDate(weight.latest.date, true) : undefined} />
           <Stat
             label="Change"
             value={weight.changeKg === null ? "—" : formatWeightChange(weight.changeKg, api.settings.weightUnit)}
-            hint={weight.changeKg === null ? "needs two weigh-ins" : `${weight.count} weigh-ins`}
+            hint={weight.count ? `${weight.count}` : undefined}
           />
           <Stat label="Average" value={weight.count ? formatWeight(average(weight.measurements.map((m) => m.kg)) ?? 0, api.settings.weightUnit) : "—"} />
         </div>
@@ -274,8 +264,12 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
           <Stat label="Days logged" value={`${calorieValues.length}`} />
           <Stat
             label="Goal"
-            value={api.settings.calorieGoal === null ? "Not set" : `${formatInt(api.settings.calorieGoal)} kcal`}
-            hint={calorieAvg === null || api.settings.calorieGoal === null ? "optional" : `avg ${calorieAvg > api.settings.calorieGoal ? "+" : "−"}${formatInt(Math.abs(calorieAvg - api.settings.calorieGoal))} kcal`}
+            value={api.settings.calorieGoal === null ? "—" : `${formatInt(api.settings.calorieGoal)}`}
+            hint={
+              calorieAvg !== null && api.settings.calorieGoal !== null
+                ? `avg ${calorieAvg > api.settings.calorieGoal ? "+" : "−"}${formatInt(Math.abs(calorieAvg - api.settings.calorieGoal))}`
+                : undefined
+            }
           />
         </div>
       </TrendSection>
@@ -289,12 +283,8 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
         />
         <div className="daily-stats">
           <Stat label="Average" value={sleepAvg === null ? "—" : formatDuration(sleepAvg)} />
-          <Stat label="Nights logged" value={`${sleepValues.length}`} />
-          <Stat
-            label="Consistency"
-            value={sleepSd === null ? "—" : `±${Math.round(sleepSd)} min`}
-            hint={sleepSd === null ? "needs two nights" : "spread of sleep duration"}
-          />
+          <Stat label="Nights" value={`${sleepValues.length}`} />
+          <Stat label="Spread" value={sleepSd === null ? "—" : `±${Math.round(sleepSd)}m`} />
         </div>
       </TrendSection>
 
@@ -332,10 +322,6 @@ export default function TrendsPage({ api }: { api: DailyApi }) {
         ) : null}
       </TrendSection>
 
-      <p className="daily-footnote">
-        Averages use only recorded values, and analytics never start before your first logged day. Empty days are gaps, not zeros. This range
-        starts {shortDate(periodStart(api.snap, period, api.today), true)}.
-      </p>
     </div>
   );
 }

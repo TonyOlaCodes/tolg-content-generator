@@ -5,14 +5,14 @@
  */
 
 .daily {
-  --daily-night: #0a0812;
-  --daily-card: rgba(255, 255, 255, 0.055);
-  --daily-card-2: rgba(255, 255, 255, 0.085);
-  --daily-line: rgba(255, 255, 255, 0.09);
-  --daily-ink: #f4f2fb;
-  --daily-muted: #a6a0b6;
-  --daily-link: #9bd7ff;
-  --daily-accent: #7cc7ff;
+  --daily-night: #07070a;
+  --daily-card: rgba(255, 255, 255, 0.03);
+  --daily-card-2: rgba(255, 255, 255, 0.055);
+  --daily-line: rgba(255, 255, 255, 0.08);
+  --daily-ink: #f2f0ea;
+  --daily-muted: #8b8794;
+  --daily-link: #c9b896;
+  --daily-accent: #c9b896;
   min-height: 100dvh;
   max-width: 100%;
   overflow-x: hidden;
@@ -21,9 +21,7 @@
   -webkit-font-smoothing: antialiased;
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(42rem 30rem at 12% -12%, rgba(124, 199, 255, 0.16), transparent 62%),
-    radial-gradient(38rem 26rem at 104% 4%, rgba(167, 139, 250, 0.14), transparent 60%),
-    radial-gradient(34rem 26rem at 50% 112%, rgba(77, 212, 255, 0.1), transparent 62%),
+    radial-gradient(40rem 26rem at 50% -16%, rgba(201, 184, 150, 0.08), transparent 70%),
     var(--daily-night);
 }
 
@@ -95,8 +93,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #63e6be;
-  box-shadow: 0 0 8px rgba(99, 230, 190, 0.7);
+  background: #7dcfb6;
+  box-shadow: none;
 }
 
 .daily-body {
@@ -141,9 +139,10 @@
 
 .daily-hero-title {
   margin: 0;
-  font-size: clamp(1.65rem, 7vw, 2.15rem);
-  font-weight: 720;
-  letter-spacing: -0.035em;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: clamp(1.85rem, 7.5vw, 2.35rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
   line-height: 1.05;
 }
 
@@ -158,18 +157,18 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 44px;
-  padding: 0 16px;
+  min-height: 40px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 0;
-  background: linear-gradient(135deg, #9bd7ff, #bfa8ff);
-  color: #071018;
+  border: 1px solid rgba(201, 184, 150, 0.35);
+  background: rgba(201, 184, 150, 0.12);
+  color: #e8dcc4;
   font: inherit;
-  font-size: 0.86rem;
-  font-weight: 720;
+  font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 12px 24px -14px rgba(155, 215, 255, 0.9);
-  transition: transform 120ms ease;
+  box-shadow: none;
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 .daily-quicklog svg {
@@ -286,7 +285,7 @@
 .daily-summary-dot.is-on {
   background: var(--daily-accent);
   border-color: transparent;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--daily-accent) 70%, transparent);
+  box-shadow: none;
 }
 
 .daily-summary-missing {
@@ -321,31 +320,30 @@
 .daily-card {
   position: relative;
   min-width: 0;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid var(--daily-line);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+  background: rgba(255, 255, 255, 0.028);
   overflow: hidden;
-  box-shadow: 0 14px 30px -24px rgba(0, 0, 0, 0.9);
+  box-shadow: none;
 }
 
 .daily-card.is-wide {
   grid-column: 1 / -1;
 }
 
-/* Missing data is deliberately obvious: dashed accent edge, brighter Add. */
 .daily-card.is-empty {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--daily-accent) 34%, var(--daily-line));
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .daily-card.is-empty .daily-card-missing {
-  color: color-mix(in srgb, var(--daily-accent) 78%, #ffffff);
-  font-weight: 620;
+  color: var(--daily-muted);
+  font-weight: 500;
 }
 
 /* Only fully finished cards sink to the bottom and get a check mark. */
 .daily-card.is-done {
-  opacity: 0.94;
+  opacity: 0.92;
 }
 
 .daily-card.is-done .daily-card-chevron {
@@ -354,43 +352,39 @@
 
 .daily-card-state {
   margin-left: auto;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex: none;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(99, 230, 190, 0.14);
-  color: #8fe3c6;
+  background: rgba(125, 207, 182, 0.12);
+  color: #7dcfb6;
 }
 
 .daily-card-state svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   display: block;
 }
 
 .daily-card-state.is-progress {
   width: auto;
   min-width: 0;
-  height: 22px;
+  height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(255, 201, 120, 0.16);
-  color: #ffc978;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  background: rgba(201, 184, 150, 0.1);
+  color: #c9b896;
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .daily-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(20rem 11rem at 0% 0%, color-mix(in srgb, var(--daily-accent) 14%, transparent), transparent 72%);
+  content: none;
 }
 
 .daily-card-tap {
@@ -522,10 +516,10 @@
   flex: 1;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: 13px;
-  border: 1px solid rgba(77, 212, 255, 0.24);
-  background: rgba(77, 212, 255, 0.12);
-  color: #c6edff;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--daily-ink);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 650;
@@ -537,9 +531,16 @@
   transform: scale(0.97);
 }
 
+.daily-quick:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .daily-quick-small {
   min-height: 36px;
-  font-size: 0.76rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .daily-spark {
@@ -645,7 +646,7 @@
   height: 100%;
   border-radius: 999px;
   transition: width 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  box-shadow: 0 0 12px -2px rgba(255, 255, 255, 0.35);
+  box-shadow: none;
 }
 
 .daily-progress.is-over > span {

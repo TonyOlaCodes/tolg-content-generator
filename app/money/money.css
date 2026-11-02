@@ -5,6 +5,23 @@
   color: var(--text);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(201, 184, 150, 0.07), transparent 70%),
+    var(--bg);
+}
+.money .money-title,
+.money .money-balance,
+.money .money-total,
+.money .money-big {
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+.money-panel,
+.money-stat {
+  border: 1px solid var(--border);
+  box-shadow: none;
+  border-radius: var(--radius);
 }
 .money-top {
   position: sticky;

@@ -1,6 +1,6 @@
 "use client";
 
-import { addWater } from "@/daily/actions";
+import { adjustWater } from "@/daily/actions";
 import {
   currentStreak,
   dayMetrics,
@@ -116,21 +116,14 @@ function Card({
             </span>
           ) : status === "progress" ? (
             <span className="daily-card-state is-progress" aria-hidden>
-              In progress
+              Started
             </span>
           ) : (
             <span className="daily-card-chevron" aria-hidden>›</span>
           )}
         </span>
         <span className="daily-card-value">
-          {empty ? (
-            <>
-              <span className="daily-card-missing">Not logged</span>
-              <span className="daily-card-add">{addLabel}</span>
-            </>
-          ) : (
-            value
-          )}
+          {empty ? <span className="daily-card-missing">—</span> : value}
         </span>
         {children}
       </button>
@@ -148,31 +141,22 @@ function StepsCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       metric="steps"
       wide={wide}
       label="Steps"
-      value={view.steps === null ? "Not logged" : `${formatInt(view.steps)} steps`}
+      value={view.steps === null ? "—" : `${formatInt(view.steps)}`}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "steps" })}
     >
       <div className="daily-steps-body">
-        <ProgressRing percent={percent} color={METRIC_META.steps.ring} size={94} stroke={9}>
+        <ProgressRing percent={percent} color={METRIC_META.steps.ring} size={88} stroke={7}>
           <span className="daily-ring-number">{percent === null ? "—" : formatPercent(percent)}</span>
-          <span className="daily-ring-caption">of goal</span>
         </ProgressRing>
         <div className="daily-steps-info">
-          <p className="daily-steps-goal">
-            {view.steps === null ? `${formatInt(goal)} goal` : `${formatInt(goal)} goal`}
-          </p>
-          <p className="daily-steps-note">
-            {view.steps === null
-              ? "Tap to add today's total"
-              : remaining === 0
-                ? "Goal reached — nice work"
-                : `${formatInt(remaining ?? 0)} steps to go`}
-          </p>
-          <ProgressBar percent={percent} color={METRIC_META.steps.ring} label="Steps goal progress" />
-          <p className="daily-steps-foot">
-            {view.steps === null ? "Missing is not zero" : `${formatPercent(percent ?? 0)} completed`}
-          </p>
+          <p className="daily-steps-goal">{formatInt(goal)} goal</p>
+          {remaining !== null ? (
+            <p className="daily-steps-note">
+              {remaining === 0 ? "Goal reached" : `${formatInt(remaining)} left`}
+            </p>
+          ) : null}
         </div>
       </div>
     </Card>
@@ -200,7 +184,7 @@ function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetri
       metric="weight"
       wide={wide}
       label="Weight"
-      value={dayEntry !== null ? formatWeight(dayEntry, unit) : "Not logged"}
+      value={dayEntry !== null ? formatWeight(dayEntry, unit) : "—"}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "weight" })}
@@ -208,18 +192,17 @@ function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetri
       <span className="daily-card-meta">
         {dayEntry !== null ? (
           <>
-            <span>Weighed this day</span>
             {change !== null ? (
               <span className={`daily-delta ${change > 0 ? "is-up" : change < 0 ? "is-down" : ""}`}>
                 {formatWeightChange(change, unit)} / 30d
               </span>
-            ) : null}
+            ) : (
+              <span>Today</span>
+            )}
           </>
         ) : latest ? (
           <span>Last {shortDate(latest.date)} · {formatWeight(latest.kg, unit)}</span>
-        ) : (
-          <span>Weigh in whenever you like</span>
-        )}
+        ) : null}
         {goalNote ? <span className="daily-goal-note">{goalNote}</span> : null}
       </span>
       <Sparkline points={spark} color={METRIC_META.weight.ring} />
@@ -235,28 +218,22 @@ function CaloriesCard({ api, view, wide, status }: { api: DailyApi; view: DayMet
       metric="calories"
       wide={wide}
       label="Calories"
-      value={view.calories === null ? "Not logged" : formatCalories(view.calories)}
+      value={view.calories === null ? "—" : formatCalories(view.calories)}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "calories" })}
     >
       {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.calories.ring} label="Calorie goal progress" /> : null}
-      <span className="daily-card-meta">
-        {view.calories === null ? (
-          <span>One total per day</span>
-        ) : goal === null ? (
-          <span>No goal set · optional</span>
-        ) : (
-          <>
-            <span>
-              {formatInt(view.calories)} / {formatInt(goal)} kcal
-            </span>
-            <span className={view.calories > goal ? "daily-delta is-up" : "daily-delta"}>
-              {view.calories > goal ? `+${formatInt(view.calories - goal)}` : `${formatInt(goal - view.calories)} left`}
-            </span>
-          </>
-        )}
-      </span>
+      {view.calories !== null && goal !== null ? (
+        <span className="daily-card-meta">
+          <span>
+            {formatInt(view.calories)} / {formatInt(goal)}
+          </span>
+          <span className={view.calories > goal ? "daily-delta is-up" : "daily-delta"}>
+            {view.calories > goal ? `+${formatInt(view.calories - goal)}` : `${formatInt(goal - view.calories)} left`}
+          </span>
+        </span>
+      ) : null}
     </Card>
   );
 }
@@ -275,25 +252,22 @@ function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       metric="sleep"
       wide={wide}
       label="Sleep"
-      value={view.sleepMinutes === null ? "Not logged" : formatDuration(view.sleepMinutes)}
+      value={view.sleepMinutes === null ? "—" : formatDuration(view.sleepMinutes)}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "sleep" })}
     >
-      <span className="daily-card-meta">
-        {weekAvg === null ? (
-          <span>Hours and minutes</span>
-        ) : (
-          <>
-            <span>7-day avg {formatDuration(weekAvg)}</span>                {view.sleepMinutes !== null && Math.abs(view.sleepMinutes - weekAvg) >= 5 ? (
-              <span className="daily-delta">
-                {view.sleepMinutes >= weekAvg ? "+" : "−"}
-                {formatDuration(Math.abs(view.sleepMinutes - weekAvg))}
-              </span>
-            ) : null}
-          </>
-        )}
-      </span>
+      {weekAvg !== null ? (
+        <span className="daily-card-meta">
+          <span>Avg {formatDuration(weekAvg)}</span>
+          {view.sleepMinutes !== null && Math.abs(view.sleepMinutes - weekAvg) >= 5 ? (
+            <span className="daily-delta">
+              {view.sleepMinutes >= weekAvg ? "+" : "−"}
+              {formatDuration(Math.abs(view.sleepMinutes - weekAvg))}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </Card>
   );
 }
@@ -301,46 +275,52 @@ function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
 function WaterCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
   const goal = api.settings.waterGoalMl;
   const percent = view.waterMl === null ? null : (view.waterMl / goal) * 100;
-  const quick = (ml: number) => {
-    void api.commit(addWater(api.snap, { date: api.selected, ml }, uiCtx(api.today)), `Added ${formatWater(ml)}`);
+  const canSubtract = (view.waterMl ?? 0) > 0;
+  const quick = (deltaMl: number) => {
+    const label = deltaMl > 0 ? `+${formatWater(deltaMl)}` : `−${formatWater(Math.abs(deltaMl))}`;
+    void api.commit(
+      adjustWater(api.snap, { date: api.selected, deltaMl }, uiCtx(api.today)),
+      label,
+    );
   };
   return (
     <Card
       metric="water"
       wide={wide}
       label="Water"
-      value={view.waterMl === null ? "Not logged" : `${formatWater(view.waterMl)} of ${formatWater(goal)}`}
+      value={view.waterMl === null ? "—" : `${formatWater(view.waterMl)} / ${formatWater(goal)}`}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "water" })}
       footer={
         <div className="daily-card-quick">
-          {[250, 500].map((ml) => (
-            <button
-              key={ml}
-              type="button"
-              className="daily-quick daily-quick-small"
-              onClick={() => quick(ml)}
-              aria-label={`Add ${ml} millilitres of water`}
-            >
-              +{ml} ml
-            </button>
-          ))}
           <button
             type="button"
             className="daily-quick daily-quick-small"
-            onClick={() => api.openSheet({ kind: "water" })}
+            disabled={!canSubtract}
+            onClick={() => quick(-250)}
+            aria-label="Remove 250 millilitres of water"
           >
-            More
+            −250
+          </button>
+          <button
+            type="button"
+            className="daily-quick daily-quick-small"
+            onClick={() => quick(250)}
+            aria-label="Add 250 millilitres of water"
+          >
+            +250
           </button>
         </div>
       }
     >
       <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water goal progress" />
-      <span className="daily-card-meta">
-        <span>{percent === null ? "Tap to log your first glass" : `${formatPercent(percent)} of goal`}</span>
-        {view.waterMl !== null ? <span>{formatWater(Math.max(0, goal - view.waterMl))} left</span> : null}
-      </span>
+      {view.waterMl !== null ? (
+        <span className="daily-card-meta">
+          <span>{formatPercent(percent ?? 0)}</span>
+          <span>{formatWater(Math.max(0, goal - view.waterMl))} left</span>
+        </span>
+      ) : null}
     </Card>
   );
 }
@@ -350,7 +330,6 @@ export default function TodayPage({ api }: { api: DailyApi }) {
   const view = dayMetrics(api.snap, api.selected);
   const metrics = visibleMetrics(settings);
   const streak = currentStreak(api.snap, api.today);
-  const dayHighlights = api.snap.highlights.filter((h) => h.date === api.selected);
 
   const statusFor = (metric: MetricKey): CardStatus => metricCardStatus(metric, view, settings);
   // Only finished cards sink to the bottom. Empty and in-progress keep the user's order together.
@@ -470,37 +449,6 @@ export default function TodayPage({ api }: { api: DailyApi }) {
       </header>
 
       <div className="daily-metric-grid">{sortedMetrics.map(renderCard)}</div>
-
-      <section className="daily-highlight-strip">
-        <div className="daily-highlight-strip-head">
-          <span>Highlights</span>
-          <button type="button" className="daily-link" onClick={() => api.openSheet({ kind: "highlight", highlight: null })}>
-            {dayHighlights.length ? "Add another" : "Add a highlight"}
-          </button>
-        </div>
-        {dayHighlights.length === 0 ? (
-          <p className="daily-hint">Optional — save a milestone when you feel like it. Never required.</p>
-        ) : (
-          <ul className="daily-highlight-mini-list">
-            {dayHighlights.map((highlight) => (
-              <li key={highlight.id}>
-                <button
-                  type="button"
-                  className="daily-highlight-mini"
-                  onClick={() => api.openSheet({ kind: "highlight", highlight })}
-                >
-                  <span className="daily-highlight-star" aria-hidden>★</span>
-                  <span>{highlight.title}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <p className="daily-footnote">
-        Data is stored in this browser only. Open Settings to export a backup or adjust your goals.
-      </p>
     </div>
   );
 }

@@ -52,7 +52,7 @@ export function Donut({ slices, emptyLabel }: { slices: Slice[]; emptyLabel: str
 
 /** Accessible SVG line chart of cumulative money over time. Points are real confirmed history only. */
 export function LineChart({ points }: { points: { date: string; cents: number }[] }) {
-  if (points.length < 2) return <p className="money-muted">Balance history appears after your first confirmed transaction.</p>;
+  if (points.length < 2) return <p className="money-muted">No history yet.</p>;
   const w = 320;
   const h = 120;
   const values = points.map((p) => p.cents);

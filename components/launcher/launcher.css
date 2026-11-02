@@ -32,9 +32,10 @@
 
 .launcher-greeting {
   margin: 0;
-  font-size: clamp(1.7rem, 6vw, 2.4rem);
-  font-weight: 750;
-  letter-spacing: -0.025em;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: clamp(1.9rem, 6.5vw, 2.6rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
 }
 
 .launcher-search {
@@ -72,8 +73,8 @@
 }
 
 .launcher-search-input:focus {
-  border-color: rgba(255, 209, 102, 0.55);
-  box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.14);
+  border-color: rgba(201, 184, 150, 0.45);
+  box-shadow: 0 0 0 3px rgba(201, 184, 150, 0.12);
 }
 
 .launcher-search-input::-webkit-search-cancel-button {

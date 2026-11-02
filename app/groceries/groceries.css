@@ -1,12 +1,14 @@
 /* Groceries & Pantry. Dark, iPhone-style, built on the DetailFlows tokens in globals.css. */
 .groceries {
-  --gr-accent: #86efac;
-  --gr-accent-deep: #15803d;
-  --gr-card: rgba(255, 255, 255, 0.06);
-  --gr-card-hi: rgba(255, 255, 255, 0.1);
-  --gr-line: rgba(255, 255, 255, 0.1);
+  --gr-accent: #9fc4a8;
+  --gr-accent-deep: #3f6b4c;
+  --gr-card: rgba(255, 255, 255, 0.035);
+  --gr-card-hi: rgba(255, 255, 255, 0.06);
+  --gr-line: rgba(255, 255, 255, 0.08);
   min-height: 100dvh;
-  background: radial-gradient(120% 60% at 50% 0%, #17231b 0%, var(--bg) 60%);
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(159, 196, 168, 0.08), transparent 70%),
+    var(--bg);
   color: var(--text);
   font-size: 15px;
   padding-bottom: calc(86px + var(--safe-bottom));
@@ -26,7 +28,13 @@
   border-bottom: 1px solid var(--gr-line);
 }
 .groceries-top > :last-child { justify-self: end; }
-.groceries-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.groceries-title {
+  margin: 0;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
 .groceries-back {
   justify-self: start;
   background: none;

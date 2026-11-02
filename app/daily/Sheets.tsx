@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   addWater,
   addWeight,
+  adjustWater,
   deleteHighlight,
   deleteWater,
   deleteWeight,
@@ -142,7 +143,17 @@ function NumberField({
   );
 }
 
-function MetricHeader({ metric, value, sub, percent }: { metric: keyof typeof METRIC_META; value: string; sub: string; percent?: number | null }) {
+function MetricHeader({
+  metric,
+  value,
+  sub,
+  percent,
+}: {
+  metric: keyof typeof METRIC_META;
+  value: string;
+  sub?: string;
+  percent?: number | null;
+}) {
   const meta = METRIC_META[metric];
   return (
     <div className="daily-sheet-metric">
@@ -151,7 +162,7 @@ function MetricHeader({ metric, value, sub, percent }: { metric: keyof typeof ME
       </ProgressRing>
       <div>
         <p className="daily-sheet-kicker">{meta.label}</p>
-        <p className="daily-sheet-sub">{sub}</p>
+        {sub ? <p className="daily-sheet-sub">{sub}</p> : null}
       </div>
     </div>
   );
@@ -300,10 +311,10 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         value={hasEntry ? day!.calories!.toLocaleString() : "—"}
         sub={
           goalValue === null
-            ? "No daily goal set — optional"
+            ? undefined
             : percent !== null
-              ? `${Math.round(percent)}% of ${goalValue.toLocaleString()} kcal goal`
-              : `Goal ${goalValue.toLocaleString()} kcal`
+              ? `${Math.round(percent)}% of ${goalValue.toLocaleString()}`
+              : `Goal ${goalValue.toLocaleString()}`
         }
         percent={percent}
       />
@@ -438,16 +449,25 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
             <span> / {formatWater(goal)}</span>
           </p>
         </div>
-        <p className="daily-water-percent">{percent === null ? "No entries yet" : `${Math.round(percent)}%`}</p>
+        <p className="daily-water-percent">{percent === null ? "—" : `${Math.round(percent)}%`}</p>
       </div>
       <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water progress" />
 
       <div className="daily-quick-row">
-        {[250, 500, 1000].map((ml) => (
-          <button key={ml} type="button" className="daily-quick" disabled={busy} onClick={() => void add(ml)}>
-            +{ml >= 1000 ? `${ml / 1000} L` : `${ml} ml`}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="daily-quick"
+          disabled={busy || (total ?? 0) <= 0}
+          onClick={() => {
+            const result = adjustWater(api.snap, { date, deltaMl: -250 }, uiCtx(api.today));
+            void run(() => api.commit(result, "−250 ml"));
+          }}
+        >
+          −250
+        </button>
+        <button type="button" className="daily-quick" disabled={busy} onClick={() => void add(250)}>
+          +250
+        </button>
       </div>
       <div className="daily-grid2">
         <NumberField
