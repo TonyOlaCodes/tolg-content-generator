@@ -5,6 +5,7 @@ import { saveAccount, saveCategory, saveRecurring, defaultCtx, type RecurringInp
 import { ACCOUNT_KINDS, type AccountKind } from "@/money/types";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
 import type { MoneyApi } from "./MoneyApp";
+import { SheetPortal } from "./SheetPortal";
 
 const STEPS = ["Accounts", "Salary", "Plan"] as const;
 const SUGGESTED: Record<string, number> = { Food: 30000, Transport: 25000, Subscriptions: 25000, Discretionary: 25000 };
@@ -45,6 +46,7 @@ export function SetupSheet({ api, onClose, notify }: { api: MoneyApi; onClose: (
   }, [onClose]);
 
   return (
+    <SheetPortal>
     <div className="money-sheet-backdrop" role="presentation" onClick={finish}>
       <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Guided setup" onClick={(e) => e.stopPropagation()}>
         <div className="money-sheet-grip" aria-hidden />
@@ -64,6 +66,7 @@ export function SetupSheet({ api, onClose, notify }: { api: MoneyApi; onClose: (
         </div>
       </div>
     </div>
+    </SheetPortal>
   );
 }
 

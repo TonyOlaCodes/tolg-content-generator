@@ -16,6 +16,7 @@ import { currentPosition } from "@/money/engine";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
 import { ACCOUNT_KINDS, type AccountKind, type Account } from "@/money/types";
 import type { MoneyApi } from "./MoneyApp";
+import { SheetPortal } from "./SheetPortal";
 
 const POCKET_ICONS = ["🍎", "🚌", "💳", "🎬", "🛡️", "🚗", "🎁", "✈️", "🏋️", "💰"];
 const POCKET_COLORS = ["#c9a84c", "#34d399", "#7cc7ff", "#f472b6", "#a78bfa", "#fb923c"];
@@ -55,102 +56,104 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
   }, [onClose]);
 
   return (
-    <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
-      <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Accounts and pockets" onClick={(e) => e.stopPropagation()}>
-        <div className="money-sheet-grip" aria-hidden />
-        <div className="money-sheet-head">
-          <strong>Accounts & pockets</strong>
-          <button type="button" className="money-link" onClick={onClose}>Done</button>
-        </div>
+    <SheetPortal>
+      <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
+        <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Accounts and pockets" onClick={(e) => e.stopPropagation()}>
+          <div className="money-sheet-grip" aria-hidden />
+          <div className="money-sheet-head">
+            <strong>Accounts & pockets</strong>
+            <button type="button" className="money-link" onClick={onClose}>Done</button>
+          </div>
 
-        <div className="money-sheet-body">
-          {editor === null && (
-            <>
-              {accounts.map((a) => (
-                <AccountBlock
-                  key={a.id}
-                  api={api}
-                  account={a}
-                  onEdit={() => setEditor({ type: "account", id: a.id })}
-                  onAddPocket={() => setEditor({ type: "pocket", accountId: a.id })}
-                  onEditPocket={(id) => setEditor({ type: "pocket", id, accountId: a.id })}
-                  onError={setError}
-                  notify={notify}
-                />
-              ))}
-              {accounts.length === 0 && <p className="money-muted">No accounts yet.</p>}
-              <div className="money-row-actions">
-                <button type="button" className="money-btn-secondary" onClick={() => setEditor({ type: "move" })} disabled={accounts.length === 0}>
-                  Move money
-                </button>
-                <button type="button" className="money-btn-primary" onClick={() => setEditor({ type: "account" })}>+ Account</button>
-              </div>
-              {archivedAccounts.length > 0 && (
-                <section className="money-manage-account">
-                  <div className="money-manage-head">
-                    <strong>Archived</strong>
-                  </div>
-                  {archivedAccounts.map((a) => (
-                    <div key={a.id} className="money-manage-pocket">
-                      <span className="money-manage-name">{a.name}</span>
-                      <button
-                        type="button"
-                        className="money-link"
-                        onClick={async () => {
-                          const err = await commit(setAccountArchived(snap, a.id, false));
-                          if (err) return setError(err);
-                          notify("Account restored");
-                        }}
-                      >
-                        Restore
-                      </button>
+          <div className="money-sheet-body">
+            {editor === null && (
+              <>
+                {accounts.map((a) => (
+                  <AccountBlock
+                    key={a.id}
+                    api={api}
+                    account={a}
+                    onEdit={() => setEditor({ type: "account", id: a.id })}
+                    onAddPocket={() => setEditor({ type: "pocket", accountId: a.id })}
+                    onEditPocket={(id) => setEditor({ type: "pocket", id, accountId: a.id })}
+                    onError={setError}
+                    notify={notify}
+                  />
+                ))}
+                {accounts.length === 0 && <p className="money-muted">No accounts yet.</p>}
+                <div className="money-row-actions">
+                  <button type="button" className="money-btn-secondary" onClick={() => setEditor({ type: "move" })} disabled={accounts.length === 0}>
+                    Move money
+                  </button>
+                  <button type="button" className="money-btn-primary" onClick={() => setEditor({ type: "account" })}>+ Account</button>
+                </div>
+                {archivedAccounts.length > 0 && (
+                  <section className="money-manage-account">
+                    <div className="money-manage-head">
+                      <strong>Archived</strong>
                     </div>
-                  ))}
-                </section>
-              )}
-              {error && <p className="money-error" role="alert">{error}</p>}
-            </>
-          )}
+                    {archivedAccounts.map((a) => (
+                      <div key={a.id} className="money-manage-pocket">
+                        <span className="money-manage-name">{a.name}</span>
+                        <button
+                          type="button"
+                          className="money-link"
+                          onClick={async () => {
+                            const err = await commit(setAccountArchived(snap, a.id, false));
+                            if (err) return setError(err);
+                            notify("Account restored");
+                          }}
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </section>
+                )}
+                {error && <p className="money-error" role="alert">{error}</p>}
+              </>
+            )}
 
-          {editor?.type === "account" && (
-            <AccountForm
-              existing={editor.id ? snap.accounts.find((a) => a.id === editor.id) : undefined}
-              busy={busy}
-              onCancel={() => setEditor(null)}
-              onSave={(input) => run(() => saveAccount(snap, input, defaultCtx()), "Account saved")}
-            />
-          )}
+            {editor?.type === "account" && (
+              <AccountForm
+                existing={editor.id ? snap.accounts.find((a) => a.id === editor.id) : undefined}
+                busy={busy}
+                onCancel={() => setEditor(null)}
+                onSave={(input) => run(() => saveAccount(snap, input, defaultCtx()), "Account saved")}
+              />
+            )}
 
-          {editor?.type === "pocket" && (
-            <PocketForm
-              accountId={editor.accountId}
-              existing={editor.id ? snap.pockets.find((p) => p.id === editor.id) : undefined}
-              busy={busy}
-              onCancel={() => setEditor(null)}
-              onSave={(input) => run(() => savePocket(snap, input, defaultCtx()), "Pocket saved")}
-            />
-          )}
+            {editor?.type === "pocket" && (
+              <PocketForm
+                accountId={editor.accountId}
+                existing={editor.id ? snap.pockets.find((p) => p.id === editor.id) : undefined}
+                busy={busy}
+                onCancel={() => setEditor(null)}
+                onSave={(input) => run(() => savePocket(snap, input, defaultCtx()), "Pocket saved")}
+              />
+            )}
 
-          {editor?.type === "move" && (
-            <MoveForm
-              api={api}
-              busy={busy}
-              onCancel={() => setEditor(null)}
-              onSave={async (input) => {
-                setBusy(true);
-                const err = await commit(saveTransaction(snap, input, defaultCtx()));
-                setBusy(false);
-                if (err) return setError(err);
-                setError(null);
-                notify("Money moved");
-                setEditor(null);
-              }}
-              error={error}
-            />
-          )}
+            {editor?.type === "move" && (
+              <MoveForm
+                api={api}
+                busy={busy}
+                onCancel={() => setEditor(null)}
+                onSave={async (input) => {
+                  setBusy(true);
+                  const err = await commit(saveTransaction(snap, input, defaultCtx()));
+                  setBusy(false);
+                  if (err) return setError(err);
+                  setError(null);
+                  notify("Money moved");
+                  setEditor(null);
+                }}
+                error={error}
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </SheetPortal>
   );
 }
 

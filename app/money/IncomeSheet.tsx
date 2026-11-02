@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { saveIncomeSplit, defaultCtx, type IncomeSplitLine } from "@/money/actions";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
 import type { MoneyApi } from "./MoneyApp";
+import { SheetPortal } from "./SheetPortal";
 
 type Row = { key: string; value: string; destination: string };
 
@@ -102,6 +103,7 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
   );
 
   return (
+    <SheetPortal>
     <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
       <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Split income" onClick={(e) => e.stopPropagation()}>
         <div className="money-sheet-grip" aria-hidden />

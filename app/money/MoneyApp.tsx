@@ -114,7 +114,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="money">
+    <div className={`money${sheetOpen ? " is-sheet-open" : ""}`}>
       <header className="money-top" inert={sheetOpen ? true : undefined}>
         <button type="button" className="money-back" onClick={onBack}>← Apps</button>
         <h1 className="money-title">Money Tracker</h1>

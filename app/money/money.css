@@ -190,53 +190,77 @@
 .money-nav-item.is-active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
 .money-nav-icon { font-size: 1.1rem; line-height: 1; }
 
-/* Bottom sheets */
+/* Bottom sheets — fully opaque so Home never bleeds through Manage / Add / Income. */
 .money-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 400;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: #07070a;
   pointer-events: auto;
   touch-action: manipulation;
 }
-/* While a sheet is open, nothing under it can receive taps — including the nav. */
-.money:has(.money-sheet-backdrop) .money-top,
-.money:has(.money-sheet-backdrop) .money-body,
-.money:has(.money-sheet-backdrop) .money-nav,
-.money:has(.money-sheet-backdrop) .money-toast {
+/* Hide the page under the sheet so nothing can show through (works with body-ported sheets). */
+.money.is-sheet-open .money-top,
+.money.is-sheet-open .money-body,
+.money.is-sheet-open .money-nav,
+.money.is-sheet-open .money-toast {
   pointer-events: none;
+  visibility: hidden;
 }
-/* Scroll lock while a sheet is open, so the page behind never moves or shows through. */
 body:has(.money-sheet-backdrop) { overflow: hidden; }
 .money-sheet {
   width: min(560px, 100vw);
-  max-height: calc(88vh);
-  max-height: calc(88dvh);
+  height: min(92dvh, 920px);
+  max-height: calc(92vh);
+  max-height: calc(92dvh);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   padding: 10px 18px 0;
-  /* Opaque sheet so Home content never shows through Manage / Add / Income. */
   background: #111117;
+  color: var(--text);
   border: 1px solid var(--border);
   border-bottom: 0;
-  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.55);
   border-radius: 26px 26px 0 0;
   animation: money-sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  opacity: 1;
 }
-/* Body scrolls; the footer (Confirm/Cancel) stays visible above the iPhone home indicator. */
-.money-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 12px; }
-.money-sheet-foot { flex: 0 0 auto; padding: 10px 0 calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); background: #111117; }
+.money-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+  background: #111117;
+}
+.money-sheet-foot {
+  flex: 0 0 auto;
+  padding: 10px 0 calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background: #111117;
+}
 .money-sheet-foot .money-btn-primary { margin-top: 0; }
-.money-inline-panel { display: grid; gap: 10px; padding: 12px; margin: 8px 0; border-radius: 16px; background: color-mix(in srgb, var(--text) 5%, transparent); }
-.money-row-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.money-btn-secondary { min-height: 44px; padding: 0 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); background: none; color: var(--text); font: inherit; cursor: pointer; }
-@keyframes money-sheet-up { from { transform: translateY(40px); opacity: 0; } }
+.money-inline-panel { display: grid; gap: 10px; padding: 12px; margin: 8px 0; border-radius: 16px; background: #1a1a22; }
+.money-row-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.money-btn-secondary { min-height: 44px; padding: 0 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); background: #1a1a22; color: var(--text); font: inherit; cursor: pointer; }
+@keyframes money-sheet-up { from { transform: translateY(40px); } to { transform: translateY(0); } }
 .money-sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 25%, transparent); margin: 0 auto 10px; }
-.money-sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 1rem; }
+.money-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 1rem;
+  background: #111117;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 .money-progress-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
 .money-progress-steps span { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); }
 .money-progress-steps span.is-on { background: var(--accent); }
@@ -373,15 +397,16 @@ body:has(.money-sheet-backdrop) { overflow: hidden; }
   gap: 4px;
   padding: 14px;
   border-radius: 16px;
-  background: var(--panel);
+  background: #1a1a22;
   margin-bottom: 10px;
 }
 .money-manage-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  display: grid;
+  gap: 8px;
   margin-bottom: 4px;
+}
+.money-manage-head .money-row-actions {
+  justify-content: flex-start;
 }
 .money-manage-pocket {
   display: flex;

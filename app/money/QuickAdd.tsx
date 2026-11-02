@@ -5,6 +5,7 @@ import { saveTransaction, saveAccount, saveCategory, defaultCtx, type TxInput } 
 import { parseEuroToCents, todayISO } from "@/money/money";
 import { ACCOUNT_KINDS, type AccountKind, type TxKind } from "@/money/types";
 import type { MoneyApi } from "./MoneyApp";
+import { SheetPortal } from "./SheetPortal";
 
 const KINDS: { id: TxKind | "planned"; label: string }[] = [
   { id: "expense", label: "Spent" },
@@ -182,6 +183,7 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
   );
 
   return (
+    <SheetPortal>
     <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
       <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Add transaction" onClick={(e) => e.stopPropagation()}>
         <div className="money-sheet-grip" aria-hidden />
