@@ -549,14 +549,19 @@ export function setAccountArchived(snap: Snapshot, id: string, archived: boolean
   return ok([{ store: "accounts", value: { ...acc, archived } }]);
 }
 
-/** Deletes an account only when nothing refers to it. Otherwise archive it, so history and totals stay correct. */
+/**
+ * Removes an account. Unused accounts are hard-deleted; accounts with history or pockets
+ * are archived so past transactions stay linked.
+ */
 export function deleteAccount(snap: Snapshot, id: string): Result {
+  const acc = snap.accounts.find((a) => a.id === id);
+  if (!acc) return fail("That account no longer exists.");
   const used =
     snap.transactions.some((t) => t.accountId === id || t.toAccountId === id) ||
     snap.recurring.some((r) => r.accountId === id) ||
     snap.pockets.some((p) => p.accountId === id) ||
     snap.settings?.plannedSpendAccountId === id;
-  if (used) return fail("This account has transactions or schedules. Archive it instead.");
+  if (used) return ok([{ store: "accounts", value: { ...acc, archived: true } }]);
   return ok([], [{ store: "accounts", key: id }]);
 }
 

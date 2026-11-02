@@ -27,7 +27,7 @@ type Editor =
   | { type: "move" }
   | null;
 
-/** Accounts & pockets manager: add/edit/archive/delete, plus a transfer between any two locations. */
+/** Accounts & pockets manager: add/edit/delete, plus a transfer between any two locations. */
 export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: () => void; notify: (m: string) => void }) {
   const { snap, commit } = api;
   const [editor, setEditor] = useState<Editor>(null);
@@ -35,7 +35,7 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
   const [busy, setBusy] = useState(false);
 
   const accounts = snap.accounts.filter((a) => !a.archived);
-  const archivedAccounts = snap.accounts.filter((a) => a.archived);
+  const deletedAccounts = snap.accounts.filter((a) => a.archived);
   const run = async (fn: () => ReturnType<typeof saveAccount>, ok: string) => {
     if (busy) return;
     setBusy(true);
@@ -87,12 +87,12 @@ export function ManageSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
                   </button>
                   <button type="button" className="money-btn-primary" onClick={() => setEditor({ type: "account" })}>+ Account</button>
                 </div>
-                {archivedAccounts.length > 0 && (
+                {deletedAccounts.length > 0 && (
                   <section className="money-manage-account">
                     <div className="money-manage-head">
-                      <strong>Archived</strong>
+                      <strong>Deleted</strong>
                     </div>
-                    {archivedAccounts.map((a) => (
+                    {deletedAccounts.map((a) => (
                       <div key={a.id} className="money-manage-pocket">
                         <span className="money-manage-name">{a.name}</span>
                         <button
@@ -180,16 +180,15 @@ function AccountBlock({
   const total = main + pockets.reduce((s, p) => s + pocketNowCents(snap, p.id), 0);
 
   const removeAccount = async () => {
+    if (!window.confirm(`Delete ${account.name}?`)) return;
+    onError(null);
     const err = await commit(deleteAccount(snap, account.id));
     if (err) return onError(err);
     notify("Account deleted");
   };
-  const archiveAccount = async () => {
-    const err = await commit(setAccountArchived(snap, account.id, true));
-    if (err) return onError(err);
-    notify("Account archived");
-  };
-  const removePocket = async (id: string) => {
+  const removePocket = async (id: string, name: string) => {
+    if (!window.confirm(`Delete ${name}?`)) return;
+    onError(null);
     const err = await commit(deletePocket(snap, id));
     if (err) return onError(err);
     notify("Pocket deleted");
@@ -209,7 +208,6 @@ function AccountBlock({
         </div>
         <div className="money-row-actions">
           <button type="button" className="money-link" onClick={onEdit}>Edit</button>
-          <button type="button" className="money-link" onClick={archiveAccount}>Archive</button>
           <button type="button" className="money-link is-danger" onClick={removeAccount}>Delete</button>
         </div>
       </div>
@@ -220,7 +218,7 @@ function AccountBlock({
           <strong>{formatEUR(pocketNowCents(snap, p.id))}</strong>
           <button type="button" className="money-link" onClick={() => onEditPocket(p.id)}>Edit</button>
           <button type="button" className="money-link" onClick={() => archive(p.id)}>Archive</button>
-          <button type="button" className="money-link" onClick={() => removePocket(p.id)}>Delete</button>
+          <button type="button" className="money-link is-danger" onClick={() => removePocket(p.id, p.name)}>Delete</button>
         </div>
       ))}
       <button type="button" className="money-link" onClick={onAddPocket}>+ Add pocket</button>

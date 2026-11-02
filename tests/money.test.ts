@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
-import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket } from "../money/actions";
+import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount } from "../money/actions";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
 
@@ -253,6 +253,25 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   assert.equal(mainBal(after), 40_000, "Main is untouched");
 }
 
+
+// --- delete account: unused hard-deletes; used accounts are soft-deleted (archived)
+{
+  const unused: Snapshot = {
+    ...EMPTY_SNAPSHOT,
+    accounts: [{ id: "tmp", name: "Temp", kind: "current", openingCents: 0, excludeFromSpendable: false, archived: false, createdAt: "" }],
+    categories: [],
+    settings: null,
+  };
+  const hard = deleteAccount(unused, "tmp");
+  assert.ok(hard.ok);
+  assert.deepEqual(hard.ok ? hard.change.deletes : [], [{ store: "accounts", key: "tmp" }]);
+
+  const soft = deleteAccount(base, "cur");
+  assert.ok(soft.ok);
+  const put = soft.ok ? soft.change.puts[0]?.value as { id: string; archived: boolean } : null;
+  assert.equal(put?.id, "cur");
+  assert.equal(put?.archived, true);
+}
 
 // --- backup v1
 {
