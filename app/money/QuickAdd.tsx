@@ -318,5 +318,6 @@ export function QuickAdd({ api, onClose, notify }: { api: MoneyApi; onClose: () 
         </div>
       </div>
     </div>
+    </SheetPortal>
   );
 }

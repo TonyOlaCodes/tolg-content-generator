@@ -179,5 +179,6 @@ export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: 
         </div>
       </div>
     </div>
+    </SheetPortal>
   );
 }
