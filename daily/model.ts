@@ -84,6 +84,8 @@ export type Settings = {
   /** Optional: `null` hides goal comparison for calories without hiding the metric. */
   calorieGoal: number | null;
   waterGoalMl: number;
+  /** Target sleep in whole minutes (e.g. 480 for 8h). */
+  sleepGoalMinutes: number;
   /** Optional target bodyweight in kilograms. */
   weightGoalKg: number | null;
   weightUnit: WeightUnit;
@@ -97,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: 10_000,
   calorieGoal: null,
   waterGoalMl: 3_000,
+  sleepGoalMinutes: 480,
   weightGoalKg: null,
   weightUnit: "kg",
   chartPeriod: 30,
@@ -134,6 +137,7 @@ export const LIMITS = {
   stepGoal: { min: 100, max: 100_000 },
   calorieGoal: { min: 500, max: 15_000 },
   waterGoalMl: { min: 250, max: 10_000 },
+  sleepGoalMinutes: { min: 180, max: 840 },
   highlightTitle: 80,
   highlightDescription: 500,
   highlightTags: 8,
@@ -154,7 +158,15 @@ export const STORE_KEY: Record<StoreName, string> = {
 
 /** Settings are always present in memory, even before they are first saved. */
 export function settingsOf(snapshot: Snapshot): Settings {
-  return snapshot.settings ?? DEFAULT_SETTINGS;
+  const raw = snapshot.settings;
+  if (!raw) return { ...DEFAULT_SETTINGS, metricOrder: [...METRIC_KEYS], hiddenMetrics: [] };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...raw,
+    sleepGoalMinutes: raw.sleepGoalMinutes ?? DEFAULT_SETTINGS.sleepGoalMinutes,
+    metricOrder: raw.metricOrder?.length ? raw.metricOrder : [...METRIC_KEYS],
+    hiddenMetrics: raw.hiddenMetrics ?? [],
+  };
 }
 
 /** Metric cards in the user's chosen order, without hidden metrics. */

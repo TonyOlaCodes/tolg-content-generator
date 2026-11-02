@@ -234,14 +234,8 @@ function CaloriesCard({ api, view, wide, status }: { api: DailyApi; view: DayMet
 }
 
 function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetrics; wide: boolean; status: CardStatus }) {
-  const week = seriesForMetric(
-    api.snap,
-    Array.from({ length: 7 }, (_, i) => addDays(api.today, -6 + i)),
-    "sleep",
-  )
-    .map((p) => p.value)
-    .filter((v): v is number => v !== null);
-  const weekAvg = week.length ? week.reduce((sum, v) => sum + v, 0) / week.length : null;
+  const goal = api.settings.sleepGoalMinutes;
+  const percent = view.sleepMinutes === null ? null : (view.sleepMinutes / goal) * 100;
   return (
     <Card
       metric="sleep"
@@ -251,15 +245,17 @@ function SleepCard({ api, view, wide, status }: { api: DailyApi; view: DayMetric
       status={status}
       onOpen={() => api.openSheet({ kind: "sleep" })}
     >
-      {weekAvg !== null ? (
+      {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.sleep.ring} label="Sleep goal progress" /> : null}
+      {view.sleepMinutes !== null ? (
         <span className="daily-card-meta">
-          <span>Avg {formatDuration(weekAvg)}</span>
-          {view.sleepMinutes !== null && Math.abs(view.sleepMinutes - weekAvg) >= 5 ? (
-            <span className="daily-delta">
-              {view.sleepMinutes >= weekAvg ? "+" : "−"}
-              {formatDuration(Math.abs(view.sleepMinutes - weekAvg))}
-            </span>
-          ) : null}
+          <span>
+            {formatDuration(view.sleepMinutes)} / {formatDuration(goal)}
+          </span>
+          <span className={view.sleepMinutes >= goal ? "daily-delta" : "daily-delta"}>
+            {view.sleepMinutes >= goal
+              ? formatPercent(percent ?? 0)
+              : `${formatDuration(Math.max(0, goal - view.sleepMinutes))} left`}
+          </span>
         </span>
       ) : null}
     </Card>

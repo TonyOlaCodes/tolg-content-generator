@@ -109,6 +109,12 @@ export function validateWaterGoal(value: number): string | null {
   return null;
 }
 
+export function validateSleepGoal(value: number): string | null {
+  if (!isNum(value) || !Number.isInteger(value) || !inRange(value, LIMITS.sleepGoalMinutes.min, LIMITS.sleepGoalMinutes.max))
+    return "Sleep goal must be between 3 and 14 hours.";
+  return null;
+}
+
 type DayMetric = "steps" | "calories" | "sleepMinutes";
 
 /**
@@ -340,6 +346,11 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     if (error) return fail(error);
     next.waterGoalMl = round0(patch.waterGoalMl);
   }
+  if (patch.sleepGoalMinutes !== undefined) {
+    const error = validateSleepGoal(patch.sleepGoalMinutes);
+    if (error) return fail(error);
+    next.sleepGoalMinutes = round0(patch.sleepGoalMinutes);
+  }
   if (patch.calorieGoal !== undefined && patch.calorieGoal !== null) {
     const error = validateCalorieGoal(patch.calorieGoal);
     if (error) return fail(error);
@@ -377,6 +388,7 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     next.stepGoal === current.stepGoal &&
     next.calorieGoal === current.calorieGoal &&
     next.waterGoalMl === current.waterGoalMl &&
+    next.sleepGoalMinutes === current.sleepGoalMinutes &&
     next.weightGoalKg === current.weightGoalKg &&
     next.weightUnit === current.weightUnit &&
     next.chartPeriod === current.chartPeriod &&

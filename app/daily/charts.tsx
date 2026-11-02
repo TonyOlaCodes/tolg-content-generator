@@ -342,19 +342,19 @@ export function LineChart({
           </>
         ) : null}
         {smoothed && smoothed.length > 0 ? (
-          <path d={path(smoothed)} fill="none" stroke={color} strokeOpacity={0.35} strokeWidth={1.6} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" />
+          <path d={path(smoothed)} fill="none" stroke={color} strokeOpacity={0.3} strokeWidth={1} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" />
         ) : null}
-        <path d={path(points)} fill="none" stroke={color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path(points)} fill="none" stroke={color} strokeWidth={1.15} strokeOpacity={0.85} strokeLinejoin="round" strokeLinecap="round" />
         {points.map((point, index) =>
           point.value === null ? null : (
             <circle
-              key={point.date}
+              key={`${point.date}-${index}`}
               cx={x(index)}
               cy={y(point.value)}
-              r={active === index ? 3.6 : 2.2}
+              r={active === index ? 4 : 2.75}
               fill={color}
-              stroke="rgba(10,8,16,0.9)"
-              strokeWidth={1}
+              stroke="rgba(7,7,10,0.92)"
+              strokeWidth={1.1}
             />
           ),
         )}

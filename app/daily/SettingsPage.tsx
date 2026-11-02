@@ -4,8 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { saveSettings, type Result } from "@/daily/actions";
 import { exportSnapshot, validateBackup } from "@/daily/backup";
 import { todayKey } from "@/daily/date";
-import { kgToUnit, unitToKg } from "@/daily/format";
-import { CHART_PERIODS, EMPTY_SNAPSHOT, METRIC_META, settingsOf, type MetricKey } from "@/daily/model";
+import { formatDuration, kgToUnit, unitToKg } from "@/daily/format";
+import { EMPTY_SNAPSHOT, settingsOf } from "@/daily/model";
 import { parseDecimal, parseWhole, type DailyApi } from "./api";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -22,6 +22,8 @@ function goalsFromSettings(settings: ReturnType<typeof settingsOf>) {
     stepGoal: String(settings.stepGoal),
     calorieGoal: settings.calorieGoal !== null ? String(settings.calorieGoal) : "",
     waterGoal: String(settings.waterGoalMl),
+    sleepHours: String(Math.floor(settings.sleepGoalMinutes / 60)),
+    sleepMinutes: String(settings.sleepGoalMinutes % 60),
     weightGoal:
       settings.weightGoalKg !== null
         ? String(Math.round(kgToUnit(settings.weightGoalKg, settings.weightUnit) * 100) / 100)
@@ -34,6 +36,8 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
   const [stepGoal, setStepGoal] = useState(() => goalsFromSettings(settings).stepGoal);
   const [calorieGoal, setCalorieGoal] = useState(() => goalsFromSettings(settings).calorieGoal);
   const [waterGoal, setWaterGoal] = useState(() => goalsFromSettings(settings).waterGoal);
+  const [sleepHours, setSleepHours] = useState(() => goalsFromSettings(settings).sleepHours);
+  const [sleepMinutes, setSleepMinutes] = useState(() => goalsFromSettings(settings).sleepMinutes);
   const [weightGoal, setWeightGoal] = useState(() => goalsFromSettings(settings).weightGoal);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,8 +48,10 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
     setStepGoal(next.stepGoal);
     setCalorieGoal(next.calorieGoal);
     setWaterGoal(next.waterGoal);
+    setSleepHours(next.sleepHours);
+    setSleepMinutes(next.sleepMinutes);
     setWeightGoal(next.weightGoal);
-  }, [settings.stepGoal, settings.calorieGoal, settings.waterGoalMl, settings.weightGoalKg, settings.weightUnit]);
+  }, [settings.stepGoal, settings.calorieGoal, settings.waterGoalMl, settings.sleepGoalMinutes, settings.weightGoalKg, settings.weightUnit]);
 
   const saveGoals = async () => {
     setError(null);
@@ -53,6 +59,12 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
     if (steps === null) return setError("Enter your daily step goal as a whole number.");
     const water = parseWhole(waterGoal);
     if (water === null) return setError("Enter your daily water goal in millilitres.");
+    const hours = parseWhole(sleepHours);
+    const mins = sleepMinutes.trim() === "" ? 0 : parseWhole(sleepMinutes);
+    if (hours === null || mins === null || mins < 0 || mins > 59) {
+      return setError("Enter sleep as hours and minutes (0–59).");
+    }
+    const sleepGoalMinutes = hours * 60 + mins;
     const trimmedCalories = calorieGoal.trim();
     const calories = trimmedCalories ? parseWhole(trimmedCalories) : null;
     if (trimmedCalories && calories === null) return setError("Enter a whole number for calories, or leave it blank.");
@@ -65,7 +77,13 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
     }
     setBusy(true);
     const message = await api.commit(
-      saveSettings(api.snap, { stepGoal: steps, waterGoalMl: water, calorieGoal: calories, weightGoalKg: weightKg }),
+      saveSettings(api.snap, {
+        stepGoal: steps,
+        waterGoalMl: water,
+        sleepGoalMinutes,
+        calorieGoal: calories,
+        weightGoalKg: weightKg,
+      }),
       "Goals saved",
       false,
     );
@@ -91,21 +109,6 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
       }
     }
     void apply(saveSettings(api.snap, { weightUnit: unit }), unit === "kg" ? "Showing kilograms" : "Showing pounds");
-  };
-
-  const move = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= settings.metricOrder.length) return;
-    const order = [...settings.metricOrder];
-    [order[index], order[target]] = [order[target], order[index]];
-    void apply(saveSettings(api.snap, { metricOrder: order }), "Card order updated");
-  };
-
-  const toggleHidden = (metric: MetricKey) => {
-    const hidden = settings.hiddenMetrics.includes(metric)
-      ? settings.hiddenMetrics.filter((m) => m !== metric)
-      : [...settings.hiddenMetrics, metric];
-    void apply(saveSettings(api.snap, { hiddenMetrics: hidden }), settings.hiddenMetrics.includes(metric) ? "Card shown" : "Card hidden");
   };
 
   const download = () => {
@@ -207,6 +210,33 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             <em className="daily-input-suffix">ml</em>
           </span>
         </label>
+        <div className="daily-field">
+          <span>Sleep · {formatDuration(settings.sleepGoalMinutes)}</span>
+          <div className="daily-grid2">
+            <span className="daily-input-wrap">
+              <input
+                className="daily-input"
+                type="text"
+                inputMode="numeric"
+                value={sleepHours}
+                onChange={(event) => setSleepHours(event.target.value)}
+                aria-label="Sleep goal hours"
+              />
+              <em className="daily-input-suffix">h</em>
+            </span>
+            <span className="daily-input-wrap">
+              <input
+                className="daily-input"
+                type="text"
+                inputMode="numeric"
+                value={sleepMinutes}
+                onChange={(event) => setSleepMinutes(event.target.value)}
+                aria-label="Sleep goal minutes"
+              />
+              <em className="daily-input-suffix">m</em>
+            </span>
+          </div>
+        </div>
         <label className="daily-field">
           <span>Weight</span>
           <span className="daily-input-wrap">
@@ -221,12 +251,6 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             <em className="daily-input-suffix">{settings.weightUnit}</em>
           </span>
         </label>
-        <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void saveGoals()}>
-          Save goals
-        </button>
-      </Section>
-
-      <Section title="Display">
         <div className="daily-settings-row">
           <span>Weight unit</span>
           <div className="daily-seg" role="group" aria-label="Weight unit">
@@ -243,65 +267,9 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
             ))}
           </div>
         </div>
-        <div className="daily-settings-row">
-          <span>Chart period</span>
-          <div className="daily-seg is-wrap" role="group" aria-label="Default chart period">
-            {CHART_PERIODS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`daily-seg-btn${settings.chartPeriod === option.value ? " is-active" : ""}`}
-                aria-pressed={settings.chartPeriod === option.value}
-                onClick={() => void apply(saveSettings(api.snap, { chartPeriod: option.value }), `${option.label} selected`)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Cards">
-        <ul className="daily-order-list">
-          {settings.metricOrder.map((metric, index) => {
-            const hidden = settings.hiddenMetrics.includes(metric);
-            const meta = METRIC_META[metric];
-            return (
-              <li key={metric} className={`daily-order-row${hidden ? " is-hidden" : ""}`}>
-                <span className="daily-order-dot" style={{ background: meta.accent }} aria-hidden />
-                <span className="daily-order-name">{meta.label}</span>
-                <button
-                  type="button"
-                  className="daily-icon-btn is-small"
-                  onClick={() => move(index, -1)}
-                  disabled={index === 0 || busy}
-                  aria-label={`Move ${meta.label} up`}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="daily-icon-btn is-small"
-                  onClick={() => move(index, 1)}
-                  disabled={index === settings.metricOrder.length - 1 || busy}
-                  aria-label={`Move ${meta.label} down`}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className={`daily-toggle${hidden ? "" : " is-on"}`}
-                  onClick={() => toggleHidden(metric)}
-                  disabled={busy}
-                  aria-pressed={!hidden}
-                  aria-label={`${hidden ? "Show" : "Hide"} ${meta.label} card`}
-                >
-                  {hidden ? "Hidden" : "Shown"}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void saveGoals()}>
+          Save goals
+        </button>
       </Section>
 
       <Section title="Data">
