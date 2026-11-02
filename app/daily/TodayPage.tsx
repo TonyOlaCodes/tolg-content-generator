@@ -4,10 +4,11 @@ import { addWater } from "@/daily/actions";
 import {
   currentStreak,
   dayMetrics,
-  latestWeight,
+  metricCardStatus,
   seriesForMetric,
   weightOverview,
   type DayMetrics,
+  type MetricCardStatus,
 } from "@/daily/logic";
 import { addDays, dayLabel, shortDate } from "@/daily/date";
 import type { ReactNode } from "react";
@@ -65,7 +66,7 @@ function MetricIcon({ metric }: { metric: MetricKey }) {
   }
 }
 
-export type CardStatus = "empty" | "progress" | "done";
+export type CardStatus = MetricCardStatus;
 
 function Card({
   metric,
@@ -90,10 +91,10 @@ function Card({
 }) {
   const meta = METRIC_META[metric];
   const empty = status === "empty";
-  const statusText = status === "done" ? ", complete" : status === "progress" ? ", goal not reached yet" : "";
+  const statusText = status === "done" ? ", complete" : status === "progress" ? ", in progress" : "";
   return (
     <article
-      className={`daily-card${wide ? " is-wide" : ""}${empty ? " is-empty" : ""}${status === "done" ? " is-done" : ""}`}
+      className={`daily-card${wide ? " is-wide" : ""}${empty ? " is-empty" : ""}${status === "done" ? " is-done" : ""}${status === "progress" ? " is-progress" : ""}`}
       style={{ ["--daily-accent" as string]: meta.accent }}
     >
       <button
@@ -114,7 +115,9 @@ function Card({
               </svg>
             </span>
           ) : status === "progress" ? (
-            <span className="daily-card-state is-progress" aria-hidden />
+            <span className="daily-card-state is-progress" aria-hidden>
+              In progress
+            </span>
           ) : (
             <span className="daily-card-chevron" aria-hidden>›</span>
           )}
@@ -197,23 +200,23 @@ function WeightCard({ api, view, wide, status }: { api: DailyApi; view: DayMetri
       metric="weight"
       wide={wide}
       label="Weight"
-      value={latest ? formatWeight(dayEntry ?? latest.kg, unit) : "Not logged"}
+      value={dayEntry !== null ? formatWeight(dayEntry, unit) : "Not logged"}
       addLabel="Add"
       status={status}
       onOpen={() => api.openSheet({ kind: "weight" })}
     >
       <span className="daily-card-meta">
-        {latest ? (
+        {dayEntry !== null ? (
           <>
-            <span>
-              {dayEntry !== null ? "Weighed this day" : `Last ${shortDate(latest.date)}`}
-            </span>
+            <span>Weighed this day</span>
             {change !== null ? (
               <span className={`daily-delta ${change > 0 ? "is-up" : change < 0 ? "is-down" : ""}`}>
                 {formatWeightChange(change, unit)} / 30d
               </span>
             ) : null}
           </>
+        ) : latest ? (
+          <span>Last {shortDate(latest.date)} · {formatWeight(latest.kg, unit)}</span>
         ) : (
           <span>Weigh in whenever you like</span>
         )}
@@ -349,26 +352,9 @@ export default function TodayPage({ api }: { api: DailyApi }) {
   const streak = currentStreak(api.snap, api.today);
   const dayHighlights = api.snap.highlights.filter((h) => h.date === api.selected);
 
-  const statusFor = (metric: MetricKey): CardStatus => {
-    switch (metric) {
-      case "steps":
-        if (view.steps === null) return "empty";
-        return view.steps >= settings.stepGoal ? "done" : "progress";
-      case "water":
-        if (view.waterMl === null) return "empty";
-        return view.waterMl >= settings.waterGoalMl ? "done" : "progress";
-      case "calories":
-        if (view.calories === null) return "empty";
-        return settings.calorieGoal !== null && view.calories > settings.calorieGoal ? "progress" : "done";
-      case "sleep":
-        return view.sleepMinutes === null ? "empty" : "done";
-      case "weight":
-        // Weigh-ins are not a daily requirement; any recorded weight is complete.
-        return latestWeight(api.snap) !== null ? "done" : "empty";
-    }
-  };
-  const statusRank: Record<CardStatus, number> = { empty: 0, progress: 1, done: 2 };
-  // Unfinished first, completed last; the user's card order is kept inside each group.
+  const statusFor = (metric: MetricKey): CardStatus => metricCardStatus(metric, view, settings);
+  // Only finished cards sink to the bottom. Empty and in-progress keep the user's order together.
+  const statusRank: Record<CardStatus, number> = { empty: 0, progress: 0, done: 1 };
   const sortedMetrics = [...metrics].sort((a, b) => statusRank[statusFor(a)] - statusRank[statusFor(b)]);
   const logged = metrics.filter((metric) => statusFor(metric) !== "empty").length;
   const missing = metrics.filter((metric) => statusFor(metric) === "empty").length;

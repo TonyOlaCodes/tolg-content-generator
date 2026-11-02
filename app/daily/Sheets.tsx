@@ -48,11 +48,18 @@ function SheetShell({
   return (
     <div
       className="daily-sheet-backdrop"
-      onPointerDown={(event) => {
+      role="presentation"
+      onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="daily-sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className="daily-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="daily-sheet-grip" aria-hidden />
         <header className="daily-sheet-head">
           <div className="daily-sheet-title">

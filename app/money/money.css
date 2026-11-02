@@ -177,11 +177,20 @@
 .money-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+/* While a sheet is open, nothing under it can receive taps — including the nav. */
+.money:has(.money-sheet-backdrop) .money-top,
+.money:has(.money-sheet-backdrop) .money-body,
+.money:has(.money-sheet-backdrop) .money-nav,
+.money:has(.money-sheet-backdrop) .money-toast {
+  pointer-events: none;
 }
 /* Scroll lock while a sheet is open, so the page behind never moves or shows through. */
 body:has(.money-sheet-backdrop) { overflow: hidden; }

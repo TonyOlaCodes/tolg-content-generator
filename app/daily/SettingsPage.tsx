@@ -259,7 +259,7 @@ export default function SettingsPage({ api }: { api: DailyApi }) {
 
       <Section
         title="Metric cards"
-        hint="Reorder cards with the arrows. Hidden cards keep all of their stored data. Today lists unfinished cards first and moves completed ones to the bottom."
+        hint="Reorder cards with the arrows. Hidden cards keep all of their stored data. Today keeps empty and in-progress cards in your order, and only moves fully completed ones to the bottom."
       >
         <ul className="daily-order-list">
           {settings.metricOrder.map((metric, index) => {

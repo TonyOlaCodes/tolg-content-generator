@@ -343,7 +343,7 @@
   font-weight: 620;
 }
 
-/* Completed cards sit at the bottom and carry a quiet check mark. */
+/* Only fully finished cards sink to the bottom and get a check mark. */
 .daily-card.is-done {
   opacity: 0.94;
 }
@@ -371,16 +371,18 @@
 }
 
 .daily-card-state.is-progress {
-  background: rgba(255, 201, 120, 0.14);
+  width: auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 201, 120, 0.16);
   color: #ffc978;
-}
-
-.daily-card-state.is-progress::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .daily-card::before {
@@ -1609,13 +1611,23 @@
 .daily-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   background: rgba(4, 3, 9, 0.62);
   backdrop-filter: blur(6px);
   animation: daily-fade 160ms ease-out;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+/* While a sheet is open, nothing under it can receive taps — including the nav. */
+.daily:has(.daily-sheet-backdrop) .daily-appbar,
+.daily:has(.daily-sheet-backdrop) .daily-body,
+.daily:has(.daily-sheet-backdrop) .daily-nav,
+.daily:has(.daily-sheet-backdrop) .daily-toast {
+  pointer-events: none;
 }
 
 body:has(.daily-sheet-backdrop) {

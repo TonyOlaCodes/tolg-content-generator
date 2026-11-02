@@ -24,6 +24,7 @@ import {
   dayMetrics,
   goalStats,
   latestWeight,
+  metricCardStatus,
   monthAverage,
   periodDates,
   periodStart,
@@ -411,5 +412,34 @@ assert.equal(validateBackup(futureHighlight).ok, true, "backups may contain any 
 
 // Empty backup is valid.
 assert.ok(validateBackup(JSON.parse(exportSnapshot(emptySnapshot()))).ok);
+
+// ------------------------------------------------------- today card status
+{
+  const settings = { ...DEFAULT_SETTINGS, calorieGoal: 2500, waterGoalMl: 3000, stepGoal: 10_000 };
+  let statusSnap = emptySnapshot();
+  statusSnap = apply(statusSnap, addWeight(statusSnap, { date: "2026-10-30", kg: 80 }, ctx));
+  // A past weigh-in must not tick today's weight card.
+  assert.equal(metricCardStatus("weight", dayMetrics(statusSnap, TODAY), settings), "empty");
+  statusSnap = apply(statusSnap, addWeight(statusSnap, { date: TODAY, kg: 79.4 }, ctx));
+  assert.equal(metricCardStatus("weight", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, addWater(statusSnap, { date: TODAY, ml: 2000 }, ctx));
+  assert.equal(metricCardStatus("water", dayMetrics(statusSnap, TODAY), settings), "progress", "partial water is in progress, not done");
+  statusSnap = apply(statusSnap, addWater(statusSnap, { date: TODAY, ml: 1000 }, ctx));
+  assert.equal(metricCardStatus("water", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "steps", 4500, ctx));
+  assert.equal(metricCardStatus("steps", dayMetrics(statusSnap, TODAY), settings), "progress");
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "steps", 10_000, ctx));
+  assert.equal(metricCardStatus("steps", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "calories", 1800, ctx));
+  assert.equal(metricCardStatus("calories", dayMetrics(statusSnap, TODAY), settings), "progress", "under calorie goal stays in progress");
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "calories", 2500, ctx));
+  assert.equal(metricCardStatus("calories", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "sleepMinutes", 450, ctx));
+  assert.equal(metricCardStatus("sleep", dayMetrics(statusSnap, TODAY), settings), "done");
+}
 
 console.log("daily tests passed");

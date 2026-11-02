@@ -251,9 +251,11 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
     );
   }
 
+  const sheetOpen = sheet !== null;
+
   return (
     <div className="daily">
-      <div className="daily-appbar">
+      <div className="daily-appbar" inert={sheetOpen ? true : undefined}>
         <button type="button" className="daily-back" onClick={onBack}>
           ‹ Apps
         </button>
@@ -266,7 +268,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       {!ready ? (
         <p className="daily-loading">Opening your local tracker…</p>
       ) : (
-        <div className="daily-body">
+        <div className="daily-body" inert={sheetOpen ? true : undefined}>
           {page === "today" ? <TodayPage api={api} /> : null}
           {page === "history" ? <HistoryPage api={api} /> : null}
           {page === "trends" ? <TrendsPage api={api} /> : null}
@@ -275,7 +277,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       )}
 
       {ready ? (
-        <nav className="daily-nav" aria-label="Daily Tracker sections">
+        <nav className="daily-nav" aria-label="Daily Tracker sections" inert={sheetOpen ? true : undefined}>
           {NAV.map((item) => (
             <button
               key={item.id}
@@ -292,7 +294,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {notice ? (
-        <div className="daily-toast" role="status">
+        <div className="daily-toast" role="status" inert={sheetOpen ? true : undefined}>
           <span>{notice.message}</span>
           {notice.undo ? (
             <button type="button" className="daily-toast-undo" onClick={() => void undo()}>

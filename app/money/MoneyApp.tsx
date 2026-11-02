@@ -90,6 +90,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
 
   const api: MoneyApi = { snap, commit, reload };
   const notify = (msg: string) => setNotice(msg);
+  const sheetOpen = quickOpen || setupOpen || manageOpen || incomeOpen;
 
   if (loadError) {
     return (
@@ -114,7 +115,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="money">
-      <header className="money-top">
+      <header className="money-top" inert={sheetOpen ? true : undefined}>
         <button type="button" className="money-back" onClick={onBack}>← Apps</button>
         <h1 className="money-title">Money Tracker</h1>
         <div className="money-top-actions">
@@ -126,12 +127,12 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
       </header>
 
       {notice && (
-        <div className="money-toast" role="status">
+        <div className="money-toast" role="status" inert={sheetOpen ? true : undefined}>
           {notice}
         </div>
       )}
 
-      <div className="money-body">
+      <div className="money-body" inert={sheetOpen ? true : undefined}>
         {page === "overview" && (
           <OverviewPage
             api={api}
@@ -154,7 +155,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
       {incomeOpen && <IncomeSheet api={api} onClose={() => setIncomeOpen(false)} notify={notify} />}
       {setupOpen && <SetupSheet api={api} onClose={() => setSetupOpen(false)} notify={notify} />}
 
-      <nav className="money-nav" aria-label="Money Tracker sections">
+      <nav className="money-nav" aria-label="Money Tracker sections" inert={sheetOpen ? true : undefined}>
         {NAV.map((n) => (
           <button
             key={n.id}

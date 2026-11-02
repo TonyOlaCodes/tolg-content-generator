@@ -1,5 +1,8 @@
-import type { ChartPeriod, Highlight, MetricKey, Snapshot, WeightEntry } from "./model";
+import type { ChartPeriod, Highlight, MetricKey, Settings, Snapshot, WeightEntry } from "./model";
 import { settingsOf } from "./model";
+
+/** Today-card completion: empty, started but unfinished, or fully done for the day. */
+export type MetricCardStatus = "empty" | "progress" | "done";
 import {
   addDays,
   addMonths,
@@ -97,6 +100,31 @@ export function dayMetrics(snapshot: Snapshot, date: string): DayMetrics {
     weightId: latest ? latest.id : null,
     hasData: steps !== null || calories !== null || sleepMinutes !== null || waterMl !== null || latest !== null,
   };
+}
+
+/**
+ * Status for a Today metric card.
+ * - Goal metrics (steps/water/calories-with-goal): partial counts as progress, never done.
+ * - Weight: done only when that calendar day has a weigh-in (past days do not count).
+ * - Sleep / calories-without-goal: logging the day is enough.
+ */
+export function metricCardStatus(metric: MetricKey, view: DayMetrics, settings: Settings): MetricCardStatus {
+  switch (metric) {
+    case "steps":
+      if (view.steps === null) return "empty";
+      return view.steps >= settings.stepGoal ? "done" : "progress";
+    case "water":
+      if (view.waterMl === null) return "empty";
+      return view.waterMl >= settings.waterGoalMl ? "done" : "progress";
+    case "calories":
+      if (view.calories === null) return "empty";
+      if (settings.calorieGoal === null) return "done";
+      return view.calories >= settings.calorieGoal ? "done" : "progress";
+    case "sleep":
+      return view.sleepMinutes === null ? "empty" : "done";
+    case "weight":
+      return view.weightKg !== null ? "done" : "empty";
+  }
 }
 
 export function metricValueForDay(snapshot: Snapshot, date: string, metric: MetricKey): number | null {
