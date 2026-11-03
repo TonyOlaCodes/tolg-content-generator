@@ -93,6 +93,8 @@ export type Closure = { month: string; choices: Record<string, Rollover> };
 
 export type RecurringKind = "bill" | "income";
 export type Interval = "weekly" | "monthly" | "yearly" | "custom";
+/** How a bill affects wealth. Missing/undefined = expense (legacy records). */
+export type BillPurpose = "expense" | "transfer" | "savings" | "other";
 
 export type Recurring = {
   id: string;
@@ -108,6 +110,11 @@ export type Recurring = {
   accountId: string | null;
   /** Pocket within accountId that this item is paid from (null or missing = Main). */
   pocketId?: string | null;
+  /** Optional destination when purpose is transfer/savings. */
+  toAccountId?: string | null;
+  toPocketId?: string | null;
+  /** Defaults to expense when omitted (existing IndexedDB records). */
+  purpose?: BillPurpose;
   status: "active" | "paused" | "cancelled";
   notes: string;
   history: { date: string; outcome: "paid" | "skipped"; txId: string | null }[];

@@ -334,6 +334,9 @@ export type RecurringInput = {
   categoryId: string | null;
   accountId: string | null;
   pocketId?: string | null;
+  purpose?: import("./types").BillPurpose;
+  toAccountId?: string | null;
+  toPocketId?: string | null;
   notes: string;
 };
 
@@ -374,6 +377,9 @@ export function saveRecurring(snap: Snapshot, input: RecurringInput, ctx: Ctx): 
     categoryId: input.kind === "bill" ? input.categoryId : null,
     accountId: input.accountId,
     pocketId,
+    purpose: input.purpose ?? existing?.purpose ?? "expense",
+    toAccountId: input.toAccountId ?? existing?.toAccountId ?? null,
+    toPocketId: input.toPocketId ?? existing?.toPocketId ?? null,
     status: existing?.status ?? "active",
     notes: input.notes.trim().slice(0, 500),
     history: existing?.history ?? [],

@@ -2,7 +2,9 @@
 
 import { currentPosition } from "@/money/engine";
 import { remainingRecurringCents } from "@/money/actions";
+import { computeBillTotals } from "@/money/bills";
 import { currentMonth, dueLabel, formatEUR, formatDateIE, todayISO } from "@/money/money";
+import { sortAccountsByBalance } from "@/money/sort";
 import { ACCOUNT_KINDS } from "@/money/types";
 import type { MoneyApi, PageId } from "../MoneyApp";
 import type { FlowMode } from "../MoneyFlowSheet";
@@ -15,7 +17,6 @@ export default function HomePage({
   onIncome,
   onSetup,
   onConfirmBill,
-  notify,
 }: {
   api: MoneyApi;
   onNavigate: (p: PageId, accountId?: string) => void;
@@ -23,14 +24,14 @@ export default function HomePage({
   onIncome: () => void;
   onSetup: () => void;
   onConfirmBill: (id: string) => void;
-  notify: (m: string) => void;
 }) {
   const { snap } = api;
   const month = currentMonth();
   const today = todayISO();
   const row = currentPosition(snap, month);
-  const accounts = snap.accounts.filter((a) => !a.archived);
+  const accounts = sortAccountsByBalance(snap, snap.accounts.filter((a) => !a.archived));
   const hasAccounts = accounts.length > 0;
+  const billTotals = computeBillTotals(snap, month);
 
   const totalCents = row?.totalEnd ?? 0;
   const spendableCents = accounts
@@ -42,21 +43,18 @@ export default function HomePage({
   const investmentCents = accounts
     .filter((a) => a.kind === "investment")
     .reduce((s, a) => s + (row?.accountEnd[a.id] ?? 0), 0);
+  const spentMonth = row?.outflow ?? 0;
 
   const bills = snap.recurring
-    .filter((r) => r.status === "active" && r.kind === "bill")
-    .sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
-  const upcoming = bills.filter((r) => remainingRecurringCents(snap, r) > 0).slice(0, 4);
-  const billsDueCents = upcoming.reduce((s, r) => s + remainingRecurringCents(snap, r), 0);
-  const spentMonth = row?.outflow ?? 0;
+    .filter((r) => r.status === "active" && r.kind === "bill" && remainingRecurringCents(snap, r) > 0)
+    .sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1))
+    .slice(0, 4);
 
   const recent = snap.transactions
     .filter((t) => t.status === "confirmed" && !t.reverses)
     .slice()
     .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1))
     .slice(0, 5);
-
-  void notify;
 
   return (
     <div className="money-page money-home">
@@ -80,13 +78,13 @@ export default function HomePage({
             <Stat label="Spendable" value={formatEUR(spendableCents)} />
             <Stat label="Savings" value={formatEUR(savingsCents)} />
             <Stat label="Investments" value={formatEUR(investmentCents)} />
-            <Stat label="Upcoming bills" value={formatEUR(billsDueCents)} />
+            <Stat label="Bills remaining" value={formatEUR(billTotals.remainingThisMonthCents)} />
             <Stat label="Spent this month" value={formatEUR(spentMonth)} wide />
           </section>
 
           <section className="money-quick-actions" aria-label="Quick actions">
             <button type="button" className="money-quick" onClick={() => onFlow("add")}>+ Add Money</button>
-            <button type="button" className="money-quick" onClick={() => onFlow("send")}>Send Money</button>
+            <button type="button" className="money-quick" onClick={() => onFlow("send")}>Spend / Send</button>
             <button type="button" className="money-quick" onClick={() => onFlow("transfer")}>Transfer</button>
           </section>
           <button type="button" className="money-link money-income-link" onClick={onIncome}>Split income / salary</button>
@@ -97,7 +95,7 @@ export default function HomePage({
               <button type="button" className="money-link" onClick={() => onNavigate("accounts")}>See all</button>
             </div>
             <ul className="money-home-accounts">
-              {accounts.slice(0, 5).map((a) => (
+              {accounts.slice(0, 6).map((a) => (
                 <li key={a.id}>
                   <button type="button" className="money-home-account" onClick={() => onNavigate("accounts", a.id)}>
                     <span>
@@ -116,11 +114,11 @@ export default function HomePage({
               <h2 className="money-h2">Upcoming</h2>
               <button type="button" className="money-link" onClick={() => onNavigate("bills")}>See all</button>
             </div>
-            {upcoming.length === 0 ? (
+            {bills.length === 0 ? (
               <p className="money-muted">No bills due.</p>
             ) : (
               <ul className="money-upcoming">
-                {upcoming.map((r) => {
+                {bills.map((r) => {
                   const due = dueLabel(r.nextDue, today);
                   const left = remainingRecurringCents(snap, r);
                   return (
@@ -128,11 +126,11 @@ export default function HomePage({
                       <span className="money-upcoming-text">
                         <span className="money-upcoming-name">{r.name}</span>
                         <span className={due.overdue ? "money-small is-neg" : "money-small money-muted"}>
-                          {due.text} · {formatEUR(left)}
+                          {due.text} · {formatEUR(left)} · {locationLabel(snap, r.accountId, r.pocketId ?? null)}
                         </span>
                       </span>
                       <button type="button" className="money-btn-small" onClick={() => onConfirmBill(r.id)}>
-                        Confirm Paid
+                        Pay Now
                       </button>
                     </li>
                   );
@@ -157,8 +155,7 @@ export default function HomePage({
                       : t.kind === "transfer"
                         ? "↔"
                         : "−";
-                  const tone =
-                    t.kind === "transfer" ? "" : sign === "+" ? " is-pos" : " is-neg";
+                  const tone = t.kind === "transfer" ? "" : sign === "+" ? " is-pos" : " is-neg";
                   return (
                     <li key={t.id} className="money-tx-row">
                       <span>

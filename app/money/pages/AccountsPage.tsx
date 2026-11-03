@@ -9,11 +9,10 @@ import {
   archivePocket,
   setAccountArchived,
   reconcileBalance,
-  mainNowCents,
-  pocketNowCents,
   defaultCtx,
 } from "@/money/actions";
 import { formatEUR, parseEuroToCents } from "@/money/money";
+import { sortAccountsByBalance, sortedPocketRows } from "@/money/sort";
 import { ACCOUNT_KINDS, type Account, type AccountKind, type Pocket } from "@/money/types";
 import type { MoneyApi } from "../MoneyApp";
 import type { FlowMode } from "../MoneyFlowSheet";
@@ -24,14 +23,16 @@ export default function AccountsPage({
   notify,
   onFlow,
   focusAccountId,
+  onScrollRestore,
 }: {
   api: MoneyApi;
   notify: (m: string) => void;
-  onFlow: (mode: FlowMode, preset?: { from?: string; to?: string }) => void;
+  onFlow: (mode: FlowMode, preset?: { from?: string; to?: string }, preferAccountId?: string) => void;
   focusAccountId?: string | null;
+  onScrollRestore?: (y: number | null) => void;
 }) {
   const { snap, commit } = api;
-  const accounts = snap.accounts.filter((a) => !a.archived);
+  const accounts = sortAccountsByBalance(snap, snap.accounts.filter((a) => !a.archived));
   const deleted = snap.accounts.filter((a) => a.archived);
   const [selectedId, setSelectedId] = useState<string | null>(focusAccountId ?? null);
   const [adding, setAdding] = useState(false);
@@ -39,10 +40,17 @@ export default function AccountsPage({
   const [addingPocketFor, setAddingPocketFor] = useState<string | null>(null);
   const [editingPocket, setEditingPocket] = useState<Pocket | null>(null);
   const [balanceEdit, setBalanceEdit] = useState<{ accountId: string; pocketId: string | null; label: string; current: number } | null>(null);
+  const [menu, setMenu] = useState<"account" | string | null>(null);
 
   useEffect(() => {
     if (focusAccountId) setSelectedId(focusAccountId);
   }, [focusAccountId]);
+
+  const backToList = () => {
+    setSelectedId(null);
+    setMenu(null);
+    onScrollRestore?.(null);
+  };
 
   const selected = accounts.find((a) => a.id === selectedId) ?? null;
 
@@ -99,8 +107,7 @@ export default function AccountsPage({
   }
 
   if (selected) {
-    const pockets = snap.pockets.filter((p) => p.accountId === selected.id && !p.archived);
-    const main = mainNowCents(snap, selected.id);
+    const rows = sortedPocketRows(snap, selected.id);
     const total = accountTotalCents(snap, selected.id);
     const txs = snap.transactions
       .filter((t) => t.status === "confirmed" && !t.reverses && (t.accountId === selected.id || t.toAccountId === selected.id))
@@ -109,82 +116,101 @@ export default function AccountsPage({
 
     return (
       <div className="money-page">
-        <button type="button" className="money-link" onClick={() => setSelectedId(null)}>← Accounts</button>
+        <button type="button" className="money-link" onClick={backToList}>← Accounts</button>
         <section className="money-hero money-hero-left">
           <p className="money-kicker">{ACCOUNT_KINDS[selected.kind].label}</p>
-          <p className="money-big">{selected.name}</p>
+          <div className="money-block-head">
+            <p className="money-big" style={{ margin: 0 }}>{selected.name}</p>
+            <button type="button" className="money-icon-btn" aria-label="Account menu" onClick={() => setMenu(menu === "account" ? null : "account")}>⋯</button>
+          </div>
           <p className="money-balance">{formatEUR(total)}</p>
         </section>
 
-        <div className="money-row-actions">
-          <button type="button" className="money-btn-secondary" onClick={() => setEditingAccount(selected)}>Edit</button>
-          <button type="button" className="money-btn-secondary" onClick={() => onFlow("add", { to: `${selected.id}|` })}>+ Add</button>
-          <button type="button" className="money-btn-secondary" onClick={() => onFlow("send", { from: `${selected.id}|` })}>Send</button>
-          <button
-            type="button"
-            className="money-link is-danger"
-            onClick={async () => {
-              if (!window.confirm(`Delete ${selected.name}?`)) return;
-              const err = await commit(deleteAccount(snap, selected.id));
-              if (err) return notify(err);
-              notify("Account deleted");
-              setSelectedId(null);
-            }}
-          >
-            Delete
-          </button>
+        {menu === "account" && (
+          <div className="money-menu-panel">
+            <button type="button" className="money-link" onClick={() => { setMenu(null); setEditingAccount(selected); }}>Edit account</button>
+            <button type="button" className="money-link" onClick={() => setAddingPocketFor(selected.id)}>Add pocket</button>
+            <button
+              type="button"
+              className="money-link is-danger"
+              onClick={async () => {
+                if (!window.confirm(`Delete ${selected.name}?`)) return;
+                const err = await commit(deleteAccount(snap, selected.id));
+                if (err) return notify(err);
+                notify("Account deleted");
+                backToList();
+              }}
+            >
+              Delete account
+            </button>
+          </div>
+        )}
+
+        <div className="money-account-actions">
+          <button type="button" className="money-quick" onClick={() => onFlow("add", { to: `${selected.id}|` }, selected.id)}>+ Add</button>
+          <button type="button" className="money-quick" onClick={() => onFlow("send", { from: `${selected.id}|` }, selected.id)}>Spend</button>
+          <button type="button" className="money-quick" onClick={() => onFlow("transfer", { from: `${selected.id}|` }, selected.id)}>Transfer</button>
         </div>
 
         <section className="money-block">
           <h2 className="money-h2">Balances</h2>
           <ul className="money-balance-list">
-            <li>
-              <button
-                type="button"
-                className="money-balance-row"
-                onClick={() => setBalanceEdit({ accountId: selected.id, pocketId: null, label: "Main", current: main })}
-              >
-                <span>Main</span>
-                <strong>{formatEUR(main)}</strong>
-              </button>
-            </li>
-            {pockets.map((p) => {
-              const bal = pocketNowCents(snap, p.id);
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className="money-balance-row"
-                    onClick={() => setBalanceEdit({ accountId: selected.id, pocketId: p.id, label: p.name, current: bal })}
-                  >
-                    <span><span aria-hidden>{p.icon} </span>{p.name}</span>
-                    <strong>{formatEUR(bal)}</strong>
-                  </button>
-                  <div className="money-sub-actions">
-                    <button type="button" className="money-link" onClick={() => onFlow("add", { to: `${selected.id}|${p.id}` })}>Add</button>
-                    <button type="button" className="money-link" onClick={() => onFlow("send", { from: `${selected.id}|${p.id}` })}>Send</button>
-                    <button type="button" className="money-link" onClick={() => onFlow("transfer", { from: `${selected.id}|${p.id}` })}>Transfer</button>
-                    <button type="button" className="money-link" onClick={() => setEditingPocket(p)}>Edit</button>
+            {rows.map((row) => {
+              if (row.kind === "main") {
+                return (
+                  <li key="main">
                     <button
                       type="button"
-                      className="money-link is-danger"
-                      onClick={async () => {
-                        if (!window.confirm(`Delete ${p.name}?`)) return;
-                        const hard = deletePocket(snap, p.id);
-                        if (hard.ok) {
-                          const err = await commit(hard);
-                          if (err) return notify(err);
-                          notify("Pocket deleted");
-                          return;
-                        }
-                        const err = await commit(archivePocket(snap, p.id));
-                        if (err) return notify(err);
-                        notify("Pocket archived");
-                      }}
+                      className="money-balance-row"
+                      onClick={() => setBalanceEdit({ accountId: selected.id, pocketId: null, label: "Main", current: row.balanceCents })}
                     >
-                      Delete
+                      <span>Main</span>
+                      <strong>{formatEUR(row.balanceCents)}</strong>
                     </button>
+                  </li>
+                );
+              }
+              const p = row.pocket;
+              const open = menu === p.id;
+              return (
+                <li key={p.id}>
+                  <div className="money-balance-row-wrap">
+                    <button
+                      type="button"
+                      className="money-balance-row"
+                      onClick={() => setBalanceEdit({ accountId: selected.id, pocketId: p.id, label: p.name, current: row.balanceCents })}
+                    >
+                      <span><span aria-hidden>{p.icon} </span>{p.name}</span>
+                      <strong>{formatEUR(row.balanceCents)}</strong>
+                    </button>
+                    <button type="button" className="money-icon-btn money-icon-btn-sm" aria-label={`${p.name} menu`} onClick={() => setMenu(open ? null : p.id)}>⋯</button>
                   </div>
+                  {open && (
+                    <div className="money-menu-panel">
+                      <button type="button" className="money-link" onClick={() => { setMenu(null); setEditingPocket(p); }}>Rename / edit</button>
+                      <button
+                        type="button"
+                        className="money-link is-danger"
+                        onClick={async () => {
+                          if (!window.confirm(`Delete ${p.name}?`)) return;
+                          const hard = deletePocket(snap, p.id);
+                          if (hard.ok) {
+                            const err = await commit(hard);
+                            if (err) return notify(err);
+                            notify("Pocket deleted");
+                            setMenu(null);
+                            return;
+                          }
+                          const err = await commit(archivePocket(snap, p.id));
+                          if (err) return notify(err);
+                          notify("Pocket archived");
+                          setMenu(null);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -288,6 +314,8 @@ function BalanceEditor({
   const [value, setValue] = useState((current / 100).toFixed(2));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const next = parseEuroToCents(value);
+  const diff = next === null ? null : next - current;
   return (
     <div className="money-page">
       <button type="button" className="money-link" onClick={onCancel}>← Back</button>
@@ -299,16 +327,20 @@ function BalanceEditor({
           <span className="money-amount-prefix">€</span>
           <input inputMode="decimal" autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
         </label>
+        <div className="money-preview">
+          <div className="money-preview-row"><span>Current</span><strong>{formatEUR(current)}</strong></div>
+          <div className="money-preview-row"><span>Change</span><strong>{diff === null ? "—" : `${diff >= 0 ? "+" : "−"}${formatEUR(Math.abs(diff))}`}</strong></div>
+          <div className="money-preview-row is-strong"><span>New balance</span><strong>{next === null ? "—" : formatEUR(next)}</strong></div>
+        </div>
         {error && <p className="money-error">{error}</p>}
         <button
           type="button"
           className="money-btn-primary"
           disabled={busy}
           onClick={async () => {
-            const cents = parseEuroToCents(value);
-            if (cents === null) return setError("Enter a valid amount.");
+            if (next === null) return setError("Enter a valid amount.");
             setBusy(true);
-            await onSave(cents);
+            await onSave(next);
             setBusy(false);
           }}
         >

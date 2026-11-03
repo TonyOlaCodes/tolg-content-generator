@@ -3,6 +3,8 @@ import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
 import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount, reconcileBalance, mainNowCents, pocketNowCents, savePocket } from "../money/actions";
+import { computeBillTotals } from "../money/bills";
+import { sortAccountsByBalance, sortedPocketRows } from "../money/sort";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
 
@@ -281,6 +283,44 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   const after = apply(snap, paid.ok ? paid.change : { puts: [] });
   assert.equal(after.transactions[0].accountId, "sav");
   assert.equal(after.recurring[0].accountId, "cur", "default source unchanged unless saveAsDefault");
+}
+
+// --- account/pocket sorting: Main first, pockets by balance desc, accounts by total desc
+{
+  let snap = apply(base, must(savePocket(base, { accountId: "cur", name: "Food", icon: "🍎", color: "#34d399", targetCents: null }, ctx)));
+  snap = apply(snap, must(savePocket(snap, { accountId: "cur", name: "Transport", icon: "🚌", color: "#7cc7ff", targetCents: null }, ctx)));
+  const food = snap.pockets.find((p) => p.name === "Food")!;
+  const transport = snap.pockets.find((p) => p.name === "Transport")!;
+  snap = apply(snap, must(saveTransaction(snap, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 20_000, accountId: "cur", pocketId: null, toAccountId: "cur", toPocketId: food.id, categoryId: null, description: "Food", notes: "" }, ctx)));
+  snap = apply(snap, must(saveTransaction(snap, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 5_000, accountId: "cur", pocketId: null, toAccountId: "cur", toPocketId: transport.id, categoryId: null, description: "Transport", notes: "" }, ctx)));
+  const rows = sortedPocketRows(snap, "cur");
+  assert.equal(rows[0].kind, "main");
+  assert.ok(rows[1].kind === "pocket" && rows[1].pocket.name === "Food");
+  assert.ok(rows[2].kind === "pocket" && rows[2].pocket.name === "Transport");
+  const fundedSav = apply(snap, must(saveTransaction(snap, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 90_000, accountId: "cur", pocketId: null, toAccountId: "sav", toPocketId: null, categoryId: null, description: "Save", notes: "" }, ctx)));
+  const ordered = sortAccountsByBalance(fundedSav, fundedSav.accounts.filter((a) => !a.archived));
+  assert.equal(ordered[0].id, "sav");
+}
+
+// --- bill totals: expense average excludes paused; remaining tracks unpaid dues
+{
+  const snap: Snapshot = {
+    ...base,
+    recurring: [
+      { id: "gym", kind: "bill", name: "Gym", icon: "•", amountCents: 3300, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-05", categoryId: null, accountId: "cur", purpose: "expense", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" },
+      { id: "ajo", kind: "bill", name: "Ajo", icon: "•", amountCents: 20000, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-10", categoryId: null, accountId: "cur", purpose: "savings", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" },
+      { id: "old", kind: "bill", name: "Paused Mag", icon: "•", amountCents: 99900, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-01", categoryId: null, accountId: "cur", purpose: "expense", status: "paused", notes: "", history: [], createdAt: "", updatedAt: "" },
+    ],
+  };
+  const totals = computeBillTotals(snap, "2026-11");
+  assert.equal(totals.averageMonthlyExpenseCents, 3300, "savings + paused excluded from expense average");
+  assert.equal(totals.dueThisMonthCents, 23300, "due this month includes all active scheduled amounts");
+  assert.equal(totals.remainingThisMonthCents, 23300);
+  const part = confirmRecurring(snap, "gym", ctx, 1000);
+  assert.ok(part.ok);
+  const mid = apply(snap, part.ok ? part.change : { puts: [] });
+  const after = computeBillTotals(mid, "2026-11");
+  assert.equal(after.remainingThisMonthCents, 22300, "partial gym payment reduces remaining");
 }
 
 // --- delete account: unused hard-deletes; used accounts are soft-deleted (archived)

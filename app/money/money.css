@@ -646,6 +646,107 @@ body:has(.money-sheet-backdrop) { overflow: hidden; }
 .money-tx-amt.is-pos { color: #6ee7b7; }
 .money-tx-amt.is-neg { color: #f87171; }
 
+.money-preview {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #1a1a22;
+  margin: 8px 0;
+}
+.money-preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.money-preview-row strong { color: var(--text); font-weight: 600; }
+.money-preview-row.is-strong { color: var(--text); font-size: 0.98rem; }
+.money-preview-row.is-strong strong { color: var(--accent); }
+
+.money-account-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.money-balance-row-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+.money-icon-btn-sm { width: 32px; height: 32px; font-size: 1rem; }
+.money-menu-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 8px 4px 4px;
+}
+
+.money-bill-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.money-bill-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: var(--panel);
+}
+.money-bill-main { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.money-bill-text { display: grid; gap: 2px; min-width: 0; }
+.money-bill-actions { display: flex; align-items: center; gap: 8px; }
+.money-source-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+.money-source-link:disabled { color: var(--muted); cursor: default; }
+.money-totals-card {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 0;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.money-totals-meta {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.money-breakdown {
+  padding: 10px 4px;
+  display: grid;
+  gap: 8px;
+}
+.money-breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.money-breakdown-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.88rem;
+}
+.money-breakdown-list li.is-muted { color: var(--muted); }
+.money-pay-shortcuts { margin-bottom: 4px; }
+.money-pay-shortcuts .money-btn-secondary { width: 100%; margin: 0; }
+
 @media (prefers-reduced-motion: reduce) {
   .money *, .money *::before, .money *::after { animation: none !important; transition: none !important; }
 }

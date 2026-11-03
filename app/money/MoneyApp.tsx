@@ -39,7 +39,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState<PageId>("home");
   const [focusAccountId, setFocusAccountId] = useState<string | null>(null);
-  const [flow, setFlow] = useState<{ mode: FlowMode; from?: string; to?: string } | null>(null);
+  const [flow, setFlow] = useState<{ mode: FlowMode; from?: string; to?: string; preferAccountId?: string } | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [confirmBillId, setConfirmBillId] = useState<string | null>(null);
@@ -150,7 +150,6 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
             onIncome={() => setIncomeOpen(true)}
             onSetup={() => setSetupOpen(true)}
             onConfirmBill={setConfirmBillId}
-            notify={notify}
           />
         )}
         {page === "accounts" && (
@@ -158,7 +157,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
             api={api}
             notify={notify}
             focusAccountId={focusAccountId}
-            onFlow={(mode, preset) => setFlow({ mode, from: preset?.from, to: preset?.to })}
+            onFlow={(mode, preset, preferAccountId) => setFlow({ mode, from: preset?.from, to: preset?.to, preferAccountId })}
           />
         )}
         {page === "bills" && (
@@ -167,6 +166,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
             notify={notify}
             onSetup={() => setSetupOpen(true)}
             onConfirmBill={setConfirmBillId}
+            onOpenSource={(accountId) => go("accounts", accountId)}
           />
         )}
         {page === "more" && <MorePage api={api} onNavigate={go} />}
@@ -197,6 +197,7 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
           mode={flow.mode}
           presetFrom={flow.from}
           presetTo={flow.to}
+          preferAccountId={flow.preferAccountId}
           onClose={() => setFlow(null)}
           notify={notify}
         />
