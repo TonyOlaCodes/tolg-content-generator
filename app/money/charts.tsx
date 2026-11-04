@@ -5,7 +5,17 @@ import { formatEUR } from "@/money/money";
 export type Slice = { label: string; color: string; value: number };
 
 /** Accessible SVG donut. Each slice is labelled with its amount and share. */
-export function Donut({ slices, emptyLabel }: { slices: Slice[]; emptyLabel: string }) {
+export function Donut({
+  slices,
+  emptyLabel,
+  onSelect,
+  selectedLabel,
+}: {
+  slices: Slice[];
+  emptyLabel: string;
+  onSelect?: (label: string) => void;
+  selectedLabel?: string | null;
+}) {
   const total = slices.reduce((s, x) => s + x.value, 0);
   if (total <= 0) return <p className="money-muted">{emptyLabel}</p>;
   const r = 44;
@@ -29,6 +39,9 @@ export function Donut({ slices, emptyLabel }: { slices: Slice[]; emptyLabel: str
               strokeDasharray={`${len} ${c - len}`}
               strokeDashoffset={-offset}
               transform="rotate(-90 60 60)"
+              opacity={selectedLabel && selectedLabel !== s.label ? 0.35 : 1}
+              style={onSelect ? { cursor: "pointer" } : undefined}
+              onClick={onSelect ? () => onSelect(s.label) : undefined}
             >
               <title>{`${s.label}: ${formatEUR(s.value)} (${Math.round((s.value / total) * 100)}%)`}</title>
             </circle>
@@ -40,9 +53,19 @@ export function Donut({ slices, emptyLabel }: { slices: Slice[]; emptyLabel: str
       <ul className="money-legend">
         {slices.map((s) => (
           <li key={s.label}>
-            <span className="money-dot" style={{ background: s.color }} />
-            <span>{s.label}</span>
-            <strong>{formatEUR(s.value)} · {Math.round((s.value / total) * 100)}%</strong>
+            {onSelect ? (
+              <button type="button" className={`money-legend-btn${selectedLabel === s.label ? " is-active" : ""}`} onClick={() => onSelect(s.label)}>
+                <span className="money-dot" style={{ background: s.color }} />
+                <span>{s.label}</span>
+                <strong>{formatEUR(s.value)} · {Math.round((s.value / total) * 100)}%</strong>
+              </button>
+            ) : (
+              <>
+                <span className="money-dot" style={{ background: s.color }} />
+                <span>{s.label}</span>
+                <strong>{formatEUR(s.value)} · {Math.round((s.value / total) * 100)}%</strong>
+              </>
+            )}
           </li>
         ))}
       </ul>

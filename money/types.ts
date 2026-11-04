@@ -72,6 +72,8 @@ export type Transaction = {
   notes: string;
   recurringId: string | null;
   occurrenceDate: string | null;
+  /** When set, this refund belongs to the referenced expense (partial refunds allowed). */
+  refundOf?: string | null;
   /** True when this record reverses another transaction (its effects are negated). */
   reverses: boolean;
   reversedBy: string | null;

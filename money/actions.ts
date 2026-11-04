@@ -104,9 +104,73 @@ export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Resul
     notes: input.notes.trim().slice(0, 500),
     recurringId: existing?.recurringId ?? null,
     occurrenceDate: existing?.occurrenceDate ?? null,
+    refundOf: existing?.refundOf ?? null,
     reverses: false,
     reversedBy: null,
     createdAt: existing?.createdAt ?? ctx.now,
+    updatedAt: ctx.now,
+  };
+  return ok([{ store: "transactions", value: tx }]);
+}
+
+/** How much of an expense can still be refunded (excludes reversed refunds). */
+export function refundableCents(snap: Snapshot, expenseId: string): number {
+  const exp = snap.transactions.find((t) => t.id === expenseId);
+  if (!exp || exp.kind !== "expense" || exp.status !== "confirmed" || exp.reverses || exp.reversedBy) return 0;
+  const refunded = snap.transactions
+    .filter(
+      (t) =>
+        t.refundOf === expenseId &&
+        t.kind === "refund" &&
+        t.status === "confirmed" &&
+        !t.reverses &&
+        !t.reversedBy,
+    )
+    .reduce((s, t) => s + t.amountCents, 0);
+  return Math.max(0, exp.amountCents - refunded);
+}
+
+/** Records a full or partial refund against an expense. Defaults to the original payment source. */
+export function recordRefund(
+  snap: Snapshot,
+  expenseId: string,
+  amountCents: number,
+  ctx: Ctx,
+  opts?: { accountId?: string; pocketId?: string | null; description?: string; date?: string },
+): Result {
+  const exp = snap.transactions.find((t) => t.id === expenseId);
+  if (!exp || exp.kind !== "expense") return fail("Choose an expense to refund.");
+  if (exp.status !== "confirmed" || exp.reverses || exp.reversedBy) return fail("That expense cannot be refunded.");
+  const left = refundableCents(snap, expenseId);
+  if (!Number.isInteger(amountCents) || amountCents <= 0) return fail("Enter a refund amount above zero.");
+  if (amountCents > left) return fail(`Only ${ (left / 100).toFixed(2) } is still refundable.`);
+  const accountId = opts?.accountId ?? exp.accountId;
+  const pocketId = opts?.pocketId !== undefined ? opts.pocketId : exp.pocketId;
+  if (!accountId || !snap.accounts.some((a) => a.id === accountId && !a.archived)) {
+    return fail("Choose an active account for the refund.");
+  }
+  if (pocketId && !snap.pockets.some((p) => p.id === pocketId && p.accountId === accountId && !p.archived)) {
+    return fail("Choose an active pocket in that account.");
+  }
+  const tx: Transaction = {
+    id: ctx.newId(),
+    kind: "refund",
+    status: "confirmed",
+    date: opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date) ? opts.date : ctx.today,
+    amountCents,
+    accountId,
+    pocketId: pocketId ?? null,
+    toAccountId: null,
+    toPocketId: null,
+    categoryId: exp.categoryId,
+    description: opts?.description?.trim() || `Refund: ${exp.description}`,
+    notes: `Refund of ${exp.id}`,
+    recurringId: null,
+    occurrenceDate: null,
+    refundOf: expenseId,
+    reverses: false,
+    reversedBy: null,
+    createdAt: ctx.now,
     updatedAt: ctx.now,
   };
   return ok([{ store: "transactions", value: tx }]);
@@ -225,6 +289,19 @@ export function reverseTransaction(snap: Snapshot, id: string, ctx: Ctx): Result
   if (!tx) return fail("That transaction no longer exists.");
   if (tx.status !== "confirmed") return fail("Only confirmed transactions can be reversed.");
   if (tx.reverses || tx.reversedBy) return fail("This transaction is already reversed.");
+  if (tx.kind === "expense") {
+    const linkedRefunds = snap.transactions.filter(
+      (t) =>
+        t.refundOf === id &&
+        t.kind === "refund" &&
+        t.status === "confirmed" &&
+        !t.reverses &&
+        !t.reversedBy,
+    );
+    if (linkedRefunds.length > 0) {
+      return fail("Reverse or delete its refunds first, then reverse this expense.");
+    }
+  }
   const reversal: Transaction = {
     ...tx,
     id: ctx.newId(),
@@ -232,6 +309,7 @@ export function reverseTransaction(snap: Snapshot, id: string, ctx: Ctx): Result
     description: `Reversal: ${tx.description}`,
     recurringId: null,
     occurrenceDate: null,
+    refundOf: null,
     reverses: true,
     reversedBy: null,
     createdAt: ctx.now,
@@ -460,21 +538,34 @@ export function confirmRecurring(
   }
   const txId = ctx.newId();
   const settled = pay === remaining;
+  const purpose = rec.purpose ?? "expense";
+  const isInternalMove =
+    rec.kind === "bill" &&
+    (purpose === "transfer" || purpose === "savings") &&
+    !!rec.toAccountId &&
+    snap.accounts.some((a) => a.id === rec.toAccountId && !a.archived);
+  if (isInternalMove && rec.toPocketId) {
+    const destOk = snap.pockets.some(
+      (p) => p.id === rec.toPocketId && p.accountId === rec.toAccountId && !p.archived,
+    );
+    if (!destOk) return fail("Choose an active destination pocket for this transfer.");
+  }
   const tx: Transaction = {
     id: txId,
-    kind: rec.kind === "bill" ? "expense" : "income",
+    kind: rec.kind === "income" ? "income" : isInternalMove ? "transfer" : "expense",
     status: "confirmed",
     date: ctx.today,
     amountCents: pay,
     accountId,
     pocketId,
-    toAccountId: null,
-    toPocketId: null,
-    categoryId: rec.kind === "bill" ? rec.categoryId : null,
+    toAccountId: isInternalMove ? (rec.toAccountId ?? null) : null,
+    toPocketId: isInternalMove ? (rec.toPocketId ?? null) : null,
+    categoryId: rec.kind === "bill" && !isInternalMove ? rec.categoryId : null,
     description: settled && pay === rec.amountCents ? rec.name : `${rec.name} (partial)`,
     notes: "",
     recurringId: id,
     occurrenceDate: occurrence,
+    refundOf: null,
     reverses: false,
     reversedBy: null,
     createdAt: ctx.now,

@@ -13,12 +13,24 @@ import TransactionsPage from "./pages/TransactionsPage";
 import BudgetPage from "./pages/BudgetPage";
 import ForecastPage from "./pages/ForecastPage";
 import SettingsPage from "./pages/SettingsPage";
+import WealthPage from "./pages/WealthPage";
+import SpendingPage from "./pages/SpendingPage";
 import { MoneyFlowSheet, type FlowMode } from "./MoneyFlowSheet";
 import { IncomeSheet } from "./IncomeSheet";
 import { SetupSheet } from "./SetupSheet";
 import { ConfirmBillSheet } from "./ConfirmBillSheet";
 
-export type PageId = "home" | "accounts" | "bills" | "more" | "activity" | "budget" | "future" | "settings";
+export type PageId =
+  | "home"
+  | "accounts"
+  | "bills"
+  | "more"
+  | "activity"
+  | "budget"
+  | "future"
+  | "settings"
+  | "wealth"
+  | "spending";
 
 const NAV: { id: PageId; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "◎" },
@@ -150,6 +162,20 @@ export default function MoneyApp({ onBack }: { onBack: () => void }) {
             onIncome={() => setIncomeOpen(true)}
             onSetup={() => setSetupOpen(true)}
             onConfirmBill={setConfirmBillId}
+          />
+        )}
+        {page === "wealth" && (
+          <WealthPage
+            api={api}
+            onBack={() => go("home")}
+            onOpenAccount={(accountId) => go("accounts", accountId)}
+          />
+        )}
+        {page === "spending" && (
+          <SpendingPage
+            api={api}
+            notify={notify}
+            onBack={() => go("home")}
           />
         )}
         {page === "accounts" && (

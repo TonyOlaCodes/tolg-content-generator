@@ -49,14 +49,37 @@ export default function SubscriptionsPage({
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showAverage, setShowAverage] = useState(false);
+  const [showUnpaid, setShowUnpaid] = useState(false);
+  const [showPaid, setShowPaid] = useState(false);
 
+  const month = currentMonth();
   const bills = snap.recurring.filter((r) => r.kind === "bill");
   const active = bills.filter((r) => r.status === "active").sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
   const paused = bills.filter((r) => r.status === "paused");
   const deleted = bills.filter((r) => r.status === "cancelled");
-  const totals = computeBillTotals(snap, currentMonth());
+  const totals = computeBillTotals(snap, month);
   const hasAccount = snap.accounts.some((a) => !a.archived);
+  const unpaidThisMonth = totals.contributions
+    .filter((c) => c.dueThisMonth && c.remainingCents > 0)
+    .sort((a, b) => b.remainingCents - a.remainingCents || a.name.localeCompare(b.name));
+  const paidPayments = snap.transactions
+    .filter(
+      (t) =>
+        t.recurringId &&
+        t.status === "confirmed" &&
+        !t.reverses &&
+        !t.reversedBy &&
+        t.occurrenceDate &&
+        t.occurrenceDate.startsWith(month) &&
+        bills.some((b) => b.id === t.recurringId),
+    )
+    .slice()
+    .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1));
+  const paidPct =
+    totals.scheduledThisMonthCents > 0
+      ? Math.min(100, Math.round((totals.paidThisMonthCents / totals.scheduledThisMonthCents) * 100))
+      : 0;
 
   const overdue = active.filter((r) => dueLabel(r.nextDue).overdue && remainingRecurringCents(snap, r) > 0);
   const dueSoon = active.filter((r) => {
@@ -167,20 +190,100 @@ export default function SubscriptionsPage({
     <div className="money-page">
       <section className="money-block">
         <p className="money-kicker">Bills</p>
-        <button type="button" className="money-totals-card" onClick={() => setShowBreakdown((v) => !v)} aria-expanded={showBreakdown}>
+
+        <div className="money-totals-card money-left-to-pay">
+          <button
+            type="button"
+            className="money-left-pay-btn"
+            onClick={() => { setShowUnpaid((v) => !v); setShowPaid(false); }}
+            aria-expanded={showUnpaid}
+          >
+            <span className="money-muted money-small">Left to pay this month</span>
+            <strong className="money-big money-left-figure">{formatEUR(totals.leftToPayThisMonthCents)}</strong>
+          </button>
+          <button
+            type="button"
+            className="money-paid-line"
+            onClick={() => {
+              setShowPaid((v) => !v);
+              setShowUnpaid(false);
+            }}
+            aria-expanded={showPaid}
+          >
+            {formatEUR(totals.paidThisMonthCents)} paid of {formatEUR(totals.scheduledThisMonthCents)} scheduled
+          </button>
+          <div className="money-pay-bar" role="progressbar" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100} aria-label={`${paidPct}% of this month’s bills paid`}>
+            <span style={{ width: `${paidPct}%` }} />
+          </div>
+        </div>
+
+        {showUnpaid && (
+          <div className="money-breakdown">
+            <p className="money-muted money-small">Unpaid bills due this month (fully paid items are hidden):</p>
+            {unpaidThisMonth.length === 0 ? (
+              <p className="money-muted">Nothing left to pay this month.</p>
+            ) : (
+              <ul className="money-breakdown-list">
+                {unpaidThisMonth.map((c) => (
+                  <li key={c.id}>
+                    <span>
+                      {c.name}
+                      <span className="money-muted money-small"> · Due {formatDateIE(c.nextDue)} · {formatEUR(c.amountCents - c.remainingCents)} paid</span>
+                    </span>
+                    <strong>{formatEUR(c.remainingCents)}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {showPaid && (
+          <div className="money-breakdown">
+            <p className="money-muted money-small">Payments counted toward this month’s schedule:</p>
+            {paidPayments.length === 0 ? (
+              <p className="money-muted">No payments recorded yet this month.</p>
+            ) : (
+              <ul className="money-breakdown-list">
+                {paidPayments.map((t) => (
+                  <li key={t.id}>
+                    <span>
+                      {t.description}
+                      <span className="money-muted money-small"> · {formatDateIE(t.date)}</span>
+                    </span>
+                    <strong>{formatEUR(t.amountCents)}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {totals.overdueCents > 0 && (
+          <p className="money-overdue-note is-neg">
+            Plus {formatEUR(totals.overdueCents)} overdue from earlier months — listed separately below.
+          </p>
+        )}
+
+        <button
+          type="button"
+          className="money-totals-card money-avg-card"
+          onClick={() => setShowAverage((v) => !v)}
+          aria-expanded={showAverage}
+        >
           <div>
-            <span className="money-muted money-small">Avg monthly expenses</span>
-            <strong className="money-big" style={{ display: "block", fontSize: "1.8rem" }}>{formatEUR(totals.averageMonthlyExpenseCents)}</strong>
+            <span className="money-muted money-small">Average monthly recurring expenses</span>
+            <strong className="money-big" style={{ display: "block", fontSize: "1.35rem" }}>{formatEUR(totals.averageMonthlyExpenseCents)}</strong>
           </div>
           <div className="money-totals-meta">
-            <span>Due this month {formatEUR(totals.dueThisMonthCents)}</span>
-            <span>Remaining {formatEUR(totals.remainingThisMonthCents)}</span>
             <span>~{formatEUR(totals.annualExpenseCents)} / year</span>
+            <span>Excludes paused, cancelled, transfers and savings</span>
           </div>
         </button>
-        {showBreakdown && (
+
+        {showAverage && (
           <div className="money-breakdown">
-            <p className="money-muted money-small">Active expense bills in the average (paused, cancelled, transfers and savings excluded):</p>
+            <p className="money-muted money-small">Active expense bills in the average:</p>
             <ul className="money-breakdown-list">
               {totals.contributions
                 .filter((c) => c.countsInAverage)
@@ -199,6 +302,7 @@ export default function SubscriptionsPage({
             </ul>
           </div>
         )}
+
         <button type="button" className="money-btn-primary money-add" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>
           {adding ? "Close" : "+ Add Bill"}
         </button>

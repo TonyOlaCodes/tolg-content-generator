@@ -28,9 +28,17 @@ export type BillTotals = {
   /** Monthly equivalent of active recurring expenses (excludes paused/cancelled and transfer/savings). */
   averageMonthlyExpenseCents: number;
   /** Full occurrence amounts whose next due falls in this calendar month. */
-  dueThisMonthCents: number;
-  /** Still unpaid of this month’s dues plus any overdue leftovers. */
+  scheduledThisMonthCents: number;
+  /** Amount already paid toward this month’s scheduled occurrences. */
+  paidThisMonthCents: number;
+  /** Still unpaid of this month’s scheduled dues only (overdue is separate). */
+  leftToPayThisMonthCents: number;
+  /** Unpaid leftovers with nextDue before this month. */
+  overdueCents: number;
+  /** @deprecated alias of leftToPayThisMonthCents + overdueCents for older UI */
   remainingThisMonthCents: number;
+  /** @deprecated alias of scheduledThisMonthCents */
+  dueThisMonthCents: number;
   /** averageMonthlyExpenseCents × 12 */
   annualExpenseCents: number;
   contributions: BillContribution[];
@@ -52,8 +60,9 @@ export function computeBillTotals(snap: Snapshot, month: string = currentMonth()
   const contributions: BillContribution[] = [];
 
   let averageMonthlyExpenseCents = 0;
-  let dueThisMonthCents = 0;
-  let remainingThisMonthCents = 0;
+  let scheduledThisMonthCents = 0;
+  let leftToPayThisMonthCents = 0;
+  let overdueCents = 0;
 
   for (const r of bills) {
     const purpose = billPurpose(r);
@@ -81,17 +90,23 @@ export function computeBillTotals(snap: Snapshot, month: string = currentMonth()
     if (countsInAverage) averageMonthlyExpenseCents += monthlyEq;
 
     if (r.status === "active" && inMonth) {
-      dueThisMonthCents += r.amountCents;
-      remainingThisMonthCents += remaining;
+      scheduledThisMonthCents += r.amountCents;
+      leftToPayThisMonthCents += remaining;
     } else if (overdue) {
-      remainingThisMonthCents += remaining;
+      overdueCents += remaining;
     }
   }
 
+  const paidThisMonthCents = Math.max(0, scheduledThisMonthCents - leftToPayThisMonthCents);
+
   return {
     averageMonthlyExpenseCents,
-    dueThisMonthCents,
-    remainingThisMonthCents,
+    scheduledThisMonthCents,
+    paidThisMonthCents,
+    leftToPayThisMonthCents,
+    overdueCents,
+    remainingThisMonthCents: leftToPayThisMonthCents + overdueCents,
+    dueThisMonthCents: scheduledThisMonthCents,
     annualExpenseCents: averageMonthlyExpenseCents * 12,
     contributions,
   };

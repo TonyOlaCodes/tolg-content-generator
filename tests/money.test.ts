@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { buildTimeline } from "../money/engine";
 import { buildForecast } from "../money/forecast";
 import { formatEUR, parseEuroToCents, addMonthsKeepDay } from "../money/money";
-import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount, reconcileBalance, mainNowCents, pocketNowCents, savePocket } from "../money/actions";
+import { saveTransaction, reverseTransaction, confirmRecurring, closeMonthRollover, setAllocation, saveCategory, saveIncomeSplit, archivePocket, deleteAccount, reconcileBalance, mainNowCents, pocketNowCents, savePocket, recordRefund, refundableCents } from "../money/actions";
 import { computeBillTotals } from "../money/bills";
+import { computeWealthSummary } from "../money/summary";
+import { computeMonthSpending } from "../money/spending";
 import { sortAccountsByBalance, sortedPocketRows } from "../money/sort";
 import { validateBackup, exportSnapshot } from "../money/backup";
 import { defaultCategories, EMPTY_SNAPSHOT, type Snapshot, type Transaction } from "../money/types";
+import { currentPosition } from "../money/engine";
 
 let n = 0;
 const ctx = { now: "2026-11-01T09:00:00Z", today: "2026-11-10", newId: () => `id${++n}` };
@@ -302,7 +305,7 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
   assert.equal(ordered[0].id, "sav");
 }
 
-// --- bill totals: expense average excludes paused; remaining tracks unpaid dues
+// --- bill totals: expense average excludes paused; left-to-pay tracks unpaid dues
 {
   const snap: Snapshot = {
     ...base,
@@ -310,17 +313,138 @@ assert.equal(addMonthsKeepDay("2026-01-31", 1, 31), "2026-02-28");
       { id: "gym", kind: "bill", name: "Gym", icon: "•", amountCents: 3300, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-05", categoryId: null, accountId: "cur", purpose: "expense", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" },
       { id: "ajo", kind: "bill", name: "Ajo", icon: "•", amountCents: 20000, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-10", categoryId: null, accountId: "cur", purpose: "savings", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" },
       { id: "old", kind: "bill", name: "Paused Mag", icon: "•", amountCents: 99900, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-11-01", categoryId: null, accountId: "cur", purpose: "expense", status: "paused", notes: "", history: [], createdAt: "", updatedAt: "" },
+      { id: "late", kind: "bill", name: "Old Bill", icon: "•", amountCents: 5000, interval: "monthly", customDays: null, dayOfMonth: 1, nextDue: "2026-10-01", categoryId: null, accountId: "cur", purpose: "expense", status: "active", notes: "", history: [], createdAt: "", updatedAt: "" },
     ],
   };
   const totals = computeBillTotals(snap, "2026-11");
-  assert.equal(totals.averageMonthlyExpenseCents, 3300, "savings + paused excluded from expense average");
-  assert.equal(totals.dueThisMonthCents, 23300, "due this month includes all active scheduled amounts");
-  assert.equal(totals.remainingThisMonthCents, 23300);
+  assert.equal(totals.averageMonthlyExpenseCents, 8300, "savings + paused excluded; overdue expense still in average");
+  assert.equal(totals.scheduledThisMonthCents, 23300, "scheduled this month includes active dues in-month");
+  assert.equal(totals.leftToPayThisMonthCents, 23300);
+  assert.equal(totals.paidThisMonthCents, 0);
+  assert.equal(totals.overdueCents, 5000, "overdue kept separate from left to pay");
   const part = confirmRecurring(snap, "gym", ctx, 1000);
   assert.ok(part.ok);
   const mid = apply(snap, part.ok ? part.change : { puts: [] });
   const after = computeBillTotals(mid, "2026-11");
-  assert.equal(after.remainingThisMonthCents, 22300, "partial gym payment reduces remaining");
+  assert.equal(after.scheduledThisMonthCents, 23300);
+  assert.equal(after.paidThisMonthCents, 1000);
+  assert.equal(after.leftToPayThisMonthCents, 22300, "partial gym payment reduces left to pay");
+  assert.equal(after.overdueCents, 5000, "overdue unchanged by in-month payment");
+  const rest = confirmRecurring(mid, "gym", ctx, 2300);
+  assert.ok(rest.ok);
+  const done = apply(mid, rest.ok ? rest.change : { puts: [] });
+  const settled = computeBillTotals(done, "2026-11");
+  assert.equal(settled.leftToPayThisMonthCents, 20000, "fully paid gym drops out of left to pay");
+  assert.ok(!settled.contributions.find((c) => c.id === "gym")?.dueThisMonth || settled.contributions.find((c) => c.id === "gym")!.remainingCents === 0);
+}
+
+// --- wealth summary: categories partition Total Money; archived excluded
+{
+  const snap: Snapshot = {
+    ...base,
+    accounts: [
+      { id: "cur", name: "Current", kind: "current", openingCents: 100_000, excludeFromSpendable: false, archived: false, createdAt: "" },
+      { id: "sav", name: "Savings", kind: "savings", openingCents: 50_000, excludeFromSpendable: true, archived: false, createdAt: "" },
+      { id: "inv", name: "Shares", kind: "investment", openingCents: 20_000, excludeFromSpendable: true, archived: false, createdAt: "" },
+      { id: "old", name: "Archived", kind: "current", openingCents: 50_000, excludeFromSpendable: false, archived: true, createdAt: "" },
+      { id: "misc", name: "Other pot", kind: "custom", openingCents: 7_500, excludeFromSpendable: true, archived: false, createdAt: "" },
+    ],
+  };
+  const row = currentPosition(snap, "2026-11");
+  const wealth = computeWealthSummary(snap, row?.accountEnd ?? {}, row?.mainEnd ?? {});
+  assert.equal(wealth.spendableCents, 100_000);
+  assert.equal(wealth.savingsCents, 50_000);
+  assert.equal(wealth.investmentCents, 20_000);
+  assert.equal(wealth.otherCents, 7_500);
+  assert.equal(wealth.archivedCents, 50_000);
+  assert.equal(
+    wealth.totalCents,
+    wealth.spendableCents + wealth.savingsCents + wealth.investmentCents + wealth.otherCents,
+  );
+  assert.equal(wealth.totalCents, 177_500, "archived €500 not in Total Money");
+  assert.equal(
+    wealth.accounts.reduce((s, a) => s + a.totalCents, 0),
+    wealth.totalCents,
+  );
+}
+
+// --- monthly spending, edit amount, category-only edit, move pocket, refund, reverse
+{
+  let snap = apply(base, must(savePocket(base, { accountId: "cur", name: "Food", icon: "🍎", color: "#34d399", targetCents: null }, ctx)));
+  const foodPocket = snap.pockets[0].id;
+  snap = apply(snap, must(saveTransaction(snap, { kind: "transfer", status: "confirmed", date: "2026-11-02", amountCents: 20_000, accountId: "cur", pocketId: null, toAccountId: "cur", toPocketId: foodPocket, categoryId: null, description: "Fund", notes: "" }, ctx)));
+  snap = apply(snap, must(saveTransaction(snap, { kind: "expense", status: "confirmed", date: "2026-11-05", amountCents: 4_000, accountId: "cur", pocketId: foodPocket, toAccountId: null, categoryId: "food", description: "Lunch", notes: "" }, ctx)));
+  const expId = snap.transactions.find((t) => t.kind === "expense")!.id;
+
+  let spend = computeMonthSpending(snap, "2026-11");
+  assert.equal(spend.grossExpenseCents, 4_000);
+  assert.equal(spend.netCents, 4_000);
+  assert.equal(spend.byCategory.find((c) => c.categoryId === "food")?.cents, 4_000);
+
+  // Edit amount €40 → €30 restores €10 to the pocket.
+  snap = apply(snap, must(saveTransaction(snap, { id: expId, kind: "expense", status: "confirmed", date: "2026-11-05", amountCents: 3_000, accountId: "cur", pocketId: foodPocket, toAccountId: null, categoryId: "food", description: "Lunch", notes: "" }, ctx)));
+  assert.equal(pocketNowCents(snap, foodPocket), 17_000);
+  spend = computeMonthSpending(snap, "2026-11");
+  assert.equal(spend.netCents, 3_000);
+
+  // Category-only change must not move money.
+  const balBefore = bal(snap, "cur");
+  const pocketBefore = pocketNowCents(snap, foodPocket);
+  snap = apply(snap, must(saveTransaction(snap, { id: expId, kind: "expense", status: "confirmed", date: "2026-11-05", amountCents: 3_000, accountId: "cur", pocketId: foodPocket, toAccountId: null, categoryId: "transport", description: "Lunch", notes: "" }, ctx)));
+  assert.equal(bal(snap, "cur"), balBefore);
+  assert.equal(pocketNowCents(snap, foodPocket), pocketBefore);
+  spend = computeMonthSpending(snap, "2026-11");
+  assert.equal(spend.byCategory.find((c) => c.categoryId === "transport")?.cents, 3_000);
+  assert.equal(spend.byCategory.find((c) => c.categoryId === "food")?.cents, undefined);
+
+  // Move source to Main: restore Food, debit Main.
+  snap = apply(snap, must(saveTransaction(snap, { id: expId, kind: "expense", status: "confirmed", date: "2026-11-05", amountCents: 3_000, accountId: "cur", pocketId: null, toAccountId: null, categoryId: "transport", description: "Lunch", notes: "" }, ctx)));
+  assert.equal(pocketNowCents(snap, foodPocket), 20_000);
+  assert.equal(mainNowCents(snap, "cur"), 77_000);
+
+  // Partial refund €20 of €30.
+  assert.equal(refundableCents(snap, expId), 3_000);
+  const refund = recordRefund(snap, expId, 2_000, ctx);
+  assert.ok(refund.ok);
+  snap = apply(snap, refund.ok ? refund.change : { puts: [] });
+  assert.equal(refundableCents(snap, expId), 1_000);
+  assert.equal(recordRefund(snap, expId, 2_000, ctx).ok, false, "cannot over-refund");
+  spend = computeMonthSpending(snap, "2026-11");
+  assert.equal(spend.grossExpenseCents, 3_000);
+  assert.equal(spend.refundCents, 2_000);
+  assert.equal(spend.netCents, 1_000);
+  assert.equal(mainNowCents(snap, "cur"), 79_000);
+  assert.equal(reverseTransaction(snap, expId, ctx).ok, false, "must clear refunds before reversing");
+
+  // Reverse the refund, then the expense — spending drops.
+  const refundTx = snap.transactions.find((t) => t.kind === "refund")!;
+  const revRefund = reverseTransaction(snap, refundTx.id, ctx);
+  assert.ok(revRefund.ok);
+  snap = apply(snap, revRefund.ok ? revRefund.change : { puts: [] });
+  const rev = reverseTransaction(snap, expId, ctx);
+  assert.ok(rev.ok);
+  snap = apply(snap, rev.ok ? rev.change : { puts: [] });
+  spend = computeMonthSpending(snap, "2026-11");
+  assert.equal(spend.expenseCount, 0, "reversed expense excluded from spending");
+  assert.equal(reverseTransaction(snap, expId, ctx).ok, false, "no duplicate reverse");
+}
+
+// --- savings-purpose bill confirms as internal transfer when destination set
+{
+  const snap: Snapshot = {
+    ...base,
+    recurring: [{
+      id: "ajo", kind: "bill", name: "Ajo", icon: "•", amountCents: 10_000, interval: "monthly", customDays: null, dayOfMonth: 10,
+      nextDue: "2026-11-10", categoryId: null, accountId: "cur", toAccountId: "sav", purpose: "savings", status: "active", notes: "", history: [], createdAt: "", updatedAt: "",
+    }],
+  };
+  const paid = confirmRecurring(snap, "ajo", ctx);
+  assert.ok(paid.ok);
+  const after = apply(snap, paid.ok ? paid.change : { puts: [] });
+  assert.equal(after.transactions[0].kind, "transfer");
+  assert.equal(bal(after, "cur") + bal(after, "sav"), 100_000, "internal savings move keeps total money");
+  const spend = computeMonthSpending(after, "2026-11");
+  assert.equal(spend.grossExpenseCents, 0, "savings transfer is not spending");
 }
 
 // --- delete account: unused hard-deletes; used accounts are soft-deleted (archived)

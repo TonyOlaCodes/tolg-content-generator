@@ -571,9 +571,135 @@ body:has(.money-sheet-backdrop) { overflow: hidden; }
   padding: 12px 14px;
   border-radius: 16px;
   background: var(--panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border: 0;
 }
 .money-stat-cell.is-wide { grid-column: 1 / -1; }
+.money-stat-cell.is-clickable { cursor: pointer; }
+.money-stat-cell.is-clickable:active { transform: scale(0.99); }
 .money-stat-cell strong { font-size: 1.15rem; font-weight: 650; }
+.money-total-btn {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.money-total-btn:active { opacity: 0.92; }
+.money-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.money-wealth-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.money-wealth-card {
+  border-radius: 16px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.money-wealth-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.money-wealth-head span:first-child { display: grid; gap: 2px; min-width: 0; }
+.money-wealth-pockets {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 14px;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+.money-wealth-pockets li { padding-top: 8px; }
+.money-detail-dl {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.money-detail-dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
+.money-detail-dl dt { color: var(--muted); font-size: 0.88rem; }
+.money-detail-dl dd { margin: 0; font-weight: 600; text-align: right; }
+.money-legend-btn {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.money-legend-btn.is-active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.money-left-to-pay { cursor: default; gap: 8px; }
+.money-left-pay-btn {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.money-left-figure { display: block; font-size: 2rem; letter-spacing: -0.02em; }
+.money-paid-line {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.money-pay-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+.money-pay-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.money-overdue-note { margin: 0; font-size: 0.88rem; }
+.money-avg-card { margin-top: 4px; }
 .money-quick-actions {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

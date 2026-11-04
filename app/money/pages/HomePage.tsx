@@ -3,6 +3,8 @@
 import { currentPosition } from "@/money/engine";
 import { remainingRecurringCents } from "@/money/actions";
 import { computeBillTotals } from "@/money/bills";
+import { computeWealthSummary } from "@/money/summary";
+import { computeMonthSpending } from "@/money/spending";
 import { currentMonth, dueLabel, formatEUR, formatDateIE, todayISO } from "@/money/money";
 import { sortAccountsByBalance } from "@/money/sort";
 import { ACCOUNT_KINDS } from "@/money/types";
@@ -29,21 +31,11 @@ export default function HomePage({
   const month = currentMonth();
   const today = todayISO();
   const row = currentPosition(snap, month);
+  const wealth = computeWealthSummary(snap, row?.accountEnd ?? {}, row?.mainEnd ?? {});
   const accounts = sortAccountsByBalance(snap, snap.accounts.filter((a) => !a.archived));
   const hasAccounts = accounts.length > 0;
   const billTotals = computeBillTotals(snap, month);
-
-  const totalCents = row?.totalEnd ?? 0;
-  const spendableCents = accounts
-    .filter((a) => !a.excludeFromSpendable)
-    .reduce((s, a) => s + (row?.accountEnd[a.id] ?? 0), 0);
-  const savingsCents = accounts
-    .filter((a) => a.kind === "savings" || (a.excludeFromSpendable && a.kind !== "investment"))
-    .reduce((s, a) => s + (row?.accountEnd[a.id] ?? 0), 0);
-  const investmentCents = accounts
-    .filter((a) => a.kind === "investment")
-    .reduce((s, a) => s + (row?.accountEnd[a.id] ?? 0), 0);
-  const spentMonth = row?.outflow ?? 0;
+  const spending = computeMonthSpending(snap, month);
 
   const bills = snap.recurring
     .filter((r) => r.status === "active" && r.kind === "bill" && remainingRecurringCents(snap, r) > 0)
@@ -59,10 +51,11 @@ export default function HomePage({
   return (
     <div className="money-page money-home">
       <section className="money-hero">
-        <p className="money-kicker">Total money</p>
-        <p className="money-balance" aria-label={`Total money ${formatEUR(totalCents)}`}>
-          {formatEUR(totalCents)}
-        </p>
+        <button type="button" className="money-total-btn" onClick={() => onNavigate("wealth")} aria-label={`Total money ${formatEUR(wealth.totalCents)}, show breakdown`}>
+          <p className="money-kicker">Total money</p>
+          <p className="money-balance">{formatEUR(wealth.totalCents)}</p>
+          <span className="money-muted money-small">Tap for breakdown</span>
+        </button>
       </section>
 
       {!hasAccounts && (
@@ -75,12 +68,18 @@ export default function HomePage({
       {hasAccounts && (
         <>
           <section className="money-stat-grid" aria-label="Money summary">
-            <Stat label="Spendable" value={formatEUR(spendableCents)} />
-            <Stat label="Savings" value={formatEUR(savingsCents)} />
-            <Stat label="Investments" value={formatEUR(investmentCents)} />
-            <Stat label="Bills remaining" value={formatEUR(billTotals.remainingThisMonthCents)} />
-            <Stat label="Spent this month" value={formatEUR(spentMonth)} wide />
+            <Stat label="Spendable" value={formatEUR(wealth.spendableCents)} onClick={() => onNavigate("wealth")} />
+            <Stat label="Savings" value={formatEUR(wealth.savingsCents)} onClick={() => onNavigate("wealth")} />
+            <Stat label="Investments" value={formatEUR(wealth.investmentCents)} onClick={() => onNavigate("wealth")} />
+            {wealth.otherCents !== 0 && <Stat label="Other" value={formatEUR(wealth.otherCents)} onClick={() => onNavigate("wealth")} />}
+            <Stat label="Bills left" value={formatEUR(billTotals.leftToPayThisMonthCents)} onClick={() => onNavigate("bills")} />
+            <Stat label="Spent this month" value={formatEUR(spending.netCents)} wide onClick={() => onNavigate("spending")} />
           </section>
+          {wealth.archivedCents !== 0 && (
+            <p className="money-muted money-small">
+              Archived accounts hold {formatEUR(wealth.archivedCents)} and are not included in Total Money.
+            </p>
+          )}
 
           <section className="money-quick-actions" aria-label="Quick actions">
             <button type="button" className="money-quick" onClick={() => onFlow("add")}>+ Add Money</button>
@@ -181,9 +180,28 @@ export default function HomePage({
   );
 }
 
-function Stat({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function Stat({
+  label,
+  value,
+  wide,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+  onClick?: () => void;
+}) {
+  const className = `money-stat-cell${wide ? " is-wide" : ""}${onClick ? " is-clickable" : ""}`;
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        <span className="money-muted money-small">{label}</span>
+        <strong>{value}</strong>
+      </button>
+    );
+  }
   return (
-    <div className={`money-stat-cell${wide ? " is-wide" : ""}`}>
+    <div className={className}>
       <span className="money-muted money-small">{label}</span>
       <strong>{value}</strong>
     </div>
