@@ -50,7 +50,16 @@ export type Category = {
   order: number;
 };
 
-export type TxKind = "expense" | "income" | "transfer" | "refund" | "adjustment";
+export type TxKind =
+  | "expense"
+  | "income"
+  | "transfer"
+  | "refund"
+  | "adjustment"
+  | "lend"
+  | "borrow"
+  | "loan_repayment"
+  | "debt_repayment";
 export type TxStatus = "planned" | "confirmed";
 
 export type Transaction = {
@@ -72,9 +81,26 @@ export type Transaction = {
   notes: string;
   recurringId: string | null;
   occurrenceDate: string | null;
+  /** The original expense this refund belongs to (refunds only). */
+  refundOf?: string | null;
+  /** The IOU this cash movement belongs to (lending, borrowing and repayments). */
+  loanId?: string | null;
   /** True when this record reverses another transaction (its effects are negated). */
   reverses: boolean;
   reversedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A person-to-person IOU. Cash movements are separate linked transactions. */
+export type Loan = {
+  id: string;
+  direction: "lent" | "borrowed";
+  person: string;
+  principalCents: number;
+  date: string;
+  dueDate: string | null;
+  notes: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -92,7 +118,7 @@ export type Allocation = {
 export type Closure = { month: string; choices: Record<string, Rollover> };
 
 export type RecurringKind = "bill" | "income";
-export type Interval = "weekly" | "monthly" | "yearly" | "custom";
+export type Interval = "once" | "weekly" | "monthly" | "yearly" | "custom";
 
 export type Recurring = {
   id: string;
@@ -115,7 +141,14 @@ export type Recurring = {
   updatedAt: string;
 };
 
-export type Settings = { id: "main"; plannedSpendAccountId: string | null };
+export type SplitTemplateLine = { accountId: string; pocketId: string | null; cents: number };
+
+export type Settings = {
+  id: "main";
+  plannedSpendAccountId: string | null;
+  /** Optional saved salary/income distribution, restored with backups. */
+  splitTemplate?: SplitTemplateLine[] | null;
+};
 
 export type Snapshot = {
   accounts: Account[];
@@ -125,6 +158,7 @@ export type Snapshot = {
   recurring: Recurring[];
   allocations: Allocation[];
   closures: Closure[];
+  loans: Loan[];
   settings: Settings | null;
 };
 
@@ -136,6 +170,7 @@ export const EMPTY_SNAPSHOT: Snapshot = {
   recurring: [],
   allocations: [],
   closures: [],
+  loans: [],
   settings: null,
 };
 

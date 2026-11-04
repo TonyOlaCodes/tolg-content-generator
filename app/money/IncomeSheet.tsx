@@ -1,166 +1,172 @@
 "use client";
 
 import { useState } from "react";
-import { saveIncomeSplit, defaultCtx, type IncomeSplitLine } from "@/money/actions";
+import { defaultCtx, saveIncomeSplit, saveSplitTemplate } from "@/money/actions";
+import type { Location } from "@/money/banking";
 import { formatEUR, parseEuroToCents, todayISO } from "@/money/money";
 import type { MoneyApi } from "./MoneyApp";
+import { ErrorLine, LocationPicker, Sheet, useSaving } from "./ui";
 
-type Row = { key: string; value: string; destination: string };
-
-/**
- * Splits one income into accounts and pockets. The income lands in the receiving account first, then
- * each allocated part moves out with internal transfers, so nothing is counted twice.
- * Any unallocated remainder goes to the chosen remainder destination.
- */
-export function IncomeSheet({ api, onClose, notify }: { api: MoneyApi; onClose: () => void; notify: (m: string) => void }) {
+type Row = { id: string; destination: Location | null; value: string };
+/** One arrival split across accounts and pockets. The income is counted once, then moved internally. */
+export function IncomeSplitSheet({
+  api,
+  onClose,
+  notify,
+}: {
+  api: MoneyApi;
+  onClose: () => void;
+  notify: (message: string) => void;
+}) {
   const { snap, commit } = api;
-  const accounts = snap.accounts.filter((a) => !a.archived);
-  const pockets = snap.pockets.filter((p) => !p.archived);
-  const destinations = accounts.flatMap((a) => [
-    { value: `${a.id}|`, label: `${a.name} · Main` },
-    ...pockets.filter((p) => p.accountId === a.id).map((p) => ({ value: `${a.id}|${p.id}`, label: `${a.name} · ${p.name}` })),
-  ]);
-  const firstDest = destinations[0]?.value ?? "";
-  const [description, setDescription] = useState("Salary");
+  const first = snap.accounts.find((a) => !a.archived);
   const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("Incoming money");
   const [date, setDate] = useState(todayISO());
-  const [receive, setReceive] = useState(accounts[0] ? `${accounts[0].id}|` : "");
-  const [rows, setRows] = useState<Row[]>([{ key: "r0", value: "", destination: firstDest }]);
-  const [remainderTo, setRemainderTo] = useState(receive);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [rows, setRows] = useState<Row[]>([
+    { id: "r1", destination: first ? { accountId: first.id, pocketId: null } : null, value: "" },
+  ]);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const { busy, error, setError, run } = useSaving();
 
-  const totalCents = parseEuroToCents(amount) ?? 0;
-  const allocated = rows.reduce((s, r) => s + (parseEuroToCents(r.value) ?? 0), 0);
-  const remaining = totalCents - allocated;
-  const overAllocated = totalCents > 0 && remaining < 0;
+  const total = parseEuroToCents(amount) ?? 0;
+  const allocated = rows.reduce((sum, row) => sum + (parseEuroToCents(row.value) ?? 0), 0);
+  const remaining = total - allocated;
 
-  const update = (key: string, patch: Partial<Row>) =>
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  async function saveTemplate() {
+    const lines = rows
+      .filter((row) => row.destination && (parseEuroToCents(row.value) ?? 0) > 0)
+      .map((row) => ({ accountId: row.destination!.accountId, pocketId: row.destination!.pocketId, cents: parseEuroToCents(row.value) ?? 0 }));
+    if (lines.length === 0) return setError("Add an amount to save this split.");
+    const err = await commit(saveSplitTemplate(snap, lines));
+    if (err) return setError(err);
+    setTemplateSaved(true);
+    notify("Split saved for next time");
+  }
+
+  function loadTemplate() {
+    const saved = snap.settings?.splitTemplate ?? [];
+    if (!saved.length) return setError("No saved split yet.");
+    setRows(
+      saved.map((line, index) => ({
+        id: `t${index}`,
+        destination: { accountId: line.accountId, pocketId: line.pocketId },
+        value: (line.cents / 100).toFixed(2),
+      })),
+    );
+    setError(null);
+  }
 
   const submit = async () => {
-    if (busy) return;
-    if (totalCents <= 0) return setError("Enter the amount you received.");
-    if (overAllocated) return setError("The allocations are more than the amount. Reduce them.");
-    const split = (v: string) => {
-      const [accountId, pocketId] = v.split("|");
-      return { accountId, pocketId: pocketId || null };
-    };
-    const lines = new Map<string, IncomeSplitLine>();
-    const add = (dest: string, cents: number) => {
-      if (cents <= 0) return;
-      const s = split(dest);
-      const k = `${s.accountId}|${s.pocketId ?? ""}`;
-      const prev = lines.get(k);
-      lines.set(k, { accountId: s.accountId, pocketId: s.pocketId, cents: (prev?.cents ?? 0) + cents });
-    };
-    for (const r of rows) add(r.destination, parseEuroToCents(r.value) ?? 0);
-    if (remaining > 0) add(remainderTo, remaining);
-
-    setBusy(true);
-    const err = await commit(
-      saveIncomeSplit(
-        snap,
-        {
-          description: description.trim() || "Income",
-          date,
-          amountCents: totalCents,
-          receiveAccountId: split(receive).accountId,
-          lines: [...lines.values()],
-        },
-        defaultCtx(),
+    if (total <= 0) return setError("Enter the amount that arrived.");
+    if (rows.some((row) => !row.destination)) return setError("Choose where every part went.");
+    if (remaining !== 0) return setError("The split must add up to the full amount.");
+    const firstLine = rows.find((row) => row.destination && (parseEuroToCents(row.value) ?? 0) > 0);
+    if (!firstLine?.destination) return setError("Enter at least one amount.");
+    const ok = await run(() =>
+      commit(
+        saveIncomeSplit(
+          snap,
+          {
+            description,
+            date,
+            amountCents: total,
+            receiveAccountId: firstLine.destination!.accountId,
+            lines: rows.map((row) => ({
+              accountId: row.destination!.accountId,
+              pocketId: row.destination!.pocketId,
+              cents: parseEuroToCents(row.value) ?? 0,
+            })),
+          },
+          defaultCtx(),
+        ),
       ),
     );
-    setBusy(false);
-    if (err) return setError(err);
-    notify("Income recorded");
-    onClose();
+    if (ok) {
+      notify("Incoming money split and recorded");
+      onClose();
+    }
   };
 
-  const select = (value: string, onChange: (v: string) => void, title: string) => (
-    <label className="money-field">
-      <span>{title}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {destinations.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  );
-
   return (
-    <div className="money-sheet-backdrop" role="presentation" onClick={onClose}>
-      <div className="money-sheet" role="dialog" aria-modal="true" aria-label="Split income" onClick={(e) => e.stopPropagation()}>
-        <div className="money-sheet-grip" aria-hidden />
-        <div className="money-sheet-head">
-          <strong>Income</strong>
-          <button type="button" className="money-link" onClick={onClose}>Cancel</button>
-        </div>
-
-        <div className="money-sheet-body">
-          <label className="money-amount">
-            <span className="sr-only">Amount received in euros</span>
-            <span className="money-amount-sign" aria-hidden>€</span>
-            <input inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" aria-label="Amount received in euros" />
+    <Sheet
+      title="Split incoming"
+      onClose={onClose}
+      tall
+      footer={
+        <button type="button" className="mm-primary mm-wide" disabled={busy || total <= 0 || remaining !== 0} onClick={() => void submit()}>
+          {busy ? "Saving…" : `Record ${formatEUR(total)}`}
+        </button>
+      }
+    >
+      <div className="mm-form">
+        <label className="mm-field">
+          <span>Amount received</span>
+          <input className="mm-input mm-input-lg" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" autoFocus />
+        </label>
+        <div className="mm-grid2">
+          <label className="mm-field">
+            <span>Description</span>
+            <input className="mm-input" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={120} />
           </label>
-
-          {accounts.length === 0 ? (
-            <p className="money-muted">Add an account first, so the income has somewhere to land.</p>
-          ) : (
-            <>
-              <div className="money-grid2">
-                <label className="money-field">
-                  <span>Note</span>
-                  <input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} />
-                </label>
-                <label className="money-field">
-                  <span>Date</span>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                </label>
-              </div>
-              {select(receive, (v) => { setReceive(v); if (remainderTo === receive) setRemainderTo(v); }, "Received into")}
-
-              <div className="money-split-remaining" aria-live="polite" data-state={overAllocated ? "over" : remaining === 0 && totalCents > 0 ? "done" : "open"}>
-                <span className="money-muted money-small">{overAllocated ? "Over-allocated by" : "Remaining"}</span>
-                <strong>{formatEUR(Math.abs(remaining))}</strong>
-              </div>
-
-              {rows.map((r, i) => (
-                <div key={r.key} className="money-split-row">
-                  <label className="money-field">
-                    <span>Allocation {i + 1} €</span>
-                    <input inputMode="decimal" value={r.value} onChange={(e) => update(r.key, { value: e.target.value })} placeholder="0.00" />
-                  </label>
-                  <label className="money-field">
-                    <span>Into</span>
-                    <select value={r.destination} onChange={(e) => update(r.key, { destination: e.target.value })}>
-                      {destinations.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </label>
-                  {rows.length > 1 && (
-                    <button type="button" className="money-link" onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove allocation ${i + 1}`}>Remove</button>
-                  )}
-                </div>
-              ))}
-              <button type="button" className="money-link" onClick={() => setRows((rs) => [...rs, { key: `r${Date.now()}`, value: "", destination: firstDest }])}>
-                + Add allocation
-              </button>
-
-              {remaining > 0 && totalCents > 0 && (
-                <>
-                  {select(remainderTo, setRemainderTo, `Remaining ${formatEUR(remaining)} goes to`)}
-                </>
-              )}
-            </>
-          )}
-
-          {error && <p className="money-error" role="alert">{error}</p>}
+          <label className="mm-field">
+            <span>Date</span>
+            <input className="mm-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
         </div>
 
-        <div className="money-sheet-foot">
-          <button type="button" className="money-btn-primary money-confirm" onClick={submit} disabled={busy || accounts.length === 0 || overAllocated || totalCents <= 0}>
-            {busy ? "Saving…" : "Confirm income"}
+        {rows.map((row, index) => (
+          <div key={row.id} className="mm-split-row">
+            <LocationPicker
+              snap={snap}
+              label={index === 0 ? "Lands in" : `Split ${index + 1}`}
+              value={row.destination}
+              onChange={(destination) => setRows((list) => list.map((item) => (item.id === row.id ? { ...item, destination } : item)))}
+            />
+            <label className="mm-field mm-split-amount">
+              <span>Amount</span>
+              <input
+                className="mm-input"
+                inputMode="decimal"
+                value={row.value}
+                onChange={(event) => setRows((list) => list.map((item) => (item.id === row.id ? { ...item, value: event.target.value } : item)))}
+              />
+            </label>
+          </div>
+        ))}
+
+        <div className="mm-split-controls">
+          <button
+            type="button"
+            className="mm-link"
+            onClick={() => setRows((list) => [...list, { id: `r${Date.now()}`, destination: first ? { accountId: first.id, pocketId: null } : null, value: "0" }])}
+          >
+            + Split into another place
+          </button>
+          {remaining > 0 ? (
+            <button type="button" className="mm-link" onClick={() => setRows((list) => list.map((row, index) => (index === 0 ? { ...row, value: (((parseEuroToCents(row.value) ?? 0) + remaining) / 100).toFixed(2) } : row)))}>
+              Put remaining {formatEUR(remaining)} in first
+            </button>
+          ) : null}
+        </div>
+
+        <div className={`mm-remaining${remaining < 0 ? " is-over" : remaining === 0 && total > 0 ? " is-done" : ""}`}>
+          <span>{remaining < 0 ? "Over by" : "Unallocated"}</span>
+          <strong>{formatEUR(Math.abs(remaining))}</strong>
+        </div>
+
+        <div className="mm-split-controls">
+          <button type="button" className="mm-link" onClick={saveTemplate}>
+            Save this split
+          </button>
+          <button type="button" className="mm-link" onClick={loadTemplate}>
+            Use saved split
           </button>
         </div>
+        {templateSaved ? <p className="mm-caption">Saved with your data for next time.</p> : null}
+        <p className="mm-caption">The arrival is counted once. Moving parts into pockets is an internal transfer.</p>
+        <ErrorLine message={error} />
       </div>
-    </div>
+    </Sheet>
   );
 }

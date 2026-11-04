@@ -2,10 +2,10 @@ import { EMPTY_SNAPSHOT, defaultCategories, type Snapshot } from "./types";
 import type { Change, StoreName } from "./actions";
 
 /** Bump when the schema changes; add a migration step in `upgrade` for each bump. */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 const DB_NAME = "detailflows-money";
 
-export const STORES: StoreName[] = ["accounts", "pockets", "categories", "transactions", "recurring", "allocations", "closures", "settings"];
+export const STORES: StoreName[] = ["accounts", "pockets", "categories", "transactions", "recurring", "allocations", "closures", "loans", "settings"];
 
 const KEY_PATH: Record<StoreName, string> = {
   accounts: "id",
@@ -15,6 +15,7 @@ const KEY_PATH: Record<StoreName, string> = {
   recurring: "id",
   allocations: "key",
   closures: "month",
+  loans: "id",
   settings: "id",
 };
 
@@ -30,12 +31,16 @@ function open(): Promise<IDBDatabase> {
       const oldVersion = ev.oldVersion;
       // Migration 0 -> 1: create the base stores.
       if (oldVersion < 1) {
-        for (const s of STORES) if (s !== "pockets") db.createObjectStore(s, { keyPath: KEY_PATH[s] });
+        for (const s of STORES) if (s !== "pockets" && s !== "loans") db.createObjectStore(s, { keyPath: KEY_PATH[s] });
       }
       // Migration 1 -> 2: add pockets. Existing accounts, transactions and balances are untouched:
       // every existing transaction has no pocket, so it still acts on the account's Main balance.
       if (oldVersion < 2) {
         db.createObjectStore("pockets", { keyPath: KEY_PATH.pockets });
+      }
+      // Migration 2 -> 3: IOUs. Existing accounts, transactions and bills are untouched.
+      if (oldVersion < 3) {
+        db.createObjectStore("loans", { keyPath: KEY_PATH.loans });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -63,7 +68,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
         req.onsuccess = () => resolve(req.result as T[]);
         req.onerror = () => reject(req.error);
       });
-    const [accounts, pockets, categories, transactions, recurring, allocations, closures, settings] = await Promise.all([
+    const [accounts, pockets, categories, transactions, recurring, allocations, closures, loans, settings] = await Promise.all([
       getAll<Snapshot["accounts"][number]>("accounts"),
       getAll<Snapshot["pockets"][number]>("pockets"),
       getAll<Snapshot["categories"][number]>("categories"),
@@ -71,6 +76,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
       getAll<Snapshot["recurring"][number]>("recurring"),
       getAll<Snapshot["allocations"][number]>("allocations"),
       getAll<Snapshot["closures"][number]>("closures"),
+      getAll<Snapshot["loans"][number]>("loans"),
       getAll<NonNullable<Snapshot["settings"]>>("settings"),
     ]);
     await txDone(tx);
@@ -83,6 +89,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
       recurring,
       allocations,
       closures,
+      loans,
       settings: settings[0] ?? null,
     };
   } finally {
@@ -149,6 +156,7 @@ export async function replaceAll(snap: Snapshot): Promise<void> {
     for (const r of snap.recurring) tx.objectStore("recurring").put(r);
     for (const a of snap.allocations) tx.objectStore("allocations").put(a);
     for (const c of snap.closures) tx.objectStore("closures").put(c);
+    for (const l of snap.loans) tx.objectStore("loans").put(l);
     if (snap.settings) tx.objectStore("settings").put(snap.settings);
     await txDone(tx);
   } finally {

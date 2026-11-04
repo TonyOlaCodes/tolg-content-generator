@@ -2,7 +2,7 @@ import { buildTimeline } from "./engine";
 import { isoDate, nextOccurrence, parseISO, todayISO, type IntervalSpec } from "./money";
 import type { Account, AccountKind, Category, Pocket, Recurring, Rollover, Snapshot, Transaction, TxKind } from "./types";
 
-export type StoreName = "accounts" | "pockets" | "categories" | "transactions" | "recurring" | "allocations" | "closures" | "settings";
+export type StoreName = "accounts" | "pockets" | "categories" | "transactions" | "recurring" | "allocations" | "closures" | "loans" | "settings";
 export type Change = {
   puts: { store: StoreName; value: unknown }[];
   deletes: { store: StoreName; key: string }[];
@@ -38,6 +38,10 @@ export type TxInput = {
   categoryId: string | null;
   description: string;
   notes: string;
+  refundOf?: string | null;
+  loanId?: string | null;
+  recurringId?: string | null;
+  occurrenceDate?: string | null;
 };
 
 export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Result {
@@ -102,8 +106,10 @@ export function saveTransaction(snap: Snapshot, input: TxInput, ctx: Ctx): Resul
     categoryId,
     description,
     notes: input.notes.trim().slice(0, 500),
-    recurringId: existing?.recurringId ?? null,
-    occurrenceDate: existing?.occurrenceDate ?? null,
+    refundOf: input.refundOf !== undefined ? input.refundOf : (existing?.refundOf ?? null),
+    loanId: input.loanId !== undefined ? input.loanId : (existing?.loanId ?? null),
+    recurringId: input.recurringId !== undefined ? input.recurringId : (existing?.recurringId ?? null),
+    occurrenceDate: input.occurrenceDate !== undefined ? input.occurrenceDate : (existing?.occurrenceDate ?? null),
     reverses: false,
     reversedBy: null,
     createdAt: existing?.createdAt ?? ctx.now,
@@ -216,17 +222,33 @@ export function reverseTransaction(snap: Snapshot, id: string, ctx: Ctx): Result
     id: ctx.newId(),
     date: ctx.today,
     description: `Reversal: ${tx.description}`,
-    recurringId: null,
-    occurrenceDate: null,
+    // Keep the bill/income link so the reversed payment no longer counts towards the occurrence.
+    recurringId: tx.recurringId,
+    occurrenceDate: tx.occurrenceDate,
     reverses: true,
     reversedBy: null,
     createdAt: ctx.now,
     updatedAt: ctx.now,
   };
-  return ok([
+  const puts: Change["puts"] = [
     { store: "transactions", value: reversal },
     { store: "transactions", value: { ...tx, reversedBy: reversal.id, updatedAt: ctx.now } },
-  ]);
+  ];
+  if (tx.recurringId && tx.occurrenceDate) {
+    const rec = snap.recurring.find((r) => r.id === tx.recurringId);
+    if (rec) {
+      puts.push({
+        store: "recurring",
+        value: {
+          ...rec,
+          nextDue: rec.nextDue > tx.occurrenceDate ? tx.occurrenceDate : rec.nextDue,
+          history: rec.history.filter((entry) => entry.txId !== tx.id),
+          updatedAt: ctx.now,
+        },
+      });
+    }
+  }
+  return ok(puts);
 }
 
 /** Records a reconciliation: the difference between the bank's balance and the app's is posted as an adjustment. */
@@ -373,6 +395,7 @@ export function confirmRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
   };
   const next: Recurring = {
     ...rec,
+    status: rec.interval === "once" ? "cancelled" : rec.status,
     nextDue: nextOccurrence(specOf(rec), occurrence),
     history: [...rec.history, { date: occurrence, outcome: "paid", txId }],
     updatedAt: ctx.now,
@@ -396,6 +419,7 @@ export function skipRecurring(snap: Snapshot, id: string, ctx: Ctx): Result {
   if (!rec) return fail("That item no longer exists.");
   const next: Recurring = {
     ...rec,
+    status: rec.interval === "once" ? "cancelled" : rec.status,
     nextDue: nextOccurrence(specOf(rec), rec.nextDue),
     history: [...rec.history, { date: rec.nextDue, outcome: "skipped", txId: null }],
     updatedAt: ctx.now,
@@ -504,6 +528,9 @@ export function saveAccount(snap: Snapshot, input: AccountInput, ctx: Ctx): Resu
 export function setAccountArchived(snap: Snapshot, id: string, archived: boolean): Result {
   const acc = snap.accounts.find((a) => a.id === id);
   if (!acc) return fail("That account no longer exists.");
+  if (archived && accountNowCents(snap, id) !== 0) {
+    return fail("Move the money out of this account before archiving it, so no balance is hidden.");
+  }
   return ok([{ store: "accounts", value: { ...acc, archived } }]);
 }
 
@@ -575,6 +602,13 @@ export function archivePocket(snap: Snapshot, id: string): Result {
   if (!pocket) return fail("That pocket no longer exists.");
   if (pocketNowCents(snap, id) !== 0) return fail("Move the money out of this pocket before archiving it.");
   return ok([{ store: "pockets", value: { ...pocket, archived: true } }]);
+}
+
+/** Brings an archived pocket back into the active list. No money moves. */
+export function restorePocket(snap: Snapshot, id: string): Result {
+  const pocket = snap.pockets.find((p) => p.id === id);
+  if (!pocket) return fail("That pocket no longer exists.");
+  return ok([{ store: "pockets", value: { ...pocket, archived: false } }]);
 }
 
 /** Deletes a pocket only when nothing references it and its balance is zero. */
@@ -666,5 +700,32 @@ export function deleteCategory(snap: Snapshot, id: string): Result {
 
 export function setPlannedSpendAccount(snap: Snapshot, accountId: string | null): Result {
   return ok([{ store: "settings", value: { id: "main", plannedSpendAccountId: accountId } }]);
+}
+
+/** Saves a reusable split for incoming money. It contains destinations and amounts only. */
+export function saveSplitTemplate(snap: Snapshot, lines: { accountId: string; pocketId: string | null; cents: number }[]): Result {
+  if (lines.some((line) => !Number.isInteger(line.cents) || line.cents <= 0)) {
+    return fail("A saved split needs positive amounts.");
+  }
+  if (
+    lines.some(
+      (line) =>
+        !snap.accounts.some((a) => a.id === line.accountId && !a.archived) ||
+        (line.pocketId !== null &&
+          !snap.pockets.some((p) => p.id === line.pocketId && p.accountId === line.accountId && !p.archived)),
+    )
+  ) {
+    return fail("A saved split refers to an account or pocket that is no longer active.");
+  }
+  return ok([
+    {
+      store: "settings",
+      value: {
+        id: "main",
+        plannedSpendAccountId: snap.settings?.plannedSpendAccountId ?? null,
+        splitTemplate: lines,
+      },
+    },
+  ]);
 }
 

@@ -41,7 +41,7 @@ export const APPS: AppEntry[] = [
   {
     id: "money",
     title: "Money Tracker",
-    subtitle: "Budgets, accounts and forecast",
+    subtitle: "Accounts, pockets, bills and IOUs",
     category: "Finance",
     gradient: ["#fde68a", "#b45309"],
     glyph: "money",

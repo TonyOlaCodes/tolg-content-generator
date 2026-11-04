@@ -4,7 +4,9 @@ import { useState } from "react";
 import { exportSnapshot, validateBackup } from "@/money/backup";
 import { replaceAll } from "@/money/store";
 import { EMPTY_SNAPSHOT } from "@/money/types";
+import { todayISO } from "@/money/money";
 import type { MoneyApi } from "../MoneyApp";
+import { ErrorLine } from "../ui";
 
 export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; notify: (m: string) => void; onClose: () => void }) {
   const { snap, reload } = api;
@@ -17,7 +19,7 @@ export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `money-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `money-backup-${todayISO()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     notify("Backup downloaded");
@@ -31,12 +33,12 @@ export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; 
     } catch {
       return setError("That file is not valid JSON. Nothing was restored.");
     }
-    const v = validateBackup(parsed);
-    if (!v.ok) return setError(`${v.error} Nothing was restored.`);
+    const validated = validateBackup(parsed);
+    if (!validated.ok) return setError(`${validated.error} Nothing was restored.`);
     if (!window.confirm("Replace ALL current Money Tracker data with this backup? This cannot be undone.")) return;
     setBusy(true);
     try {
-      await replaceAll(v.data);
+      await replaceAll(validated.data);
       await reload();
       notify("Backup restored");
     } catch (e) {
@@ -48,7 +50,7 @@ export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; 
 
   const reset = async () => {
     if (!window.confirm("Erase ALL Money Tracker data on this device? Export a backup first if you might need it.")) return;
-    if (!window.confirm("Final confirmation: this permanently deletes every account, transaction and subscription here.")) return;
+    if (!window.confirm("Final confirmation: this permanently deletes every account, transaction, bill and IOU here.")) return;
     setBusy(true);
     try {
       await replaceAll(EMPTY_SNAPSHOT);
@@ -63,28 +65,51 @@ export default function SettingsPage({ api, notify, onClose }: { api: MoneyApi; 
   };
 
   return (
-    <div className="money-page">
-      <section className="money-panel">
-        <h2 className="money-h2">Your data stays on this device</h2>
-        <p className="money-muted">
-          Money Tracker stores everything in this browser. Clearing site data, using a private window or uninstalling the app can erase your records.
-          Export a backup regularly. No financial data is sent to any server.
+    <div className="mm-page">
+      <header className="mm-page-head">
+        <div>
+          <p className="mm-kicker">Money Tracker</p>
+          <h1>Settings</h1>
+        </div>
+      </header>
+
+      <section className="mm-panel">
+        <h2 className="mm-subhead">Your data stays on this device</h2>
+        <p className="mm-caption">
+          Everything is stored locally in this browser. Clearing site data or using a private window can erase your records, so export a backup
+          regularly. No account data is sent to a server.
         </p>
       </section>
 
-      <section className="money-panel">
-        <h2 className="money-h2">Backup</h2>
-        <button type="button" className="money-btn-primary" onClick={download}>Export JSON backup</button>
-        <label className="money-field">
+      <section className="mm-panel mm-form">
+        <h2 className="mm-subhead">Backup</h2>
+        <button type="button" className="mm-primary mm-wide" onClick={download}>
+          Export backup
+        </button>
+        <label className="mm-field">
           <span>Restore from a backup file</span>
-          <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void restore(f); e.target.value = ""; }} />
+          <input
+            className="mm-input"
+            type="file"
+            accept="application/json,.json"
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void restore(file);
+              event.target.value = "";
+            }}
+          />
         </label>
-        {error && <p className="money-error" role="alert">{error}</p>}
+        <p className="mm-caption">Backups include accounts, pockets, transactions, bills, scheduled incoming money and IOUs. Older backups are upgraded safely.</p>
+        <ErrorLine message={error} />
       </section>
 
-      <section className="money-panel">
-        <h2 className="money-h2">Erase data</h2>
-        <button type="button" className="money-btn-danger" disabled={busy} onClick={reset}>Erase all data on this device</button>
+      <section className="mm-panel mm-form">
+        <h2 className="mm-subhead">Erase data</h2>
+        <p className="mm-caption">This removes everything from this device. There is no automatic cloud copy.</p>
+        <button type="button" className="mm-secondary mm-wide" style={{ color: "#ff8b9d" }} disabled={busy} onClick={() => void reset()}>
+          Erase all data on this device
+        </button>
       </section>
     </div>
   );

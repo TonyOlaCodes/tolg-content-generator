@@ -4,7 +4,7 @@ A Next.js mini-app collection that opens from one home screen:
 
 - **Weather**: forecasts worldwide.
 - **Fuel Tracker**: car fuel records, costs and analytics.
-- **Money Tracker**: accounts, budgets, bills and forecasts.
+- **Money Tracker**: accounts, pockets, money movements, bills, scheduled income, refunds and IOUs.
 - **Groceries & Pantry**: stock, meals and shopping.
 - **Daily Tracker**: steps, bodyweight, calories, sleep and water with goals, history,
   trends and optional highlights.

@@ -15,10 +15,14 @@ export function accountEffects(tx: Transaction): Effect[] {
     accountId ? [{ accountId, pocketId: pocketId ?? null, cents }] : [];
   switch (tx.kind) {
     case "expense":
+    case "lend":
+    case "debt_repayment":
       return at(tx.accountId, tx.pocketId, -a);
     case "income":
     case "refund":
     case "adjustment":
+    case "borrow":
+    case "loan_repayment":
       return at(tx.accountId, tx.pocketId, a);
     case "transfer": {
       if (!tx.accountId || !tx.toAccountId) return [];

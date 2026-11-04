@@ -83,11 +83,14 @@ export function dueLabel(dueIso: string, today: string = todayISO()): { text: st
   return { text: `Due in ${diff} days`, overdue: false };
 }
 
-export type IntervalSpec = { interval: "weekly" | "monthly" | "yearly" | "custom"; customDays: number | null; dayOfMonth: number };
+export type IntervalSpec = { interval: "once" | "weekly" | "monthly" | "yearly" | "custom"; customDays: number | null; dayOfMonth: number };
 
 /** The next occurrence after `fromIso` for a recurring rule. */
 export function nextOccurrence(spec: IntervalSpec, fromIso: string): string {
   switch (spec.interval) {
+    case "once":
+      // A one-time item is cancelled after it is paid or received, so this safety value is never scheduled.
+      return addDays(fromIso, 36_500);
     case "weekly":
       return addDays(fromIso, 7);
     case "custom":
@@ -102,6 +105,8 @@ export function nextOccurrence(spec: IntervalSpec, fromIso: string): string {
 /** Monthly-equivalent cost of a recurring amount, in cents (fractional cents rounded). */
 export function monthlyEquivalentCents(amountCents: number, spec: IntervalSpec): number {
   switch (spec.interval) {
+    case "once":
+      return amountCents;
     case "weekly":
       return Math.round((amountCents * 52) / 12);
     case "monthly":

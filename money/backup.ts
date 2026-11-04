@@ -1,8 +1,8 @@
 import type { Allocation, Snapshot } from "./types";
 
 export const BACKUP_FORMAT = "detailflows-money";
-/** 2 adds pockets. Version 1 backups are still accepted and upgraded on import. */
-export const BACKUP_VERSION = 2;
+/** 3 adds IOUs (loans). Older backups are still accepted and upgraded on import. */
+export const BACKUP_VERSION = 3;
 
 export type Backup = { format: string; version: number; exportedAt: string; data: Snapshot };
 
@@ -22,13 +22,14 @@ const isMonth = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}$/.test(v)
 export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { ok: false; error: string } {
   if (!isObj(raw)) return { ok: false, error: "This file is not a Money Tracker backup." };
   if (raw.format !== BACKUP_FORMAT) return { ok: false, error: "This file is not a Money Tracker backup." };
-  if (raw.version !== 1 && raw.version !== BACKUP_VERSION) {
+  if (![1, 2, BACKUP_VERSION].includes(raw.version as number)) {
     return { ok: false, error: `Unsupported backup version: ${String(raw.version)}.` };
   }
   if (!isObj(raw.data)) return { ok: false, error: "The backup has no data." };
   // Version 1 has no pockets: upgrade it so every record reads as Main money.
-  const d: Record<string, unknown> = { pockets: [], ...raw.data };
+  const d: Record<string, unknown> = { pockets: [], loans: [], ...raw.data };
   if (!Array.isArray(d.pockets)) return { ok: false, error: 'Backup is missing "pockets".' };
+  if (!Array.isArray(d.loans)) d.loans = [];
   if (raw.version === 1 && Array.isArray(d.transactions)) {
     d.transactions = (d.transactions as Record<string, unknown>[]).map((t) => ({ pocketId: null, toPocketId: null, ...t }));
   }
@@ -42,6 +43,7 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
   const recurring = d.recurring as unknown[];
   const allocations = d.allocations as unknown[];
   const closures = d.closures as unknown[];
+  const loans = d.loans as unknown[];
 
   const accountIds = new Set<string>();
   for (const a of accounts) {
@@ -61,6 +63,16 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
     pocketIds.add(p.id);
   }
 
+  const loanIds = new Set<string>();
+  for (const l of loans) {
+    if (!isObj(l) || !isStr(l.id) || !isStr(l.person) || !isInt(l.principalCents) || !isISO(l.date)) {
+      return { ok: false, error: "An IOU in the backup is malformed." };
+    }
+    if (l.direction !== "lent" && l.direction !== "borrowed") return { ok: false, error: "An IOU has an unknown direction." };
+    if (loanIds.has(l.id)) return { ok: false, error: "The backup has duplicate IOU IDs." };
+    loanIds.add(l.id);
+  }
+
   const categoryIds = new Set<string>();
   for (const c of categories) {
     if (!isObj(c) || !isStr(c.id) || !isStr(c.name) || !isInt(c.targetCents) || (c.kind !== "spending" && c.kind !== "saving")) {
@@ -72,10 +84,16 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
 
   const txIds = new Set<string>();
   for (const t of transactions) {
+    if (isObj(t) && isStr(t.id)) {
+      if (txIds.has(t.id)) return { ok: false, error: "The backup has duplicate transaction IDs." };
+      txIds.add(t.id);
+    }
+  }
+  for (const t of transactions) {
     if (!isObj(t) || !isStr(t.id) || !isISO(t.date) || !isInt(t.amountCents)) {
       return { ok: false, error: "A transaction in the backup is malformed." };
     }
-    if (!["expense", "income", "transfer", "refund", "adjustment"].includes(String(t.kind))) {
+    if (!["expense", "income", "transfer", "refund", "adjustment", "lend", "borrow", "loan_repayment", "debt_repayment"].includes(String(t.kind))) {
       return { ok: false, error: "A transaction has an unknown type." };
     }
     if (t.status !== "planned" && t.status !== "confirmed") return { ok: false, error: "A transaction has an unknown status." };
@@ -95,8 +113,12 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
     if (t.categoryId !== null && !(isStr(t.categoryId) && categoryIds.has(t.categoryId))) {
       return { ok: false, error: "A transaction refers to a category that is not in the backup." };
     }
-    if (txIds.has(t.id)) return { ok: false, error: "The backup has duplicate transaction IDs." };
-    txIds.add(t.id);
+    if (t.refundOf != null && !(isStr(t.refundOf) && t.refundOf !== t.id && txIds.has(t.refundOf))) {
+      return { ok: false, error: "A refund refers to a payment that is not in the backup." };
+    }
+    if (t.loanId != null && !(isStr(t.loanId) && loanIds.has(t.loanId))) {
+      return { ok: false, error: "A transaction refers to an IOU that is not in the backup." };
+    }
   }
 
   const recIds = new Set<string>();
@@ -125,6 +147,22 @@ export function validateBackup(raw: unknown): { ok: true; data: Snapshot } | { o
   if (settings !== null && settings !== undefined) {
     if (!isObj(settings) || (settings.plannedSpendAccountId !== null && !(isStr(settings.plannedSpendAccountId) && accountIds.has(settings.plannedSpendAccountId)))) {
       return { ok: false, error: "The settings in the backup are invalid." };
+    }
+    if (settings.splitTemplate != null) {
+      if (!Array.isArray(settings.splitTemplate)) return { ok: false, error: "The saved split in the backup is invalid." };
+      for (const line of settings.splitTemplate) {
+        if (
+          !isObj(line) ||
+          !isStr(line.accountId) ||
+          !accountIds.has(line.accountId) ||
+          typeof line.cents !== "number" ||
+          !Number.isSafeInteger(line.cents) ||
+          line.cents <= 0 ||
+          (line.pocketId !== null && !(isStr(line.pocketId) && pocketIds.has(line.pocketId)))
+        ) {
+          return { ok: false, error: "The saved split in the backup is invalid." };
+        }
+      }
     }
   }
 
