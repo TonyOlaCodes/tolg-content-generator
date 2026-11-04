@@ -4,12 +4,10 @@ import { useMemo, useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { SLOTS, SLOT_LABEL, formatBase, type Food, type LogLine, type Meal, type Slot } from "@/groceries/model";
 import { logEat, undoLog, todayLocal, newId, upsertMeal, deleteMeal } from "@/groceries/actions";
-import { MealSheet } from "./MealSheet";
 
 export default function MealsPage({ api }: { api: GroceriesApi }) {
-  const { snap, act, notify } = api;
+  const { snap, act, notify, openMealSheet } = api;
   const today = todayLocal();
-  const [editing, setEditing] = useState<Meal | "new" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [quickFood, setQuickFood] = useState<string>("");
   const [quickQty, setQuickQty] = useState<string>("");
@@ -61,10 +59,10 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <div className="gr-row-head">
           <h3 className="gr-h3">Saved meals</h3>
-          <button className="gr-chip" onClick={() => setEditing("new")}>+ New meal</button>
+          <button className="gr-chip" onClick={() => openMealSheet(null)}>+ New meal</button>
         </div>
         {snap.meals.length === 0 ? (
-          <p className="gr-muted">Create a meal with the ingredients you use, then tap I Ate This to deduct them in one go.</p>
+          <p className="gr-muted">No meals yet.</p>
         ) : (
           SLOTS.map((slot) =>
             bySlot(slot).length === 0 ? null : (
@@ -72,7 +70,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
                 <p className="gr-kicker">{SLOT_LABEL[slot]}</p>
                 {bySlot(slot).map((m) => (
                   <div key={m.id} className="gr-meal">
-                    <button className="gr-meal-main" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`}>
+                    <button className="gr-meal-main" onClick={() => openMealSheet(m)} aria-label={`Edit ${m.name}`}>
                       <span className="gr-name">{m.name}</span>
                       <span className="gr-muted">
                         {m.ingredients.map((i) => `${foodById.get(i.foodId)?.name ?? "Removed food"} ${formatFor(foodById.get(i.foodId), i.qtyBase)}`).join(" · ") || "No ingredients"}
@@ -96,7 +94,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Quick log a food</h3>
         {snap.foods.length === 0 ? (
-          <p className="gr-muted">Add foods in Pantry first.</p>
+          <p className="gr-muted">No foods in pantry.</p>
         ) : (
           <div className="gr-quick">
             <select className="gr-input" value={quickFood} onChange={(e) => setQuickFood(e.target.value)} aria-label="Food">
@@ -112,7 +110,7 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Today</h3>
         {todaysLogs.length === 0 ? (
-          <p className="gr-muted">Nothing eaten yet today. Skipped meals deduct nothing.</p>
+          <p className="gr-muted">Nothing eaten yet today.</p>
         ) : (
           <ul className="gr-list">
             {todaysLogs.map((l) => (
@@ -130,7 +128,6 @@ export default function MealsPage({ api }: { api: GroceriesApi }) {
         )}
       </section>
 
-      {editing && <MealSheet api={api} meal={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }

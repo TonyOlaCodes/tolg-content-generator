@@ -38,7 +38,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
         <p className="gr-kicker">My Pantry</p>
         <h2 className="gr-hero-title">
           {snap.foods.length === 0
-            ? "Add your first food to begin"
+            ? "No foods yet"
             : low.length === 0
               ? "You are stocked up"
               : `${low.length} ${low.length === 1 ? "item needs" : "items need"} restocking`}
@@ -63,7 +63,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Running low</h3>
         {snap.foods.length === 0 ? (
-          <p className="gr-muted">Nothing to show yet. Add foods in Pantry and set a low-stock threshold to see warnings here.</p>
+          <p className="gr-muted">Nothing to show yet.</p>
         ) : low.length === 0 ? (
           <p className="gr-muted">No foods are running low.</p>
         ) : (
@@ -99,7 +99,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
       <section className="gr-card">
         <h3 className="gr-h3">Recently eaten</h3>
         {recentMeals.length === 0 ? (
-          <p className="gr-muted">Nothing logged yet. Tap Log meal to record what you ate.</p>
+          <p className="gr-muted">Nothing logged yet.</p>
         ) : (
           <ul className="gr-list">
             {recentMeals.map((l) => (

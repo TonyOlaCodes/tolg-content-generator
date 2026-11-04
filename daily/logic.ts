@@ -1,5 +1,8 @@
-import type { ChartPeriod, Highlight, MetricKey, Snapshot, WeightEntry } from "./model";
+import type { ChartPeriod, MetricKey, Settings, Snapshot, WeightEntry } from "./model";
 import { settingsOf } from "./model";
+
+/** Today-card completion: empty, started but unfinished, or fully done for the day. */
+export type MetricCardStatus = "empty" | "progress" | "done";
 import {
   addDays,
   addMonths,
@@ -99,6 +102,32 @@ export function dayMetrics(snapshot: Snapshot, date: string): DayMetrics {
   };
 }
 
+/**
+ * Status for a Today metric card.
+ * - Goal metrics (steps/water/sleep/calories-with-goal): partial counts as progress, never done.
+ * - Weight: done only when that calendar day has a weigh-in (past days do not count).
+ * - Calories-without-goal: logging the day is enough.
+ */
+export function metricCardStatus(metric: MetricKey, view: DayMetrics, settings: Settings): MetricCardStatus {
+  switch (metric) {
+    case "steps":
+      if (view.steps === null) return "empty";
+      return view.steps >= settings.stepGoal ? "done" : "progress";
+    case "water":
+      if (view.waterMl === null) return "empty";
+      return view.waterMl >= settings.waterGoalMl ? "done" : "progress";
+    case "calories":
+      if (view.calories === null) return "empty";
+      if (settings.calorieGoal === null) return "done";
+      return view.calories >= settings.calorieGoal ? "done" : "progress";
+    case "sleep":
+      if (view.sleepMinutes === null) return "empty";
+      return view.sleepMinutes >= settings.sleepGoalMinutes ? "done" : "progress";
+    case "weight":
+      return view.weightKg !== null ? "done" : "empty";
+  }
+}
+
 export function metricValueForDay(snapshot: Snapshot, date: string, metric: MetricKey): number | null {
   const view = dayMetrics(snapshot, date);
   switch (metric) {
@@ -117,28 +146,6 @@ export function metricValueForDay(snapshot: Snapshot, date: string, metric: Metr
 
 export function seriesForMetric(snapshot: Snapshot, dates: string[], metric: MetricKey): SeriesPoint[] {
   return dates.map((date) => ({ date, value: metricValueForDay(snapshot, date, metric) }));
-}
-
-export function latestEntryDate(snapshot: Snapshot): string | null {
-  const dates: string[] = [
-    ...snapshot.days.map((d) => d.date),
-    ...snapshot.weights.map((w) => w.date),
-    ...snapshot.water.map((w) => w.date),
-    ...snapshot.highlights.map((h) => h.date),
-  ];
-  if (dates.length === 0) return null;
-  return dates.reduce((max, d) => (d > max ? d : max), dates[0]);
-}
-
-export function earliestEntryDate(snapshot: Snapshot): string | null {
-  const dates: string[] = [
-    ...snapshot.days.map((d) => d.date),
-    ...snapshot.weights.map((w) => w.date),
-    ...snapshot.water.map((w) => w.date),
-    ...snapshot.highlights.map((h) => h.date),
-  ];
-  if (dates.length === 0) return null;
-  return dates.reduce((min, d) => (d < min ? d : min), dates[0]);
 }
 
 /**
@@ -346,82 +353,137 @@ export function weightMeasurementsSeries(snapshot: Snapshot, from: string, to: s
 
 export type Insight = { metric: MetricKey | null; text: string };
 
-function rangeLabel(period: ChartPeriod, dates: string[]): string {
-  if (period === 0 || dates.length < period) return "since your first entry";
-  return `over the last ${period} days`;
+/** Selected chart window label — always the timeframe the user picked, not “first entry”. */
+export function timeframeLabel(period: ChartPeriod): string {
+  if (period === 0) return "all time";
+  if (period === 7) return "the last 7 days";
+  if (period === 30) return "the last 30 days";
+  if (period === 90) return "the last 90 days";
+  if (period === 365) return "the last year";
+  return `the last ${period} days`;
+}
+
+function coachAgainstGoal(
+  metric: MetricKey,
+  goodLead: string,
+  needLead: string,
+  avgLabel: string,
+  avg: number,
+  goal: number,
+  where: string,
+  formatGoal: (n: number) => string = formatInt,
+): Insight {
+  const onTrack = avg >= goal * 0.95;
+  const lead = onTrack ? goodLead : needLead;
+  const vs =
+    avg >= goal
+      ? `averaging ${avgLabel}, ahead of your ${formatGoal(goal)} goal`
+      : `averaging ${avgLabel} vs your ${formatGoal(goal)} goal`;
+  return { metric, text: `${lead} — ${vs} over ${where}.` };
 }
 
 /**
- * Concise insights. Every line is computed from real records and is skipped
- * entirely when there is not enough data for it.
+ * Coaching insights for the selected timeframe. Averages use only logged days
+ * inside that window; the copy always names the timeframe the user picked.
  */
 export function buildInsights(snapshot: Snapshot, period: ChartPeriod, today: string): Insight[] {
   const settings = settingsOf(snapshot);
   const dates = periodDates(snapshot, period, today);
   const out: Insight[] = [];
-  const where = rangeLabel(period, dates);
+  const where = timeframeLabel(period);
 
   const stepSeries = seriesForMetric(snapshot, dates, "steps");
   const stepAvg = average(stepSeries.map((p) => p.value).filter((v): v is number => v !== null));
   if (stepAvg !== null) {
-    const stats = goalStats(stepSeries, settings.stepGoal);
-    const goalNote =
-      stats.rate !== null ? ` Goal reached on ${stats.goalDays} of ${stats.loggedDays} logged days.` : "";
-    out.push({ metric: "steps", text: `Average steps ${where}: ${formatInt(stepAvg)}.${goalNote}` });
-  }
-
-  const weight = weightStats(snapshot, dates[0] ?? today, today);
-  if (weight.changeKg !== null && weight.first && weight.latest) {
-    const verb = weight.changeKg > 0 ? "increased" : weight.changeKg < 0 ? "decreased" : "stayed the same";
-    const amount =
-      weight.changeKg === 0
-        ? ""
-        : ` by ${formatWeightChange(Math.abs(weight.changeKg), settings.weightUnit).replace("+", "")}`;
-    out.push({
-      metric: "weight",
-      text: `Weight ${verb}${amount} ${where} (${weight.count} weigh-ins).`,
-    });
-  }
-
-  const sleepSeries = seriesForMetric(snapshot, dates, "sleep");
-  const sleepValues = sleepSeries.map((p) => p.value).filter((v): v is number => v !== null);
-  const sleepAvg = average(sleepValues);
-  if (sleepAvg !== null) {
-    const sd = standardDeviation(sleepValues);
-    const consistency = sd !== null ? ` Sleep varies by about ${Math.round(sd)} min.` : "";
-    out.push({
-      metric: "sleep",
-      text: `Average sleep ${where}: ${formatDuration(sleepAvg)}.${consistency}`,
-    });
-  }
-
-  const calorieSeries = seriesForMetric(snapshot, dates, "calories");
-  const calorieAvg = average(calorieSeries.map((p) => p.value).filter((v): v is number => v !== null));
-  if (calorieAvg !== null) {
-    let goalNote = "";
-    if (settings.calorieGoal !== null) {
-      const delta = calorieAvg - settings.calorieGoal;
-      const direction = delta > 0 ? "above" : delta < 0 ? "below" : "in line with";
-      goalNote =
-        delta === 0
-          ? " In line with your daily goal."
-          : ` About ${formatInt(Math.abs(delta))} kcal ${direction} your ${formatInt(settings.calorieGoal)} kcal goal.`;
-    }
-    out.push({ metric: "calories", text: `Average calories ${where}: ${formatInt(calorieAvg)} kcal.${goalNote}` });
+    out.push(
+      coachAgainstGoal(
+        "steps",
+        "Good on steps",
+        "Need more steps",
+        formatInt(stepAvg),
+        stepAvg,
+        settings.stepGoal,
+        where,
+      ),
+    );
   }
 
   const waterSeries = seriesForMetric(snapshot, dates, "water");
   const waterAvg = average(waterSeries.map((p) => p.value).filter((v): v is number => v !== null));
   if (waterAvg !== null) {
-    const stats = goalStats(waterSeries, settings.waterGoalMl);
-    const goalNote =
-      stats.rate !== null
-        ? ` Goal reached on ${stats.goalDays} of ${stats.loggedDays} logged days.`
-        : "";
-    out.push({
-      metric: "water",
-      text: `Average water ${where}: ${formatWater(Math.round(waterAvg))}.${goalNote}`,
-    });
+    out.push(
+      coachAgainstGoal(
+        "water",
+        "Good on water",
+        "Need more water",
+        formatWater(Math.round(waterAvg)),
+        waterAvg,
+        settings.waterGoalMl,
+        where,
+        formatWater,
+      ),
+    );
+  }
+
+  const sleepSeries = seriesForMetric(snapshot, dates, "sleep");
+  const sleepAvg = average(sleepSeries.map((p) => p.value).filter((v): v is number => v !== null));
+  if (sleepAvg !== null) {
+    out.push(
+      coachAgainstGoal(
+        "sleep",
+        "Good on sleep",
+        "Need more sleep",
+        formatDuration(sleepAvg),
+        sleepAvg,
+        settings.sleepGoalMinutes,
+        where,
+        formatDuration,
+      ),
+    );
+  }
+
+  const calorieSeries = seriesForMetric(snapshot, dates, "calories");
+  const calorieAvg = average(calorieSeries.map((p) => p.value).filter((v): v is number => v !== null));
+  if (calorieAvg !== null) {
+    if (settings.calorieGoal !== null) {
+      const goal = settings.calorieGoal;
+      const near = Math.abs(calorieAvg - goal) <= goal * 0.05;
+      const high = calorieAvg > goal * 1.05;
+      const text = near
+        ? `Good on calories — averaging ${formatInt(calorieAvg)} kcal, near your ${formatInt(goal)} kcal goal over ${where}.`
+        : high
+          ? `Eating above your goal — averaging ${formatInt(calorieAvg)} kcal vs ${formatInt(goal)} kcal over ${where}.`
+          : `Need more calories — averaging ${formatInt(calorieAvg)} kcal vs your ${formatInt(goal)} kcal goal over ${where}.`;
+      out.push({ metric: "calories", text });
+    } else {
+      out.push({
+        metric: "calories",
+        text: `Averaging ${formatInt(calorieAvg)} kcal over ${where}.`,
+      });
+    }
+  }
+
+  const weight = weightStats(snapshot, dates[0] ?? today, today);
+  if (weight.changeKg !== null && weight.first && weight.latest && weight.count >= 2) {
+    const delta = weight.changeKg;
+    const amount = formatWeightChange(Math.abs(delta), settings.weightUnit).replace("+", "");
+    let text: string;
+    if (delta === 0) {
+      text = `Weight held steady over ${where}.`;
+    } else if (settings.weightGoalKg !== null) {
+      const before = Math.abs(weight.first.kg - settings.weightGoalKg);
+      const after = Math.abs(weight.latest.kg - settings.weightGoalKg);
+      if (after < before - 0.05) {
+        text = `Moving toward your ${formatWeight(settings.weightGoalKg, settings.weightUnit)} goal (${delta < 0 ? "down" : "up"} ${amount}) over ${where}.`;
+      } else if (after > before + 0.05) {
+        text = `Moving away from your ${formatWeight(settings.weightGoalKg, settings.weightUnit)} goal (${delta < 0 ? "down" : "up"} ${amount}) over ${where}.`;
+      } else {
+        text = `Weight ${delta < 0 ? "down" : "up"} ${amount} over ${where}.`;
+      }
+    } else {
+      text = `Weight ${delta < 0 ? "down" : "up"} ${amount} over ${where}.`;
+    }
+    out.push({ metric: "weight", text });
   }
 
   return out.slice(0, 5);
@@ -431,7 +493,7 @@ export function buildInsights(snapshot: Snapshot, period: ChartPeriod, today: st
 export function currentStreak(snapshot: Snapshot, today: string): number {
   let streak = 0;
   let cursor = today;
-  const first = earliestEntryDate(snapshot);
+  const first = earliestMetricDate(snapshot);
   if (!first) return 0;
   for (let i = 0; i < 4_000; i += 1) {
     if (cursor < first) break;
@@ -440,16 +502,6 @@ export function currentStreak(snapshot: Snapshot, today: string): number {
     cursor = addDays(cursor, -1);
   }
   return streak;
-}
-
-export function highlightsInMonth(snapshot: Snapshot, month: string): Highlight[] {
-  return snapshot.highlights
-    .filter((h) => h.date.startsWith(month))
-    .sort((a, b) => compareDateKeys(a.date, b.date));
-}
-
-export function highlightsOn(snapshot: Snapshot, date: string): Highlight[] {
-  return snapshot.highlights.filter((h) => h.date === date);
 }
 
 /** Days in the current ISO week (Monday–Sunday) that are on or before today. */

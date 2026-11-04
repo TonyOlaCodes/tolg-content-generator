@@ -1,21 +1,29 @@
 .fuel {
-  --fuel-bg: #0b1914;
-  --fuel-card: rgba(255, 255, 255, 0.07);
-  --fuel-border: rgba(255, 255, 255, 0.12);
-  --fuel-text: #f1faf6;
-  --fuel-muted: #9fb9ad;
-  --fuel-accent: #34d399;
-  --fuel-focus: #fde68a;
+  --fuel-bg: #07070a;
+  --fuel-card: rgba(255, 255, 255, 0.035);
+  --fuel-border: rgba(255, 255, 255, 0.08);
+  --fuel-text: #f2f0ea;
+  --fuel-muted: #8b8794;
+  --fuel-accent: #9fc4a8;
+  --fuel-focus: #c9b896;
   min-height: 100dvh;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   color: var(--fuel-text);
-  background: linear-gradient(180deg, #123524 0%, var(--fuel-bg) 60%);
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(159, 196, 168, 0.08), transparent 70%),
+    var(--fuel-bg);
 }
 
 .fuel :focus-visible { outline: 3px solid var(--fuel-focus); outline-offset: 2px; }
 
 .fuel-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
-.fuel-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+.fuel-title {
+  margin: 0;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
 .fuel-back { color: var(--fuel-accent); background: none; border: none; font: inherit; cursor: pointer; min-height: 44px; min-width: 44px; }
 .fuel-spacer { min-width: 44px; }
 
@@ -54,7 +62,7 @@
 .fuel-range-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #34d399, #fde68a);
+  background: linear-gradient(90deg, var(--fuel-accent), var(--fuel-focus));
   transition: width 0.6s ease;
 }
 

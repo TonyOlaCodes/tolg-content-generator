@@ -1,4 +1,4 @@
-# Single-container image: the Next.js app (Weather and Fuel Tracker) on one port.
+# Single-container image: DetailFlows mini-apps on one port.
 # Build:  docker build -t tolg-content-generator .
 # Run:    docker run -p 3000:3000 tolg-content-generator
 

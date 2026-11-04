@@ -2,7 +2,7 @@
   "name": "elephant-in-the-room",
   "version": "0.1.0",
   "private": true,
-  "description": "DetailFlows mini-apps: Weather and Fuel Tracker.",
+  "description": "DetailFlows mini-apps: Weather, Fuel, Money, Groceries and Daily Tracker.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

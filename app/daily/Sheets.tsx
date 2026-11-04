@@ -1,25 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   addWater,
   addWeight,
-  deleteHighlight,
+  adjustWater,
   deleteWater,
   deleteWeight,
   mergeChanges,
-  saveHighlight,
   setDayMetric,
   setDayMetrics,
   updateWater,
   type Result,
 } from "@/daily/actions";
-import { weightsForDate, waterTotalForDate } from "@/daily/logic";
+import { latestWeightOn, waterTotalForDate } from "@/daily/logic";
 import { dayLabel } from "@/daily/date";
 import { formatDuration, formatWater, kgToUnit, unitToKg } from "@/daily/format";
-import { METRIC_META, type Highlight } from "@/daily/model";
+import { METRIC_META } from "@/daily/model";
 import { ProgressBar, ProgressRing } from "./charts";
-import { shrinkPhoto } from "./photo";
 import { parseDecimal, parseWhole, uiCtx, type DailyApi } from "./api";
 
 /* ------------------------------------------------------------- primitives */
@@ -48,11 +46,18 @@ function SheetShell({
   return (
     <div
       className="daily-sheet-backdrop"
-      onPointerDown={(event) => {
+      role="presentation"
+      onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="daily-sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className="daily-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="daily-sheet-grip" aria-hidden />
         <header className="daily-sheet-head">
           <div className="daily-sheet-title">
@@ -135,7 +140,17 @@ function NumberField({
   );
 }
 
-function MetricHeader({ metric, value, sub, percent }: { metric: keyof typeof METRIC_META; value: string; sub: string; percent?: number | null }) {
+function MetricHeader({
+  metric,
+  value,
+  sub,
+  percent,
+}: {
+  metric: keyof typeof METRIC_META;
+  value: string;
+  sub?: string;
+  percent?: number | null;
+}) {
   const meta = METRIC_META[metric];
   return (
     <div className="daily-sheet-metric">
@@ -144,7 +159,7 @@ function MetricHeader({ metric, value, sub, percent }: { metric: keyof typeof ME
       </ProgressRing>
       <div>
         <p className="daily-sheet-kicker">{meta.label}</p>
-        <p className="daily-sheet-sub">{sub}</p>
+        {sub ? <p className="daily-sheet-sub">{sub}</p> : null}
       </div>
     </div>
   );
@@ -219,7 +234,7 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
       <MetricHeader
         metric="steps"
         value={hasEntry ? day!.steps!.toLocaleString() : "—"}
-        sub={percent !== null ? `${Math.round(percent)}% of ${goalValue.toLocaleString()} goal` : "No goal comparison yet"}
+        sub={percent !== null ? `${Math.round(percent)}% of ${goalValue.toLocaleString()}` : undefined}
         percent={percent}
       />
       <NumberField
@@ -227,7 +242,7 @@ export function StepsSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
         value={value}
         onChange={setValue}
         inputMode="numeric"
-        placeholder="e.g. 7450"
+        placeholder="—"
       />
     </SheetShell>
   );
@@ -293,10 +308,10 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         value={hasEntry ? day!.calories!.toLocaleString() : "—"}
         sub={
           goalValue === null
-            ? "No daily goal set — optional"
+            ? undefined
             : percent !== null
-              ? `${Math.round(percent)}% of ${goalValue.toLocaleString()} kcal goal`
-              : `Goal ${goalValue.toLocaleString()} kcal`
+              ? `${Math.round(percent)}% of ${goalValue.toLocaleString()}`
+              : `Goal ${goalValue.toLocaleString()}`
         }
         percent={percent}
       />
@@ -305,7 +320,7 @@ export function CaloriesSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         value={value}
         onChange={setValue}
         inputMode="numeric"
-        placeholder="e.g. 3450"
+        placeholder="—"
       />
     </SheetShell>
   );
@@ -376,12 +391,12 @@ export function SleepSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
       <MetricHeader
         metric="sleep"
         value={hasEntry ? formatDuration(day!.sleepMinutes!) : "—"}
-        sub={totalMinutes !== null && totalMinutes > 0 ? `${(totalMinutes / 60).toFixed(1)} hours logged` : "No bedtime or wake time needed"}
+        sub={totalMinutes !== null && totalMinutes > 0 ? formatDuration(totalMinutes) : undefined}
         percent={null}
       />
       <div className="daily-grid2">
-        <NumberField label="Hours" value={hours} onChange={setHours} suffix="h" placeholder="7" />
-        <NumberField label="Minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="15" />
+        <NumberField label="Hours" value={hours} onChange={setHours} suffix="h" placeholder="—" />
+        <NumberField label="Minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="—" />
       </div>
     </SheetShell>
   );
@@ -425,22 +440,40 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
     >
       <div className="daily-water-head">
         <div>
-          <p className="daily-sheet-kicker">Today</p>
           <p className="daily-water-value">
             {total === null ? "—" : formatWater(total)}
             <span> / {formatWater(goal)}</span>
           </p>
         </div>
-        <p className="daily-water-percent">{percent === null ? "No entries yet" : `${Math.round(percent)}%`}</p>
+        <p className="daily-water-percent">{percent === null ? "—" : `${Math.round(percent)}%`}</p>
       </div>
-      <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water progress" />
+      {percent !== null ? <ProgressBar percent={percent} color={METRIC_META.water.ring} label="Water progress" /> : null}
 
       <div className="daily-quick-row">
-        {[250, 500, 1000].map((ml) => (
-          <button key={ml} type="button" className="daily-quick" disabled={busy} onClick={() => void add(ml)}>
-            +{ml >= 1000 ? `${ml / 1000} L` : `${ml} ml`}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="daily-quick"
+          disabled={busy || (total ?? 0) <= 0}
+          aria-label="Remove 250 millilitres of water"
+          onClick={() => {
+            const result = adjustWater(api.snap, { date, deltaMl: -250 }, uiCtx(api.today));
+            void run(() => api.commit(result, "−250"));
+          }}
+        >
+          −250
+        </button>
+        <button
+          type="button"
+          className="daily-quick"
+          disabled={busy}
+          aria-label="Add 250 millilitres of water"
+          onClick={() => {
+            const result = adjustWater(api.snap, { date, deltaMl: 250 }, uiCtx(api.today));
+            void run(() => api.commit(result, "+250"));
+          }}
+        >
+          +250
+        </button>
       </div>
       <div className="daily-grid2">
         <NumberField
@@ -449,7 +482,7 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
           onChange={setCustom}
           inputMode={customUnit === "L" ? "decimal" : "numeric"}
           suffix={customUnit}
-          placeholder={customUnit === "L" ? "e.g. 0.5" : "e.g. 330"}
+          placeholder="—"
         />
         <div className="daily-field daily-field-action">
           <span>&nbsp;</span>
@@ -478,12 +511,12 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
           setCustomUnit((unit) => (unit === "ml" ? "L" : "ml"));
         }}
       >
-        {customUnit === "ml" ? "Enter litres instead" : "Enter millilitres instead"}
+        {customUnit === "ml" ? "Use litres" : "Use millilitres"}
       </button>
 
       {entries.length > 0 ? (
         <div className="daily-block">
-          <p className="daily-block-title">Entries today</p>
+          <p className="daily-block-title">Entries</p>
           <ul className="daily-list">
             {entries.map((entry) => (
               <li key={entry.id} className="daily-list-row">
@@ -556,7 +589,7 @@ export function WaterSheet({ api, onClose }: { api: DailyApi; onClose: () => voi
 export function WeightSheet({ api, onClose }: { api: DailyApi; onClose: () => void }) {
   const date = api.selected;
   const unit = api.settings.weightUnit;
-  const existing = weightsForDate(api.snap, date)[0] ?? null;
+  const existing = latestWeightOn(api.snap, date);
   const [value, setValue] = useState(existing ? numberInput(kgToUnit(existing.kg, unit)) : "");
   const { error, setError, busy, run } = useSaving();
 
@@ -612,7 +645,7 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
   const date = api.selected;
   const day = api.snap.days.find((d) => d.date === date) ?? null;
   const unit = api.settings.weightUnit;
-  const dayWeight = weightsForDate(api.snap, date)[0] ?? null;
+  const dayWeight = latestWeightOn(api.snap, date);
   const [steps, setSteps] = useState(day?.steps != null ? String(day.steps) : "");
   const [calories, setCalories] = useState(day?.calories != null ? String(day.calories) : "");
   const [hours, setHours] = useState(day?.sleepMinutes != null ? String(Math.floor(day.sleepMinutes / 60)) : "");
@@ -684,162 +717,13 @@ export function QuickLogSheet({ api, onClose }: { api: DailyApi; onClose: () => 
         <NumberField label="Sleep minutes" value={minutes} onChange={setMinutes} suffix="m" placeholder="—" />
       </div>
       <div className="daily-grid2">
-        <NumberField label="Add water" value={water} onChange={setWater} suffix="ml" placeholder="e.g. 500" />
+        <NumberField label="Add water" value={water} onChange={setWater} suffix="ml" placeholder="—" />
         <NumberField
           label={`Weight (${unit})`}
           value={weight}
           onChange={setWeight}
           inputMode="decimal"
           placeholder="—"
-        />
-      </div>
-    </SheetShell>
-  );
-}
-
-/* -------------------------------------------------------------- highlight */
-
-export function HighlightSheet({
-  api,
-  highlight,
-  onClose,
-}: {
-  api: DailyApi;
-  highlight: Highlight | null;
-  onClose: () => void;
-}) {
-  const date = highlight?.date ?? api.selected;
-  const [title, setTitle] = useState(highlight?.title ?? "");
-  const [description, setDescription] = useState(highlight?.description ?? "");
-  const [tags, setTags] = useState(highlight?.tags.join(", ") ?? "");
-  const [photo, setPhoto] = useState<string | null>(highlight?.photo ?? null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const { error, setError, busy, run } = useSaving();
-
-  const save = async () => {
-    const result = saveHighlight(
-      api.snap,
-      {
-        id: highlight?.id,
-        date,
-        title,
-        description,
-        tags: tags.split(","),
-        photo,
-      },
-      uiCtx(api.today),
-    );
-    const ok = await run(() => api.commit(result, highlight ? "Highlight updated" : "Highlight saved"));
-    if (ok) onClose();
-  };
-
-  return (
-    <SheetShell
-      title={highlight ? "Edit highlight" : "Add highlight"}
-      kicker={dayLabel(date, api.today)}
-      onClose={onClose}
-      footer={
-        <>
-          <ErrorLine message={error} />
-          <div className="daily-sheet-actions">
-            {highlight ? (
-              <button
-                type="button"
-                className="daily-btn-ghost is-danger"
-                disabled={busy}
-                onClick={() => {
-                  if (!window.confirm("Delete this highlight? The photo will be removed too.")) return;
-                  void run(async () => {
-                    const message = await api.commit(deleteHighlight(api.snap, highlight.id), "Highlight deleted");
-                    if (!message) onClose();
-                    return message;
-                  });
-                }}
-              >
-                Delete
-              </button>
-            ) : null}
-            <button type="button" className="daily-btn-primary" disabled={busy} onClick={() => void save()}>
-              {highlight ? "Save changes" : "Save highlight"}
-            </button>
-          </div>
-        </>
-      }
-    >
-      <label className="daily-field">
-        <span>Title</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            maxLength={80}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. First 10k run"
-          />
-        </span>
-      </label>
-      <label className="daily-field">
-        <span>Description (optional)</span>
-        <span className="daily-input-wrap">
-          <textarea
-            className="daily-input daily-textarea"
-            maxLength={500}
-            rows={3}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="A short note, if you want one."
-          />
-        </span>
-      </label>
-      <label className="daily-field">
-        <span>Tags (optional, comma separated)</span>
-        <span className="daily-input-wrap">
-          <input
-            className="daily-input"
-            type="text"
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="running, milestone"
-          />
-        </span>
-      </label>
-      <div className="daily-field">
-        <span>Photo (optional)</span>
-        {photo ? (
-          <div className="daily-photo-preview">
-            {/* Local data URL only; never uploaded. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="Highlight photo preview" />
-            <button type="button" className="daily-link is-danger" onClick={() => setPhoto(null)}>
-              Remove photo
-            </button>
-          </div>
-        ) : (
-          <button type="button" className="daily-btn-ghost" disabled={photoBusy} onClick={() => fileRef.current?.click()}>
-            {photoBusy ? "Processing…" : "Choose a photo"}
-          </button>
-        )}
-        <input
-          ref={fileRef}
-          className="daily-sr-only"
-          type="file"
-          accept="image/*"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            setPhotoBusy(true);
-            setError(null);
-            try {
-              setPhoto(await shrinkPhoto(file));
-            } catch (photoError) {
-              setError(photoError instanceof Error ? photoError.message : "That photo could not be read.");
-            } finally {
-              setPhotoBusy(false);
-            }
-          }}
         />
       </div>
     </SheetShell>

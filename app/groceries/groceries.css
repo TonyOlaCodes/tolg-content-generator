@@ -1,12 +1,14 @@
 /* Groceries & Pantry. Dark, iPhone-style, built on the DetailFlows tokens in globals.css. */
 .groceries {
-  --gr-accent: #86efac;
-  --gr-accent-deep: #15803d;
-  --gr-card: rgba(255, 255, 255, 0.06);
-  --gr-card-hi: rgba(255, 255, 255, 0.1);
-  --gr-line: rgba(255, 255, 255, 0.1);
+  --gr-accent: #9fc4a8;
+  --gr-accent-deep: #3f6b4c;
+  --gr-card: rgba(255, 255, 255, 0.035);
+  --gr-card-hi: rgba(255, 255, 255, 0.06);
+  --gr-line: rgba(255, 255, 255, 0.08);
   min-height: 100dvh;
-  background: radial-gradient(120% 60% at 50% 0%, #17231b 0%, var(--bg) 60%);
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(159, 196, 168, 0.08), transparent 70%),
+    var(--bg);
   color: var(--text);
   font-size: 15px;
   padding-bottom: calc(86px + var(--safe-bottom));
@@ -21,12 +23,18 @@
   align-items: center;
   gap: 8px;
   padding: calc(10px + var(--safe-top)) 14px 10px;
-  background: rgba(13, 11, 20, 0.85);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--gr-line);
 }
 .groceries-top > :last-child { justify-self: end; }
-.groceries-title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.groceries-title {
+  margin: 0;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
 .groceries-back {
   justify-self: start;
   background: none;
@@ -50,7 +58,7 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   padding: 6px 6px calc(6px + var(--safe-bottom));
-  background: rgba(16, 13, 24, 0.92);
+  background: color-mix(in srgb, #111117 92%, transparent);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--gr-line);
 }
@@ -188,7 +196,7 @@ textarea.gr-input { resize: vertical; }
 .gr-finish-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
 /* Home */
-.gr-hero { padding: 18px; border-radius: 22px; background: linear-gradient(145deg, rgba(134, 239, 172, 0.2), rgba(21, 128, 61, 0.08) 60%, rgba(255, 255, 255, 0.02)); border: 1px solid rgba(134, 239, 172, 0.25); display: flex; flex-direction: column; gap: 10px; }
+.gr-hero { padding: 18px; border-radius: 22px; background: linear-gradient(145deg, color-mix(in srgb, var(--gr-accent) 22%, transparent), color-mix(in srgb, var(--accent) 10%, transparent) 60%, rgba(255, 255, 255, 0.02)); border: 1px solid color-mix(in srgb, var(--gr-accent) 28%, transparent); display: flex; flex-direction: column; gap: 10px; }
 .gr-hero-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .gr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .gr-stat { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); }
@@ -207,11 +215,12 @@ textarea.gr-input { resize: vertical; }
 /* Analytics */
 .gr-rank li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Sheets */
-.gr-sheet-wrap { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; justify-content: flex-end; }
+/* Sheets — chrome under sheets is inert in GroceriesApp, so taps cannot press through. */
+.gr-sheet-wrap { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: auto; touch-action: manipulation; }
 .gr-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); border: 0; padding: 0; cursor: pointer; animation: gr-fade 0.2s ease; }
-.gr-sheet { position: relative; max-height: 88dvh; overflow-y: auto; background: #1a1624; border-radius: 22px 22px 0 0; padding-bottom: var(--safe-bottom); box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.45); animation: gr-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.gr-sheet-head { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 14px 14px 10px; background: #1a1624; border-bottom: 1px solid var(--gr-line); }
+body:has(.gr-sheet-wrap) { overflow: hidden; }
+.gr-sheet { position: relative; max-height: 88dvh; overflow-y: auto; background: #111117; border-radius: 22px 22px 0 0; padding-bottom: var(--safe-bottom); box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.45); animation: gr-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.gr-sheet-head { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 14px 14px 10px; background: #111117; border-bottom: 1px solid var(--gr-line); }
 .gr-sheet-head > :last-child { justify-self: end; }
 .gr-sheet-head > :first-child { justify-self: start; }
 @keyframes gr-fade { from { opacity: 0; } to { opacity: 1; } }

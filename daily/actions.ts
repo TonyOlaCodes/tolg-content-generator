@@ -109,6 +109,12 @@ export function validateWaterGoal(value: number): string | null {
   return null;
 }
 
+export function validateSleepGoal(value: number): string | null {
+  if (!isNum(value) || !Number.isInteger(value) || !inRange(value, LIMITS.sleepGoalMinutes.min, LIMITS.sleepGoalMinutes.max))
+    return "Sleep goal must be between 3 and 14 hours.";
+  return null;
+}
+
 type DayMetric = "steps" | "calories" | "sleepMinutes";
 
 /**
@@ -186,6 +192,42 @@ export function addWater(snapshot: Snapshot, input: { date: string; ml: number }
     createdAt: ctx.now,
   };
   return change([{ store: "water", value: entry }]);
+}
+
+/**
+ * Add or remove water for a day. Positive delta appends an entry; negative delta
+ * trims newest entries first. Removing more than remains is a no-op success.
+ */
+export function adjustWater(snapshot: Snapshot, input: { date: string; deltaMl: number }, ctx: Ctx): Result {
+  const delta = round0(input.deltaMl);
+  if (delta === 0) return change([]);
+  if (delta > 0) return addWater(snapshot, { date: input.date, ml: delta }, ctx);
+
+  const dateError = checkDate(input.date, ctx.today);
+  if (dateError) return fail(dateError);
+
+  let remaining = Math.abs(delta);
+  const entries = snapshot.water
+    .filter((w) => w.date === input.date)
+    .sort((a, b) => {
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+      return a.id < b.id ? 1 : -1;
+    });
+  if (entries.length === 0) return change([]);
+
+  const puts: Change["puts"] = [];
+  const deletes: Change["deletes"] = [];
+  for (const entry of entries) {
+    if (remaining <= 0) break;
+    if (entry.ml <= remaining) {
+      deletes.push({ store: "water", key: entry.id });
+      remaining -= entry.ml;
+    } else {
+      puts.push({ store: "water", value: { ...entry, ml: entry.ml - remaining } });
+      remaining = 0;
+    }
+  }
+  return change(puts, deletes);
 }
 
 export function updateWater(snapshot: Snapshot, id: string, ml: number): Result {
@@ -304,6 +346,11 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     if (error) return fail(error);
     next.waterGoalMl = round0(patch.waterGoalMl);
   }
+  if (patch.sleepGoalMinutes !== undefined) {
+    const error = validateSleepGoal(patch.sleepGoalMinutes);
+    if (error) return fail(error);
+    next.sleepGoalMinutes = round0(patch.sleepGoalMinutes);
+  }
   if (patch.calorieGoal !== undefined && patch.calorieGoal !== null) {
     const error = validateCalorieGoal(patch.calorieGoal);
     if (error) return fail(error);
@@ -341,6 +388,7 @@ export function saveSettings(snapshot: Snapshot, patch: SettingsPatch): Result {
     next.stepGoal === current.stepGoal &&
     next.calorieGoal === current.calorieGoal &&
     next.waterGoalMl === current.waterGoalMl &&
+    next.sleepGoalMinutes === current.sleepGoalMinutes &&
     next.weightGoalKg === current.weightGoalKg &&
     next.weightUnit === current.weightUnit &&
     next.chartPeriod === current.chartPeriod &&

@@ -10,7 +10,7 @@ import TodayPage from "./TodayPage";
 import HistoryPage from "./HistoryPage";
 import TrendsPage from "./TrendsPage";
 import SettingsPage from "./SettingsPage";
-import { CaloriesSheet, HighlightSheet, QuickLogSheet, SleepSheet, StepsSheet, WaterSheet, WeightSheet } from "./Sheets";
+import { CaloriesSheet, QuickLogSheet, SleepSheet, StepsSheet, WaterSheet, WeightSheet } from "./Sheets";
 import type { DailyApi, PageId, SheetState } from "./api";
 
 const NAV: { id: PageId; label: string; icon: ReactNode }[] = [
@@ -251,9 +251,11 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
     );
   }
 
+  const sheetOpen = sheet !== null;
+
   return (
     <div className="daily">
-      <div className="daily-appbar">
+      <div className="daily-appbar" inert={sheetOpen ? true : undefined}>
         <button type="button" className="daily-back" onClick={onBack}>
           ‹ Apps
         </button>
@@ -266,7 +268,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       {!ready ? (
         <p className="daily-loading">Opening your local tracker…</p>
       ) : (
-        <div className="daily-body">
+        <div className="daily-body" inert={sheetOpen ? true : undefined}>
           {page === "today" ? <TodayPage api={api} /> : null}
           {page === "history" ? <HistoryPage api={api} /> : null}
           {page === "trends" ? <TrendsPage api={api} /> : null}
@@ -275,7 +277,7 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       )}
 
       {ready ? (
-        <nav className="daily-nav" aria-label="Daily Tracker sections">
+        <nav className="daily-nav" aria-label="Daily Tracker sections" inert={sheetOpen ? true : undefined}>
           {NAV.map((item) => (
             <button
               key={item.id}
@@ -308,9 +310,6 @@ export default function DailyApp({ onBack }: { onBack: () => void }) {
       {sheet?.kind === "water" ? <WaterSheet api={api} onClose={closeSheet} /> : null}
       {sheet?.kind === "weight" ? <WeightSheet api={api} onClose={closeSheet} /> : null}
       {sheet?.kind === "quicklog" ? <QuickLogSheet api={api} onClose={closeSheet} /> : null}
-      {sheet?.kind === "highlight" ? (
-        <HighlightSheet api={api} highlight={sheet.highlight} onClose={closeSheet} />
-      ) : null}
     </div>
   );
 }

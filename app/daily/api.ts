@@ -1,5 +1,5 @@
 import type { Ctx, Result } from "@/daily/actions";
-import type { Highlight, Settings, Snapshot } from "@/daily/model";
+import type { Settings, Snapshot } from "@/daily/model";
 
 export type PageId = "today" | "history" | "trends" | "settings";
 
@@ -10,7 +10,6 @@ export type SheetState =
   | { kind: "water" }
   | { kind: "weight" }
   | { kind: "quicklog" }
-  | { kind: "highlight"; highlight: Highlight | null }
   | null;
 
 /**
@@ -60,10 +59,3 @@ export function parseWhole(text: string): number | null {
   return Number.isSafeInteger(value) ? value : null;
 }
 
-export const METRIC_ACCENT: Record<string, string> = {
-  steps: "#7cc7ff",
-  weight: "#c4b5fd",
-  calories: "#ffb347",
-  sleep: "#a78bfa",
-  water: "#4dd4ff",
-};

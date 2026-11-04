@@ -39,6 +39,8 @@ function settingsFrom(raw: unknown): Settings | null {
   if (calorieGoal !== null && (typeof calorieGoal !== "number" || !Number.isInteger(calorieGoal) || calorieGoal < LIMITS.calorieGoal.min || calorieGoal > LIMITS.calorieGoal.max)) return null;
   const weightGoalRaw = raw.weightGoalKg ?? null;
   if (weightGoalRaw !== null && (typeof weightGoalRaw !== "number" || !Number.isFinite(weightGoalRaw) || weightGoalRaw < LIMITS.weightKg.min || weightGoalRaw > LIMITS.weightKg.max)) return null;
+  const sleepGoalRaw = raw.sleepGoalMinutes ?? DEFAULT_SETTINGS.sleepGoalMinutes;
+  if (typeof sleepGoalRaw !== "number" || !Number.isInteger(sleepGoalRaw) || sleepGoalRaw < LIMITS.sleepGoalMinutes.min || sleepGoalRaw > LIMITS.sleepGoalMinutes.max) return null;
   const weightUnit: WeightUnit = raw.weightUnit === "lb" ? "lb" : "kg";
   const chartPeriod = CHART_PERIODS.some((p) => p.value === raw.chartPeriod) ? (raw.chartPeriod as ChartPeriod) : DEFAULT_SETTINGS.chartPeriod;
   const orderRaw = Array.isArray(raw.metricOrder) ? raw.metricOrder : [];
@@ -53,6 +55,7 @@ function settingsFrom(raw: unknown): Settings | null {
     stepGoal,
     calorieGoal: calorieGoal as number | null,
     waterGoalMl,
+    sleepGoalMinutes: sleepGoalRaw,
     weightGoalKg: weightGoalRaw as number | null,
     weightUnit,
     chartPeriod,

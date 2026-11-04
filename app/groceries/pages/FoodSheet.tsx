@@ -130,7 +130,28 @@ export function FoodSheet({
             </label>
             <label className="gr-field">
               <span>Unit</span>
-              <select className="gr-input" value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
+              <select
+                className="gr-input"
+                value={unit}
+                onChange={(e) => {
+                  const next = e.target.value as Unit;
+                  const pack = usePack ? Math.round(Number(packText)) || food?.packBase || null : null;
+                  const convert = (text: string) => {
+                    if (text.trim() === "") return text;
+                    const n = Number(text);
+                    if (!Number.isFinite(n) || n < 0) return text;
+                    if (n === 0) return "0";
+                    const base = toBase(n, unit, measure, pack);
+                    if (base === null) return text;
+                    return displayFromBase(base, next, pack);
+                  };
+                  setStockText((t) => convert(t));
+                  setLowText((t) => convert(t));
+                  setTargetText((t) => convert(t));
+                  setDailyText((t) => convert(t));
+                  setUnit(next);
+                }}
+              >
                 {units.map((u) => <option key={u} value={u}>{u === "pack" ? "packs" : u}</option>)}
               </select>
             </label>
@@ -175,8 +196,8 @@ export function FoodSheet({
             </label>
           </div>
           <label className="gr-field">
-            <span>Daily use (estimate, optional)</span>
-            <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="Leave blank to estimate from logs" />
+            <span>Daily use</span>
+            <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="Optional" />
           </label>
           <label className="gr-field">
             <span>Notes</span>
@@ -225,4 +246,16 @@ function priceFor(snap: GroceriesApi["snap"], food: Food): string {
 function baseUnit(food: Food): Unit {
   if (food.measure === "count") return "piece";
   return food.measure === "mass" ? "g" : "ml";
+}
+
+function displayFromBase(base: number, unit: Unit, packBase: number | null): string {
+  switch (unit) {
+    case "pack":
+      return packBase ? String(base / packBase) : String(base);
+    case "kg":
+    case "l":
+      return String(base / 1000);
+    default:
+      return String(base);
+  }
 }

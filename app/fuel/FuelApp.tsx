@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import "./fuel.css";
-import { loadState, saveState, applySeed, newId, EMPTY_STATE, type FuelState, type Refuel } from "@/fuel/store";
+import { loadState, saveState, applySeed, newId, EMPTY_STATE, type FuelState, type Reading, type Refuel } from "@/fuel/store";
 import { solveRefuel, estimatedReach, driveMetrics, fullToFullIntervals, confidenceFor, type RefuelField } from "@/fuel/calc";
 
 type Tab = "dashboard" | "refuel" | "drives" | "analytics" | "history";
@@ -53,7 +53,18 @@ export default function FuelApp({ onBack }: { onBack: () => void }) {
       </nav>
       <div className="fuel-body">
         {tab === "dashboard" && <Dashboard state={state} onGoRefuel={() => setTab("refuel")} onGoDrives={() => setTab("drives")} />}
-        {tab === "refuel" && <RefuelForm state={state} onSave={(r) => commit({ ...state, refuels: [...state.refuels, r] })} />}
+        {tab === "refuel" && (
+          <RefuelForm
+            state={state}
+            onSave={(r, reading) =>
+              commit({
+                ...state,
+                refuels: [...state.refuels, r],
+                readings: reading ? [...state.readings, reading] : state.readings,
+              })
+            }
+          />
+        )}
         {tab === "drives" && <Drives state={state} onChange={commit} />}
         {tab === "analytics" && <Analytics state={state} />}
         {tab === "history" && <History state={state} />}
@@ -89,7 +100,6 @@ function Dashboard({ state, onGoRefuel, onGoDrives }: { state: FuelState; onGoRe
             <div className="fuel-range" role="img" aria-label={`Estimated range ${latest.rangeKm} km`}>
               <div className="fuel-range-fill" style={{ width: `${Math.min(100, (latest.rangeKm / 600) * 100)}%` }} />
             </div>
-            <p className="fuel-note">Range is the car’s own estimate, not measured fuel.</p>
           </>
         )}
       </section>
@@ -116,19 +126,35 @@ function Drives({ state, onChange }: { state: FuelState; onChange: (s: FuelState
   const [range, setRange] = useState("");
   const [endOdo, setEndOdo] = useState("");
   const [endRange, setEndRange] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const open = state.drives.find((d) => d.endedAt === null);
   const closed = state.drives.filter((d) => d.endedAt !== null).sort((a, b) => (b.endedAt ?? "").localeCompare(a.endedAt ?? ""));
 
   const start = () => {
     const o = Number(odo);
     const r = Number(range);
-    if (!Number.isFinite(o) || !Number.isFinite(r) || odo === "" || range === "" || o < 0 || r < 0) return;
+    if (odo === "" || range === "" || !Number.isFinite(o) || !Number.isFinite(r) || o < 0 || r < 0) {
+      return setError("Enter a valid start odometer and range.");
+    }
+    const startedAt = new Date().toISOString();
+    const reading: Reading = {
+      id: newId("rd"),
+      dateTime: startedAt,
+      dateNote: null,
+      odometerKm: o,
+      rangeKm: r,
+      note: "Drive start",
+      source: "manual",
+      refuelId: null,
+    };
     onChange({
       ...state,
-      drives: [...state.drives, { id: newId("dv"), startedAt: new Date().toISOString(), endedAt: null, startOdometerKm: o, startRangeKm: r, endOdometerKm: null, endRangeKm: null, startLocation: "", endLocation: "", purpose: "", notes: "", corrected: false }],
+      drives: [...state.drives, { id: newId("dv"), startedAt, endedAt: null, startOdometerKm: o, startRangeKm: r, endOdometerKm: null, endRangeKm: null, startLocation: "", endLocation: "", purpose: "", notes: "", corrected: false }],
+      readings: [...state.readings, reading],
     });
     setOdo("");
     setRange("");
+    setError(null);
   };
 
   const end = () => {
@@ -136,13 +162,28 @@ function Drives({ state, onChange }: { state: FuelState; onChange: (s: FuelState
     const o = Number(endOdo);
     const r = Number(endRange);
     // Reject readings that would make the drive go backwards in odometer.
-    if (endOdo === "" || endRange === "" || !Number.isFinite(o) || !Number.isFinite(r) || o < open.startOdometerKm || r < 0) return;
+    if (endOdo === "" || endRange === "" || !Number.isFinite(o) || !Number.isFinite(r) || o < open.startOdometerKm || r < 0) {
+      return setError("Enter a valid end odometer (at or above the start) and range.");
+    }
+    const endedAt = new Date().toISOString();
+    const reading: Reading = {
+      id: newId("rd"),
+      dateTime: endedAt,
+      dateNote: null,
+      odometerKm: o,
+      rangeKm: r,
+      note: "Drive end",
+      source: "manual",
+      refuelId: null,
+    };
     onChange({
       ...state,
-      drives: state.drives.map((d) => (d.id === open.id ? { ...d, endedAt: new Date().toISOString(), endOdometerKm: o, endRangeKm: r } : d)),
+      drives: state.drives.map((d) => (d.id === open.id ? { ...d, endedAt, endOdometerKm: o, endRangeKm: r } : d)),
+      readings: [...state.readings, reading],
     });
     setEndOdo("");
     setEndRange("");
+    setError(null);
   };
 
   return (
@@ -151,14 +192,16 @@ function Drives({ state, onChange }: { state: FuelState; onChange: (s: FuelState
         <section className="fuel-card fuel-form">
           <p className="fuel-muted">Drive in progress since {new Date(open.startedAt).toLocaleString()}</p>
           <p>Start: {km(open.startOdometerKm)} · range {km(open.startRangeKm)}</p>
-          <label className="fuel-field"><span>End odometer (km)</span><input inputMode="numeric" value={endOdo} onChange={(e) => setEndOdo(e.target.value)} /></label>
-          <label className="fuel-field"><span>End estimated range (km)</span><input inputMode="numeric" value={endRange} onChange={(e) => setEndRange(e.target.value)} /></label>
+          <label className="fuel-field"><span>End odometer (km)</span><input inputMode="numeric" value={endOdo} onChange={(e) => { setEndOdo(e.target.value); setError(null); }} /></label>
+          <label className="fuel-field"><span>End estimated range (km)</span><input inputMode="numeric" value={endRange} onChange={(e) => { setEndRange(e.target.value); setError(null); }} /></label>
+          {error && <p className="fuel-note" role="alert">{error}</p>}
           <button type="button" className="fuel-cta" onClick={end}>End drive</button>
         </section>
       ) : (
         <section className="fuel-card fuel-form">
-          <label className="fuel-field"><span>Start odometer (km)</span><input inputMode="numeric" value={odo} onChange={(e) => setOdo(e.target.value)} /></label>
-          <label className="fuel-field"><span>Start estimated range (km)</span><input inputMode="numeric" value={range} onChange={(e) => setRange(e.target.value)} /></label>
+          <label className="fuel-field"><span>Start odometer (km)</span><input inputMode="numeric" value={odo} onChange={(e) => { setOdo(e.target.value); setError(null); }} /></label>
+          <label className="fuel-field"><span>Start estimated range (km)</span><input inputMode="numeric" value={range} onChange={(e) => { setRange(e.target.value); setError(null); }} /></label>
+          {error && <p className="fuel-note" role="alert">{error}</p>}
           <button type="button" className="fuel-cta" onClick={start}>Start drive</button>
         </section>
       )}
@@ -168,7 +211,7 @@ function Drives({ state, onChange }: { state: FuelState; onChange: (s: FuelState
           <article key={d.id} className="fuel-card">
             <p className="fuel-muted">{new Date(d.startedAt).toLocaleString()}</p>
             <p className="fuel-value">{km(m.distanceKm)}</p>
-            <p className="fuel-note">Estimated range consumed {km(m.rangeConsumedKm)} · change in estimated total range {km(m.totalRangeChangeKm)}. Estimates only, not measured fuel.</p>
+            <p className="fuel-note">Range used {km(m.rangeConsumedKm)} · total range Δ {km(m.totalRangeChangeKm)}</p>
           </article>
         );
       })}
@@ -189,7 +232,6 @@ function Analytics({ state }: { state: FuelState }) {
       <section className="fuel-card">
         <p className="fuel-muted">Cheapest average price per litre</p>
         <p className="fuel-value">{cheapest ? `${cheapest.name} · ${cheapest.avgPrice!.toFixed(3)} €/L` : "No priced refuels yet"}</p>
-        <p className="fuel-note">Based on recorded prices only. Price does not measure fuel quality.</p>
       </section>
       {rows.map((r) => (
         <div key={r.name} className="fuel-card fuel-stat">
@@ -236,13 +278,17 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 type Draft = { station: string; total: string; price: string; litres: string; odometer: string; full: boolean; notes: string };
 const EMPTY_DRAFT: Draft = { station: "Emo", total: "", price: "", litres: "", odometer: "", full: false, notes: "" };
 
-function RefuelForm({ state, onSave }: { state: FuelState; onSave: (r: Refuel) => void }) {
+function RefuelForm({ state, onSave }: { state: FuelState; onSave: (r: Refuel, reading: Reading | null) => void }) {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [last, setLast] = useState<[RefuelField, RefuelField] | null>(null);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rangeAfter, setRangeAfter] = useState("");
 
   // Three-way calculator. The edited field stays fixed; the third is derived from the two most recent inputs.
   const setField = (field: RefuelField, value: string) => {
+    setSaved(false);
+    setError(null);
     const key = field;
     const next: Draft = { ...draft, [key]: value };
     const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
@@ -263,12 +309,21 @@ function RefuelForm({ state, onSave }: { state: FuelState; onSave: (r: Refuel) =
     const price = Number(draft.price.replace(",", "."));
     const litres = Number(draft.litres.replace(",", "."));
     const odometerKm = draft.odometer === "" ? null : Number(draft.odometer);
-    if (!(total > 0) || !(litres > 0)) return;
+    const rangeAfterKm = rangeAfter === "" ? null : Number(rangeAfter);
+    if (!(total > 0) || !(litres > 0)) return setError("Enter a total and litres greater than zero.");
+    if (draft.odometer !== "" && (!Number.isFinite(odometerKm) || (odometerKm ?? 0) < 0)) {
+      return setError("Enter a valid odometer reading, or leave it blank.");
+    }
+    if (rangeAfter !== "" && (!Number.isFinite(rangeAfterKm) || (rangeAfterKm ?? 0) < 0)) {
+      return setError("Enter a valid estimated range, or leave it blank.");
+    }
     const stationId = state.stations.find((s) => s.name === draft.station)?.id ?? state.stations[0]?.id ?? "";
-    onSave({
-      id: newId("rf"),
+    const id = newId("rf");
+    const dateTime = new Date().toISOString();
+    const refuel: Refuel = {
+      id,
       stationId,
-      dateTime: new Date().toISOString(),
+      dateTime,
       dateNote: null,
       fuelType: "Diesel",
       total,
@@ -276,15 +331,32 @@ function RefuelForm({ state, onSave }: { state: FuelState; onSave: (r: Refuel) =
       litres,
       odometerKm,
       rangeBeforeKm: null,
-      rangeAfterKm: null,
+      rangeAfterKm,
       full: draft.full,
       notes: draft.notes,
       verified: true,
       source: "manual",
       corrected: false,
-    });
+    };
+    const prevRange = state.readings.slice().sort((a, b) => b.odometerKm - a.odometerKm)[0]?.rangeKm ?? null;
+    const reading: Reading | null =
+      odometerKm !== null && Number.isFinite(odometerKm)
+        ? {
+            id: newId("rd"),
+            dateTime,
+            dateNote: null,
+            odometerKm,
+            rangeKm: rangeAfterKm ?? prevRange ?? 0,
+            note: "After refuel",
+            source: "manual",
+            refuelId: id,
+          }
+        : null;
+    onSave(refuel, reading);
     setDraft(EMPTY_DRAFT);
+    setRangeAfter("");
     setLast(null);
+    setError(null);
     setSaved(true);
   };
 
@@ -305,20 +377,25 @@ function RefuelForm({ state, onSave }: { state: FuelState; onSave: (r: Refuel) =
         </label>
         <label className="fuel-field">
           <span>Odometer (km)</span>
-          <input inputMode="numeric" value={draft.odometer} onChange={(e) => setDraft({ ...draft, odometer: e.target.value })} />
+          <input inputMode="numeric" value={draft.odometer} onChange={(e) => { setDraft({ ...draft, odometer: e.target.value }); setSaved(false); setError(null); }} />
+        </label>
+        <label className="fuel-field">
+          <span>Estimated range after (km)</span>
+          <input inputMode="numeric" value={rangeAfter} onChange={(e) => { setRangeAfter(e.target.value); setSaved(false); setError(null); }} />
         </label>
         <label className="fuel-field">
           <span>Station</span>
-          <select value={draft.station} onChange={(e) => setDraft({ ...draft, station: e.target.value })}>
+          <select value={draft.station} onChange={(e) => { setDraft({ ...draft, station: e.target.value }); setSaved(false); }}>
             {state.stations.map((s) => (
               <option key={s.id} value={s.name}>{s.name}</option>
             ))}
           </select>
         </label>
         <label className="fuel-check">
-          <input type="checkbox" checked={draft.full} onChange={(e) => setDraft({ ...draft, full: e.target.checked })} />
+          <input type="checkbox" checked={draft.full} onChange={(e) => { setDraft({ ...draft, full: e.target.checked }); setSaved(false); }} />
           <span>Full tank</span>
         </label>
+        {error && <p className="fuel-note" role="alert">{error}</p>}
         <button type="button" className="fuel-cta" onClick={save}>Save refuel</button>
         {saved && <p className="fuel-note">Saved.</p>}
       </section>

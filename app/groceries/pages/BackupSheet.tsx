@@ -71,7 +71,6 @@ export function BackupSheet({ api, onClose }: { api: GroceriesApi; onClose: () =
           <button className="gr-link" onClick={onClose}>Done</button>
         </div>
         <div className="gr-form">
-          <p className="gr-muted">Data is stored only in this browser. Clearing browser data removes it, so keep a backup.</p>
           <button className="gr-primary" onClick={download} disabled={busy}>Export backup (JSON)</button>
           <button className="gr-secondary" onClick={() => fileRef.current?.click()} disabled={busy}>Restore from backup…</button>
           <input

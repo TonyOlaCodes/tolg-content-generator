@@ -8,7 +8,10 @@ import { reorderPacks } from "@/groceries/logic";
 
 export function activeList(snap: Snapshot): ShopList | undefined {
   const id = snap.settings?.activeListId;
-  return snap.lists.find((l) => l.id === id) ?? snap.lists.find((l) => !l.finishedAt);
+  const byId = id ? snap.lists.find((l) => l.id === id) : undefined;
+  // Never keep writing into a finished list — fall back to any open list.
+  if (byId && !byId.finishedAt) return byId;
+  return snap.lists.find((l) => !l.finishedAt);
 }
 
 /** Saved price for a food at a shop and package size. Null when none was entered. */

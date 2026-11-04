@@ -1,15 +1,17 @@
 .wx {
-  --wx-bg: #0d1424;
-  --wx-card: rgba(255, 255, 255, 0.08);
-  --wx-border: rgba(255, 255, 255, 0.14);
-  --wx-text: #f4f7ff;
-  --wx-muted: #a9b6d1;
-  --wx-accent: #7cc7ff;
-  --wx-focus: #ffd166;
+  --wx-bg: #07070a;
+  --wx-card: rgba(255, 255, 255, 0.035);
+  --wx-border: rgba(255, 255, 255, 0.08);
+  --wx-text: #f2f0ea;
+  --wx-muted: #8b8794;
+  --wx-accent: #9aa7b8;
+  --wx-focus: #c9b896;
   min-height: 100dvh;
   padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   color: var(--wx-text);
-  background: linear-gradient(180deg, #13203a 0%, var(--wx-bg) 60%);
+  background:
+    radial-gradient(40rem 26rem at 50% -16%, rgba(154, 167, 184, 0.1), transparent 70%),
+    var(--wx-bg);
   transition: background 0.6s ease;
 }
 .wx[data-wx="clear"] { background: linear-gradient(180deg, #1f5fa8 0%, #0d1f3d 70%); }
@@ -29,7 +31,13 @@
 .wx a:focus-visible { outline: 3px solid var(--wx-focus); outline-offset: 2px; }
 
 .wx-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
-.wx-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+.wx-title {
+  margin: 0;
+  font-family: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
 .wx-back { color: var(--wx-accent); background: none; border: none; font: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; }
 .wx-spacer { min-width: 44px; }
 
@@ -61,7 +69,7 @@
 .wx-card h2, .wx-card h3 { margin: 0 0 8px; }
 .wx-card h3 { font-size: 1rem; }
 .wx-note, .wx-sub, .wx-disclaimer, .wx-clock { color: var(--wx-muted); font-size: 0.9rem; margin: 4px 0; }
-.wx-stale { color: #ffd166; }
+.wx-stale { color: var(--wx-focus); }
 .wx-error-text { color: #ff9b9b; }
 .wx-meta { display: flex; justify-content: space-between; align-items: center; color: var(--wx-muted); font-size: 0.85rem; }
 
@@ -99,7 +107,7 @@
 .wx-day-name small { color: var(--wx-muted); }
 .wx-day-range { font-variant-numeric: tabular-nums; text-align: right; }
 .wx-range { position: relative; height: 6px; border-radius: 3px; background: var(--wx-border); }
-.wx-range > span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+.wx-range > span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--wx-accent), var(--wx-focus)); }
 
 .wx-hours { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
 .wx-hours > li { flex: 0 0 auto; min-width: 72px; }
@@ -200,7 +208,7 @@
 .wx-drow-hl { text-align: right; font-size: 0.9rem; }
 .wx-drow-hl small { color: var(--wx-muted); }
 .wx-range-track { position: relative; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); }
-.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #7cc7ff, #ffd166); }
+.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--wx-accent), var(--wx-focus)); }
 
 /* Bottom navigation (safe-area aware) */
 .wx-nav {

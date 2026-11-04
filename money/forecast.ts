@@ -68,14 +68,24 @@ export function scheduledItems(snap: Snapshot, today: string, horizonEnd: string
     if (!accountId || !snap.accounts.some((a) => a.id === accountId && !a.archived)) continue;
     let occ = r.nextDue;
     for (let i = 0; i < MAX_OCCURRENCES && occ <= horizonEnd; i++) {
-      const posted = snap.transactions.some((t) => t.recurringId === r.id && t.occurrenceDate === occ);
-      if (!posted) {
+      const paidToward = snap.transactions
+        .filter(
+          (t) =>
+            t.recurringId === r.id &&
+            t.occurrenceDate === occ &&
+            t.status === "confirmed" &&
+            !t.reverses &&
+            !t.reversedBy,
+        )
+        .reduce((s, t) => s + t.amountCents, 0);
+      const remaining = Math.max(0, r.amountCents - paidToward);
+      if (remaining > 0) {
         out.push({
           id: `${r.id}:${occ}`,
           kind: r.kind === "bill" ? "expense" : "income",
           status: "planned",
           date: occ < today ? today : occ,
-          amountCents: r.amountCents,
+          amountCents: remaining,
           accountId,
           pocketId: null,
           toAccountId: null,

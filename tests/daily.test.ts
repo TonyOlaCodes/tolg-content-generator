@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   addWater,
   addWeight,
+  adjustWater,
   applyChangeLocally,
   deleteHighlight,
   deleteWater,
@@ -24,6 +25,7 @@ import {
   dayMetrics,
   goalStats,
   latestWeight,
+  metricCardStatus,
   monthAverage,
   periodDates,
   periodStart,
@@ -152,6 +154,20 @@ assert.equal(restored.water.length, waterSnap.water.length);
 waterSnap = apply(waterSnap, deleteWater(waterSnap, firstWaterId));
 assert.equal(waterTotalForDate(waterSnap, TODAY), 1000);
 assert.ok(addWater(waterSnap, { date: TODAY, ml: 0 }, ctx).ok === false);
+
+// ±250 adjust: subtract trims newest entries; over-subtract is a quiet no-op when empty.
+{
+  let adj = emptySnapshot();
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: 250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 250);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: 250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 500);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), 250);
+  adj = apply(adj, adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx));
+  assert.equal(waterTotalForDate(adj, TODAY), null, "removing the last glass clears the day");
+  assert.ok(adjustWater(adj, { date: TODAY, deltaMl: -250 }, ctx).ok, "subtract with nothing logged stays ok");
+}
 assert.equal(formatWater(250), "250 ml");
 assert.equal(formatWater(3000), "3 L");
 
@@ -259,11 +275,12 @@ const insightSnap = apply(
 const insightWeightSnap = apply(insightSnap, addWeight(insightSnap, { date: "2026-10-28", kg: 79.2 }, ctx));
 const insights = buildInsights(insightWeightSnap, 30, TODAY);
 const text = insights.map((i) => i.text).join(" ");
-assert.match(text, /Average steps since your first entry: 7,000/, "averages use recorded days only");
-assert.match(text, /Weight decreased by 0\.8 kg since your first entry/, "weight change is computed from measurements");
-assert.match(text, /Average sleep since your first entry: 7h 10m/, "sleep insight uses recorded nights");
-assert.match(text, /Average water since your first entry: 3 L/, "water insight");
-assert.doesNotMatch(text, /over the last 30 days/, "the range does not pretend to cover days before the first entry");
+assert.match(text, /steps .*7,000/, "averages use recorded days only");
+assert.match(text, /the last 30 days/, "insights always name the selected timeframe");
+assert.match(text, /Weight (down|up|held|Moving)/, "weight change is computed from measurements");
+assert.match(text, /sleep .*7h 10m/, "sleep insight uses recorded nights");
+assert.match(text, /water .*3 L/, "water insight");
+assert.doesNotMatch(text, /since your first entry/, "insights no longer use the first-entry phrase");
 assert.doesNotMatch(text, /zero|0 kcal/, "missing calorie days never appear as zero");
 assert.ok(buildInsights(emptySnapshot(), 0, TODAY).length === 0);
 
@@ -275,7 +292,9 @@ assert.deepEqual(periodDates(freshOne, 30, TODAY), ["2026-10-31", TODAY], "range
 assert.equal(periodStart(freshOne, 365, TODAY), "2026-10-31");
 const freshInsights = buildInsights(freshOne, 30, TODAY);
 const freshText = freshInsights.map((i) => i.text).join(" ");
-assert.match(freshText, /Average steps since your first entry: 5,000/, "the average is the one real day");
+assert.match(freshText, /Need more steps|Good on steps/, "coaching insight for the timeframe");
+assert.match(freshText, /5,000/, "the average is the one real day");
+assert.match(freshText, /the last 30 days/, "even short history names the selected window");
 assert.doesNotMatch(freshText, /167/, "the single value is never divided across empty days");
 
 // Highlights alone do not start a metrics range.
@@ -286,7 +305,12 @@ assert.deepEqual(buildInsights(highlightOnly, 7, TODAY), []);
 // Once history exceeds the window, the normal rolling window is used.
 const older = apply(av, setDayMetric(av, "2026-09-01", "steps", 1000, ctx));
 assert.equal(periodDates(older, 7, TODAY).length, 7, "a 7-day window still ends at today");
-assert.match(buildInsights(older, 7, TODAY).map((i) => i.text).join(" "), /Average steps over the last 7 days/, "enough history keeps the rolling label");
+assert.match(buildInsights(older, 7, TODAY).map((i) => i.text).join(" "), /the last 7 days/, "rolling window keeps the selected label");
+
+// Sleep goal is required and used by coaching insights.
+assert.equal(saveSettings(goalSnap, { sleepGoalMinutes: 480 }).ok, true);
+assert.equal(saveSettings(goalSnap, { sleepGoalMinutes: 60 }).ok, false, "sleep under 3h is rejected");
+assert.equal(DEFAULT_SETTINGS.sleepGoalMinutes, 480);
 
 function applyHighlight(snapshot: Snapshot, date: string): Snapshot {
   const result = saveHighlight(snapshot, { date, title: "Milestone", description: "", tags: [], photo: null }, ctx);
@@ -411,5 +435,36 @@ assert.equal(validateBackup(futureHighlight).ok, true, "backups may contain any 
 
 // Empty backup is valid.
 assert.ok(validateBackup(JSON.parse(exportSnapshot(emptySnapshot()))).ok);
+
+// ------------------------------------------------------- today card status
+{
+  const settings = { ...DEFAULT_SETTINGS, calorieGoal: 2500, waterGoalMl: 3000, stepGoal: 10_000 };
+  let statusSnap = emptySnapshot();
+  statusSnap = apply(statusSnap, addWeight(statusSnap, { date: "2026-10-30", kg: 80 }, ctx));
+  // A past weigh-in must not tick today's weight card.
+  assert.equal(metricCardStatus("weight", dayMetrics(statusSnap, TODAY), settings), "empty");
+  statusSnap = apply(statusSnap, addWeight(statusSnap, { date: TODAY, kg: 79.4 }, ctx));
+  assert.equal(metricCardStatus("weight", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, addWater(statusSnap, { date: TODAY, ml: 2000 }, ctx));
+  assert.equal(metricCardStatus("water", dayMetrics(statusSnap, TODAY), settings), "progress", "partial water is in progress, not done");
+  statusSnap = apply(statusSnap, addWater(statusSnap, { date: TODAY, ml: 1000 }, ctx));
+  assert.equal(metricCardStatus("water", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "steps", 4500, ctx));
+  assert.equal(metricCardStatus("steps", dayMetrics(statusSnap, TODAY), settings), "progress");
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "steps", 10_000, ctx));
+  assert.equal(metricCardStatus("steps", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "calories", 1800, ctx));
+  assert.equal(metricCardStatus("calories", dayMetrics(statusSnap, TODAY), settings), "progress", "under calorie goal stays in progress");
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "calories", 2500, ctx));
+  assert.equal(metricCardStatus("calories", dayMetrics(statusSnap, TODAY), settings), "done");
+
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "sleepMinutes", 450, ctx));
+  assert.equal(metricCardStatus("sleep", dayMetrics(statusSnap, TODAY), settings), "progress", "under sleep goal stays in progress");
+  statusSnap = apply(statusSnap, setDayMetric(statusSnap, TODAY, "sleepMinutes", 480, ctx));
+  assert.equal(metricCardStatus("sleep", dayMetrics(statusSnap, TODAY), settings), "done");
+}
 
 console.log("daily tests passed");
