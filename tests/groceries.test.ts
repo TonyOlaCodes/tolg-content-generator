@@ -1,6 +1,6 @@
 /* Groceries & Pantry domain tests. Run with: npx tsx tests/groceries.test.ts */
 import assert from "node:assert/strict";
-import { toBase, toBaseApprox, parseAmountOrFraction, formatBase, unitsFor } from "../groceries/model";
+import { toBase, toBaseApprox, parseAmountOrFraction, formatBase, formatPackCount, unitsFor } from "../groceries/model";
 import type { Food, Log } from "../groceries/model";
 import { applyEat, applyAdd, reverseLog, daysRemaining, statusOf, reorderPacks, estimateDailyUse, shiftDate, listEstimate } from "../groceries/logic";
 import { markPurchased, unmarkPurchased, reconcileStock, logEat, editEat, setFoodArchived } from "../groceries/actions";
@@ -75,6 +75,10 @@ test("daily use accepts fractions of a pack without losing precision", () => {
   assert.equal(toBaseApprox(166.5, "g", "mass", 500), 166.5, "fractional grams are kept for a rate");
   assert.equal(daysRemaining(500, 500 / 3), 3, "a third of a pack a day means the last day counts");
   assert.equal(daysRemaining(1000, 1000 / 7), 7);
+  assert.equal(formatPackCount(500, 500), "1 pack");
+  assert.equal(formatPackCount(1000, 500), "2 packs", "two packs of pasta last twice as long");
+  assert.equal(formatPackCount(750, 500), "1.5 packs");
+  assert.equal(formatPackCount(500, null), null, "no package size, no pack count");
 });
 
 test("formatting uses kg and litres above 1000", () => {

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
-import { CATEGORIES, type Food, formatBase } from "@/groceries/model";
+import { CATEGORIES, type Food, formatBase, formatPackCount } from "@/groceries/model";
 import { statusOf, STATUS_LABEL, estimateDailyUse, daysRemaining, type Status } from "@/groceries/logic";
 import { adjustStock, setFoodArchived, todayLocal } from "@/groceries/actions";
 import { activeList, addLowStockToList } from "./shared";
@@ -102,6 +102,8 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
         <ul className="gr-food-list">
           {visible.map(({ food, status, daily }) => {
             const needsBuy = status === "low" || status === "critical" || status === "empty";
+            const packs = formatPackCount(food.stockBase, food.packBase);
+            const daysLeft = daily ? daysRemaining(food.stockBase, daily) : null;
             return (
               <li key={food.id} className="gr-food">
                 <button className="gr-food-main" onClick={() => openFoodSheet(food)} aria-label={`Edit ${food.name}`}>
@@ -111,8 +113,9 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
                     {food.packBase ? ` · packs of ${formatBase(food.packBase, food.measure)}` : ""}
                   </span>
                   <span className={`gr-badge is-${status}`}>
-                    {STATUS_LABEL[status]}
-                    {daily && status !== "empty" ? ` · ${daysRemaining(food.stockBase, daily)} days` : ""}
+                    {packs && daysLeft !== null && status !== "empty"
+                      ? `${packs} · ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`
+                      : `${STATUS_LABEL[status]}${daysLeft !== null && status !== "empty" ? ` · ${daysLeft} days` : ""}`}
                   </span>
                 </button>
                 <div className="gr-food-side">

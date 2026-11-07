@@ -126,6 +126,13 @@ export function formatBase(base: number, measure: Measure): string {
   return base >= 1000 ? `${trimNumber(base / 1000)} l` : `${base} ml`;
 }
 
+/** "1 pack", "2 packs", "1.5 packs". Null when the food has no package size. */
+export function formatPackCount(stockBase: number, packBase: number | null): string | null {
+  if (!packBase) return null;
+  const packs = Math.round((stockBase / packBase) * 10) / 10;
+  return `${packs} ${packs === 1 ? "pack" : "packs"}`;
+}
+
 export type Food = {
   id: string;
   name: string;

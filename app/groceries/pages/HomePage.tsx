@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { statusOf, listEstimate, reorderPacks, STATUS_LABEL, estimateDailyUse, daysRemaining } from "@/groceries/logic";
-import { formatBase } from "@/groceries/model";
+import { formatBase, formatPackCount } from "@/groceries/model";
 import { formatEUR } from "@/money/money";
 import { todayLocal } from "@/groceries/actions";
 import { addLowStockToList, activeList } from "./shared";
@@ -78,7 +78,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
                     <span className="gr-name">{food.name}</span>
                     <span className={`gr-badge is-${status}`}>{STATUS_LABEL[status]}</span>
                     <span className="gr-muted">
-                      {formatBase(food.stockBase, food.measure)}
+                      {formatPackCount(food.stockBase, food.packBase) ?? formatBase(food.stockBase, food.measure)}
                       {daily ? ` · about ${daysRemaining(food.stockBase, daily)} days left` : " · not enough data for days left"}
                     </span>
                   </div>
