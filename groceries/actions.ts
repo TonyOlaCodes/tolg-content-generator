@@ -15,6 +15,14 @@ export function upsertFood(food: Food): Builder {
   return () => ({ ops: [{ store: "foods", put: { ...food, updatedAt: nowIso() } }] });
 }
 
+export function setFoodArchived(foodId: string, archived: boolean): Builder {
+  return (s) => {
+    const f = s.foods.find((x) => x.id === foodId);
+    if (!f) return { error: "That food no longer exists." };
+    return { ops: [{ store: "foods", put: { ...f, archived, version: f.version + 1, updatedAt: nowIso() } }] };
+  };
+}
+
 export function deleteFood(id: string): Builder {
   return (s) => {
     const ops: Op[] = [{ store: "foods", del: id }];
@@ -68,6 +76,29 @@ export function logEat(logId: string, title: string, lines: LogLine[], mealId: s
     if (!next) return { error: "Not enough stock to log this. Check the amounts." };
     const log: Log = { id: logId, kind: "eat", date, at: nowIso(), title, mealId, listId: null, lines, version: 1 };
     return { ops: [...changedFoods(s.foods, next), { store: "logs", put: log }] };
+  };
+}
+
+/**
+ * Edits an eaten log in one change: the old amounts go back into stock and the new amounts come out.
+ * The log keeps its id and date, so it is still the same meal for that day.
+ */
+export function editEat(logId: string, title: string, lines: LogLine[]): Builder {
+  return (s) => {
+    const log = s.logs.find((l) => l.id === logId);
+    if (!log || log.kind !== "eat") return { error: "That log no longer exists." };
+    const restored = reverseLog(s.foods, log);
+    if (!restored) return { error: "This log can no longer be edited." };
+    const next = applyEat(restored, lines);
+    if (!next) return { error: "Not enough stock for these amounts." };
+    const ops: Op[] = [];
+    s.foods.forEach((f, i) => {
+      if (next[i].stockBase !== f.stockBase) {
+        ops.push({ store: "foods", put: { ...next[i], version: f.version + 1, updatedAt: nowIso() } });
+      }
+    });
+    ops.push({ store: "logs", put: { ...log, title, lines, version: log.version + 1 } });
+    return { ops };
   };
 }
 

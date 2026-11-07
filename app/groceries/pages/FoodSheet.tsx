@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { CATEGORIES, unitsFor, toBase, PRICE_ID, type Food, type Measure, type Unit, UNIT_LABEL } from "@/groceries/model";
-import { newId } from "@/groceries/actions";
+import { newId, setFoodArchived } from "@/groceries/actions";
 import type { Builder, Op } from "@/groceries/store";
 import { parseEuroToCents } from "@/money/money";
 import { savedPrice } from "./shared";
@@ -91,6 +91,15 @@ export function FoodSheet({
     setSaving(false);
     if (err) return setError(err);
     notify(food ? "Saved" : "Food added");
+    onClose();
+  };
+
+  const setArchived = async (archived: boolean) => {
+    if (!food) return;
+    setError(null);
+    const err = await act(setFoodArchived(food.id, archived));
+    if (err) return setError(err);
+    notify(archived ? "Food archived" : "Food back in the pantry");
     onClose();
   };
 
@@ -207,7 +216,12 @@ export function FoodSheet({
           {error && <p className="gr-error" role="alert">{error}</p>}
 
           {food && (
-            <button className="gr-danger" onClick={() => onDelete(food)}>Delete food</button>
+            <div className="gr-field-row">
+              <button className="gr-secondary" onClick={() => void setArchived(!food.archived)}>
+                {food.archived ? "Bring back" : "Archive"}
+              </button>
+              <button className="gr-danger" onClick={() => onDelete(food)}>Delete food</button>
+            </div>
           )}
         </div>
       </div>

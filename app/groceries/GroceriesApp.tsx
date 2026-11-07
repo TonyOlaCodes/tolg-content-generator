@@ -8,7 +8,6 @@ import HomePage from "./pages/HomePage";
 import PantryPage from "./pages/PantryPage";
 import MealsPage from "./pages/MealsPage";
 import ShoppingPage from "./pages/ShoppingPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
 import { ensureDefaults } from "./defaults";
 import { BackupSheet } from "./pages/BackupSheet";
 import { FoodSheet } from "./pages/FoodSheet";
@@ -16,14 +15,13 @@ import { MealSheet } from "./pages/MealSheet";
 import { FinishSheet } from "./pages/FinishSheet";
 import { deleteFood } from "@/groceries/actions";
 
-export type PageId = "home" | "pantry" | "meals" | "shopping" | "analytics";
+export type PageId = "home" | "pantry" | "meals" | "shopping";
 
 const NAV: { id: PageId; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "⌂" },
   { id: "pantry", label: "Pantry", icon: "▦" },
   { id: "meals", label: "Meals", icon: "◷" },
   { id: "shopping", label: "Shopping", icon: "🛒" },
-  { id: "analytics", label: "Analytics", icon: "∿" },
 ];
 
 type AppSheet =
@@ -144,7 +142,6 @@ export default function GroceriesApp({ onBack }: { onBack: () => void }) {
           {page === "pantry" && <PantryPage api={api} />}
           {page === "meals" && <MealsPage api={api} />}
           {page === "shopping" && <ShoppingPage api={api} />}
-          {page === "analytics" && <AnalyticsPage api={api} />}
         </main>
       )}
 

@@ -20,7 +20,7 @@ const isFood = (x: unknown) =>
   isObj(x) && str(x.id) && str(x.name) && str(x.category) && ["count", "mass", "volume"].includes(x.measure as string) &&
   num(x.stockBase) && (x.stockBase as number) >= 0 && nullOr(x.packBase, (v) => num(v) && (v as number) > 0) &&
   nullOr(x.lowStockBase, num) && num(x.warnDays) && nullOr(x.targetBase, num) && nullOr(x.dailyUseBase, num) &&
-  str(x.shopId) && str(x.notes) && nullOr(x.image, str);
+  str(x.shopId) && str(x.notes) && nullOr(x.image, str) && (x.archived === undefined || typeof x.archived === "boolean");
 
 const isMeal = (x: unknown) =>
   isObj(x) && str(x.id) && str(x.name) && str(x.slot) && Array.isArray(x.ingredients) &&

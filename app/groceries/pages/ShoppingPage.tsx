@@ -6,7 +6,7 @@ import { formatBase, type ListItem } from "@/groceries/model";
 import { lineCents, listEstimate } from "@/groceries/logic";
 import { formatEUR, parseEuroToCents } from "@/money/money";
 import { markPurchased, unmarkPurchased, removeItem, upsertItem, newId, todayLocal } from "@/groceries/actions";
-import { activeList } from "./shared";
+import { activeList, addLowStockFoods, lowStockFoods } from "./shared";
 
 export default function ShoppingPage({ api }: { api: GroceriesApi }) {
   const { snap, act, notify, openFinishSheet } = api;
@@ -19,6 +19,7 @@ export default function ShoppingPage({ api }: { api: GroceriesApi }) {
   const done = items.filter((i) => i.purchased);
   const est = listEstimate(open);
   const shop = snap.shops.find((s) => s.id === list?.shopId);
+  const low = lowStockFoods(snap);
 
   if (!list) {
     return <p className="gr-muted">No shopping list yet. It will appear after the app finishes setting up.</p>;
@@ -65,6 +66,11 @@ export default function ShoppingPage({ api }: { api: GroceriesApi }) {
     notify(err ?? "Removed");
   };
 
+  const addLow = async () => {
+    const err = await addLowStockFoods(api);
+    notify(err ?? "Low-stock foods added");
+  };
+
   return (
     <div className="gr-stack">
       <div className="gr-search">
@@ -85,6 +91,12 @@ export default function ShoppingPage({ api }: { api: GroceriesApi }) {
         <span className="gr-total-value">{formatEUR(est.cents)}</span>
         {est.missing > 0 && <span className="gr-muted">{est.missing} item(s) without a saved price</span>}
       </section>
+
+      {low.length > 0 && (
+        <button className="gr-secondary" onClick={() => void addLow()}>
+          Add {low.length} {low.length === 1 ? "low-stock food" : "low-stock foods"}
+        </button>
+      )}
 
       {open.length === 0 ? (
         <div className="gr-card gr-empty">

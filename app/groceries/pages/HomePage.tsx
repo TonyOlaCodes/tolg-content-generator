@@ -12,13 +12,14 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
   const { snap, setPage, notify } = api;
   const today = todayLocal();
 
+  const pantryFoods = useMemo(() => snap.foods.filter((f) => !f.archived), [snap.foods]);
   const rows = useMemo(
     () =>
-      snap.foods.map((f) => {
+      pantryFoods.map((f) => {
         const daily = f.dailyUseBase ?? estimateDailyUse(f.id, snap.logs, today);
         return { food: f, daily, status: statusOf(f, daily) };
       }),
-    [snap.foods, snap.logs, today],
+    [pantryFoods, snap.logs, today],
   );
   const low = rows.filter((r) => r.status === "low" || r.status === "critical" || r.status === "empty");
   const empty = rows.filter((r) => r.status === "empty").length;
@@ -37,14 +38,14 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
       <section className="gr-hero">
         <p className="gr-kicker">My Pantry</p>
         <h2 className="gr-hero-title">
-          {snap.foods.length === 0
+          {pantryFoods.length === 0
             ? "No foods yet"
             : low.length === 0
               ? "You are stocked up"
               : `${low.length} ${low.length === 1 ? "item needs" : "items need"} restocking`}
         </h2>
         <div className="gr-stats">
-          <Stat label="Items" value={snap.foods.length} />
+          <Stat label="Items" value={pantryFoods.length} />
           <Stat label="Running low" value={low.length} tone="warn" />
           <Stat label="Empty" value={empty} tone="bad" />
         </div>
@@ -62,7 +63,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
 
       <section className="gr-card">
         <h3 className="gr-h3">Running low</h3>
-        {snap.foods.length === 0 ? (
+        {pantryFoods.length === 0 ? (
           <p className="gr-muted">Nothing to show yet.</p>
         ) : low.length === 0 ? (
           <p className="gr-muted">No foods are running low.</p>

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { toBase, formatBase, unitsFor } from "../groceries/model";
 import type { Food, Log } from "../groceries/model";
 import { applyEat, applyAdd, reverseLog, daysRemaining, statusOf, reorderPacks, estimateDailyUse, shiftDate, listEstimate } from "../groceries/logic";
-import { markPurchased, unmarkPurchased, reconcileStock, logEat } from "../groceries/actions";
+import { markPurchased, unmarkPurchased, reconcileStock, logEat, editEat, setFoodArchived } from "../groceries/actions";
 import type { Builder } from "../groceries/store";
 import type { Snapshot, ListItem, ShopList } from "../groceries/model";
 import { EMPTY_SNAPSHOT } from "../groceries/model";
@@ -192,6 +192,25 @@ test("a repeated meal log is refused by its id so it cannot deduct twice", () =>
   const twice = run(once.snap, logEat("same-id", "Pasta", lines, null, "2026-05-10"));
   assert.ok(twice.error);
   assert.equal(twice.snap.foods[0].stockBase, 800);
+});
+
+test("archiving a food hides it but keeps it for restoring", () => {
+  const base: Snapshot = { ...EMPTY_SNAPSHOT, foods: [food()] };
+  const archived = run(base, setFoodArchived("f1", true));
+  assert.equal(archived.error, null);
+  assert.equal(archived.snap.foods[0].archived, true);
+  const restored = run(archived.snap, setFoodArchived("f1", false));
+  assert.equal(restored.snap.foods[0].archived, false);
+});
+
+test("editing an eaten log swaps the deducted amounts without double counting", () => {
+  const base: Snapshot = { ...EMPTY_SNAPSHOT, foods: [food({ stockBase: 1000 })] };
+  const eaten = run(base, logEat("l1", "Pasta", [{ foodId: "f1", name: "Pasta", qtyBase: 200 }], null, "2026-05-10"));
+  assert.equal(eaten.snap.foods[0].stockBase, 800);
+  const edited = run(eaten.snap, editEat("l1", "Pasta", [{ foodId: "f1", name: "Pasta", qtyBase: 350 }]));
+  assert.equal(edited.error, null);
+  assert.equal(edited.snap.foods[0].stockBase, 650, "old 200 g goes back, new 350 g comes out");
+  assert.equal(edited.snap.logs[0].lines[0].qtyBase, 350);
 });
 
 console.log(`\n${passed} groceries tests passed`);

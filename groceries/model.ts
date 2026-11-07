@@ -116,6 +116,8 @@ export type Food = {
   notes: string;
   /** Small data-URL thumbnail, or null. */
   image: string | null;
+  /** Hidden from the pantry and pickers but kept for history. Can be brought back any time. */
+  archived?: boolean;
   version: number;
   createdAt: string;
   updatedAt: string;
