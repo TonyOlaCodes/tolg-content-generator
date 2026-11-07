@@ -6,3 +6,7 @@ npm-debug.log*
 coverage
 .vercel
 *.tsbuildinfo
+# never bake local secrets or Clerk state into an image
+.env
+.env.*
+.clerk

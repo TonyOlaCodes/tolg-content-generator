@@ -86,7 +86,7 @@ async function main() {
     "staff never receive the sabotage panel",
     roles
       .filter((message) => message.card.team === "employees")
-      .every((message) => !alpha.messages.some((entry) => entry.t === "sabotages" && entry.players)),
+      .every(() => !alpha.messages.some((entry) => entry.t === "sabotages" && entry.players)),
   );
 
   const firstSnap = await alpha.waitFor("snap", (message) => message.snap.players.length === 3);

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./notes.css";
 import { loadNotes, saveNotes, sortNotes, type Note } from "@/notes/store";
 import { decryptText, encryptText } from "@/notes/crypto";
+import { exportNotes, validateBackup } from "@/notes/backup";
 
 type EditorState = { note: Note; password: string | null; fresh: boolean };
 
@@ -13,6 +14,7 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<Note | null>(null);
+  const [backupOpen, setBackupOpen] = useState(false);
 
   useEffect(() => {
     setNotes(sortNotes(loadNotes()));
@@ -64,7 +66,10 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
         <button type="button" className="notes-back" onClick={onBack}>‹ Apps</button>
         <h1 className="notes-title">Notes</h1>
         {ready ? (
-          <button type="button" className="notes-back" onClick={newNote}>+ New</button>
+          <div className="notes-head-actions">
+            <button type="button" className="notes-back" onClick={() => setBackupOpen(true)}>Data</button>
+            <button type="button" className="notes-back" onClick={newNote}>+ New</button>
+          </div>
         ) : (
           <span />
         )}
@@ -139,6 +144,105 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
           }}
         />
       ) : null}
+
+      {backupOpen ? (
+        <NotesBackup
+          notes={notes}
+          onReplace={(next) => {
+            const sorted = sortNotes(next);
+            setNotes(sorted);
+            saveNotes(sorted);
+          }}
+          onClose={() => setBackupOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function NotesBackup({
+  notes,
+  onReplace,
+  onClose,
+}: {
+  notes: Note[];
+  onReplace: (notes: Note[]) => void;
+  onClose: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([exportNotes(notes)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const restore = async (file: File) => {
+    setError(null);
+    const parsed = validateBackup(await file.text());
+    if (!parsed.ok) return setError(parsed.error);
+    const count = parsed.notes.length;
+    if (!window.confirm(`Replace all ${notes.length} note${notes.length === 1 ? "" : "s"} on this device with ${count} from the backup?`)) return;
+    setBusy(true);
+    try {
+      onReplace(parsed.notes);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Restore failed. Nothing was changed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearAll = () => {
+    if (!window.confirm("Delete ALL notes on this device? Export a backup first if you might need them.")) return;
+    if (!window.confirm("This cannot be undone. Clearing browser data also removes notes. Delete everything now?")) return;
+    onReplace([]);
+    onClose();
+  };
+
+  return (
+    <div className="notes-sheet-wrap" role="dialog" aria-modal="true" aria-label="Backup and data">
+      <button type="button" className="notes-scrim" onClick={onClose} aria-label="Close" />
+      <div className="notes-sheet">
+        <div className="notes-sheet-head">
+          <span />
+          <span className="notes-sheet-label">Backup &amp; data</span>
+          <button type="button" className="notes-link" onClick={onClose}>Done</button>
+        </div>
+        <div className="notes-editor">
+          <p className="notes-muted">
+            Notes stay in this browser. Clearing site data removes them, so export a backup you can keep.
+          </p>
+          <p className="notes-muted">
+            Locked notes are included as encrypted text. The password is not stored, so you still need it to read them.
+          </p>
+          <div className="notes-actions">
+            <button type="button" className="notes-btn is-primary" onClick={download} disabled={busy}>Export backup</button>
+            <button type="button" className="notes-btn is-ghost" onClick={() => fileRef.current?.click()} disabled={busy}>
+              Restore from backup…
+            </button>
+            <button type="button" className="notes-btn is-danger" onClick={clearAll} disabled={busy}>Delete all notes</button>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void restore(f);
+            }}
+          />
+          {error ? <p className="notes-error" role="alert">{error}</p> : null}
+        </div>
+      </div>
     </div>
   );
 }

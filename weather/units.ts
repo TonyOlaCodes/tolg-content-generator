@@ -3,6 +3,7 @@ import type { Units } from "./types";
 /** Open-Meteo returns Celsius, km/h and mm by default; convert only for display. */
 /** Temperatures are always shown in Celsius. */
 export function formatTemp(celsius: number | null, _units?: Units): string {
+  void _units; // temperatures are always shown in Celsius for now
   if (celsius === null || !Number.isFinite(celsius)) return "—";
   return `${Math.round(celsius)}°`;
 }
@@ -42,6 +43,7 @@ export function windDirectionLabel(degrees: number | null): string {
  * in the user's chosen unit.
  */
 export function toDisplayTemp(celsius: number, _units?: Units): number {
+  void _units; // temperatures are always shown in Celsius for now
   return celsius;
 }
 

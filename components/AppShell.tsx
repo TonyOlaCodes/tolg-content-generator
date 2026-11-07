@@ -1,13 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import AppChooser, { type AppId } from "./AppChooser";
-import WeatherApp from "@/app/weather/WeatherApp";
-import FuelApp from "@/app/fuel/FuelApp";
-import MoneyApp from "@/app/money/MoneyApp";
-import GroceriesApp from "@/app/groceries/GroceriesApp";
-import NotesApp from "@/app/notes/NotesApp";
-import DailyApp from "@/app/daily/DailyApp";
+
+// Each mini-app is its own chunk: opening the launcher no longer downloads all of them.
+const WeatherApp = dynamic(() => import("@/app/weather/WeatherApp"), { ssr: false });
+const FuelApp = dynamic(() => import("@/app/fuel/FuelApp"), { ssr: false });
+const MoneyApp = dynamic(() => import("@/app/money/MoneyApp"), { ssr: false });
+const GroceriesApp = dynamic(() => import("@/app/groceries/GroceriesApp"), { ssr: false });
+const NotesApp = dynamic(() => import("@/app/notes/NotesApp"), { ssr: false });
+const DailyApp = dynamic(() => import("@/app/daily/DailyApp"), { ssr: false });
 
 export default function AppShell() {
   const [app, setApp] = useState<AppId | null>(null);
