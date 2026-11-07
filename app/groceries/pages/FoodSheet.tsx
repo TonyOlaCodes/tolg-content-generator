@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
-import { CATEGORIES, unitsFor, toBase, PRICE_ID, type Food, type Measure, type Unit, UNIT_LABEL } from "@/groceries/model";
+import { CATEGORIES, unitsFor, toBase, toBaseApprox, parseAmountOrFraction, PRICE_ID, type Food, type Measure, type Unit, UNIT_LABEL } from "@/groceries/model";
 import { newId, setFoodArchived } from "@/groceries/actions";
 import type { Builder, Op } from "@/groceries/store";
 import { parseEuroToCents } from "@/money/money";
@@ -31,7 +31,7 @@ export function FoodSheet({
   // Prices are saved against the shop already on the food, or the app's default shop.
   const shopId = food?.shopId ?? snap.settings?.defaultShopId ?? snap.shops[0]?.id ?? "";
   const [priceText, setPriceText] = useState(food && food.packBase ? priceFor(snap, food) : "");
-  const [dailyText, setDailyText] = useState(food?.dailyUseBase != null ? String(food.dailyUseBase) : "");
+  const [dailyText, setDailyText] = useState(dailyTextFor(food));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +50,12 @@ export function FoodSheet({
     // Zero stock is allowed; any other amount must fit the chosen unit.
     const stockBase = stock === 0 ? 0 : toBase(stock, unit, measure, pack);
     if (stockBase === null) return setError(`Stock does not fit ${UNIT_LABEL[unit]} for this food.`);
-    const daily = dailyText === "" ? null : toBase(Number(dailyText), unit, measure, pack);
-    if (dailyText !== "" && daily === null) return setError("Daily use does not fit the unit.");
+    // With packages, daily use is a fraction of one pack (1/3), so 500 g lasting 3 days stays exact.
+    const dailyInput = dailyText.trim();
+    const parsedDaily = dailyInput === "" ? null : parseAmountOrFraction(dailyInput);
+    if (dailyInput !== "" && parsedDaily === null) return setError("Use per day: try a fraction like 1/3, or a number like 166.5.");
+    const daily = parsedDaily === null ? null : toBaseApprox(parsedDaily, usePack ? "pack" : unit, measure, pack);
+    if (dailyInput !== "" && daily === null) return setError("Use per day must be above zero and fit the unit.");
 
     const priceCents = priceText.trim() === "" ? null : parseEuroToCents(priceText);
     if (priceText.trim() !== "" && priceCents === null) return setError("Enter the price in euro, e.g. 1.75.");
@@ -141,7 +145,6 @@ export function FoodSheet({
                     return displayFromBase(base, next, pack);
                   };
                   setStockText((t) => convert(t));
-                  setDailyText((t) => convert(t));
                   setUnit(next);
                 }}
               >
@@ -157,10 +160,14 @@ export function FoodSheet({
             </label>
             <label className="gr-field">
               <span>Use per day</span>
-              <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="optional" />
+              <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder={usePack ? "e.g. 1/3" : "optional"} />
             </label>
           </div>
-          <p className="gr-muted gr-small">Use per day is optional. It turns stock into “days left” and flags foods running low.</p>
+          <p className="gr-muted gr-small">
+            {usePack
+              ? "Use per day is optional: type a fraction of a pack, like 1/3, or a decimal like 0.5."
+              : "Use per day is optional, e.g. 166.5. It turns stock into days left and flags foods running low."}
+          </p>
 
           <label className="gr-toggle">
             <input type="checkbox" checked={usePack} onChange={(e) => { setUsePack(e.target.checked); if (!e.target.checked && unit === "pack") setUnit(unitsFor(measure, false)[0]); }} />
@@ -215,6 +222,13 @@ function saveFood(record: Food, priceCents: number | null, shopId: string): Buil
     }
     return { ops };
   };
+}
+
+/** Daily use is shown as a fraction of a pack when packs are used, so 1/3 survives a save. */
+function dailyTextFor(food: Food | null): string {
+  if (!food || food.dailyUseBase === null) return "";
+  const value = food.packBase ? food.dailyUseBase / food.packBase : food.dailyUseBase;
+  return Number(value.toFixed(4)).toString();
 }
 
 function priceFor(snap: GroceriesApi["snap"], food: Food): string {

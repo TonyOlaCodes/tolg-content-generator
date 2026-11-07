@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
 import { CATEGORIES, type Food, formatBase } from "@/groceries/model";
-import { statusOf, STATUS_LABEL, estimateDailyUse, type Status } from "@/groceries/logic";
+import { statusOf, STATUS_LABEL, estimateDailyUse, daysRemaining, type Status } from "@/groceries/logic";
 import { adjustStock, setFoodArchived, todayLocal } from "@/groceries/actions";
 import { activeList, addLowStockToList } from "./shared";
 
@@ -112,7 +112,7 @@ export default function PantryPage({ api }: { api: GroceriesApi }) {
                   </span>
                   <span className={`gr-badge is-${status}`}>
                     {STATUS_LABEL[status]}
-                    {daily && status !== "empty" ? ` · ${Math.floor(food.stockBase / daily)} days` : ""}
+                    {daily && status !== "empty" ? ` · ${daysRemaining(food.stockBase, daily)} days` : ""}
                   </span>
                 </button>
                 <div className="gr-food-side">

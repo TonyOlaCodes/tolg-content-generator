@@ -85,6 +85,38 @@ export function toBase(qty: number, unit: Unit, measure: Measure, packBase: numb
   return rounded > 0 ? rounded : null;
 }
 
+/** Like toBase, but keeps a fractional rate (daily use) instead of rounding to whole grams. */
+export function toBaseApprox(qty: number, unit: Unit, measure: Measure, packBase: number | null): number | null {
+  if (!Number.isFinite(qty) || qty <= 0) return null;
+  switch (unit) {
+    case "pack":
+      return packBase ? qty * packBase : null;
+    case "piece":
+      return measure === "count" ? qty : null;
+    case "g":
+      return measure === "mass" ? qty : null;
+    case "kg":
+      return measure === "mass" ? qty * 1000 : null;
+    case "ml":
+      return measure === "volume" ? qty : null;
+    case "l":
+      return measure === "volume" ? qty * 1000 : null;
+  }
+}
+
+/** Reads "1/3", "0.5" or "166.5". Null when the text is not a positive amount. */
+export function parseAmountOrFraction(text: string): number | null {
+  const value = text.trim();
+  if (!value) return null;
+  const fraction = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(value);
+  if (fraction) {
+    const top = Number(fraction[1]);
+    const bottom = Number(fraction[2]);
+    return bottom > 0 && top > 0 ? top / bottom : null;
+  }
+  return /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : null;
+}
+
 const trimNumber = (n: number) => Number(n.toFixed(2)).toString();
 
 /** Human text for a base quantity, e.g. 1250 g -> "1.25 kg", 3 pieces -> "3 pieces". */

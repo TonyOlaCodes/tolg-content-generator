@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { GroceriesApi } from "../GroceriesApp";
-import { statusOf, listEstimate, reorderPacks, STATUS_LABEL, estimateDailyUse } from "@/groceries/logic";
+import { statusOf, listEstimate, reorderPacks, STATUS_LABEL, estimateDailyUse, daysRemaining } from "@/groceries/logic";
 import { formatBase } from "@/groceries/model";
 import { formatEUR } from "@/money/money";
 import { todayLocal } from "@/groceries/actions";
@@ -79,7 +79,7 @@ export default function HomePage({ api }: { api: GroceriesApi }) {
                     <span className={`gr-badge is-${status}`}>{STATUS_LABEL[status]}</span>
                     <span className="gr-muted">
                       {formatBase(food.stockBase, food.measure)}
-                      {daily ? ` · about ${Math.floor(food.stockBase / daily)} days left` : " · not enough data for days left"}
+                      {daily ? ` · about ${daysRemaining(food.stockBase, daily)} days left` : " · not enough data for days left"}
                     </span>
                   </div>
                   <button

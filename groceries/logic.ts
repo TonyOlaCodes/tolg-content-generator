@@ -42,7 +42,8 @@ export function reverseLog(foods: Food[], log: Log): Food[] | null {
 /** Days of stock left, or null when daily use is unknown. */
 export function daysRemaining(stockBase: number, dailyBase: number | null): number | null {
   if (dailyBase === null || dailyBase <= 0) return null;
-  return Math.max(0, Math.floor(stockBase / dailyBase));
+  // The tiny epsilon keeps a fraction like 1/3 pack per day counting the whole last day.
+  return Math.max(0, Math.floor(stockBase / dailyBase + 1e-9));
 }
 
 /** Status for one food. Warnings use the food's own warnDays and low-stock threshold. */
