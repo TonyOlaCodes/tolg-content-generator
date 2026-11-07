@@ -74,13 +74,15 @@ export function formatMonthShortIE(month: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString("en-IE", { month: "short" });
 }
 
-/** Human due label, e.g. "Due today", "Due in 3 days", "Overdue by 2 days". */
+/** Short day and month, e.g. "12 Nov". */
+export function formatDayIE(iso: string): string {
+  return parseISO(iso).toLocaleDateString("en-IE", { day: "numeric", month: "short" });
+}
+
+/** Human due label showing the date itself, e.g. "Due 12 Nov" or "Overdue · 3 Nov". */
 export function dueLabel(dueIso: string, today: string = todayISO()): { text: string; overdue: boolean } {
-  const diff = daysBetween(today, dueIso);
-  if (diff < 0) return { text: `Overdue by ${-diff} ${-diff === 1 ? "day" : "days"}`, overdue: true };
-  if (diff === 0) return { text: "Due today", overdue: false };
-  if (diff === 1) return { text: "Due tomorrow", overdue: false };
-  return { text: `Due in ${diff} days`, overdue: false };
+  const overdue = daysBetween(today, dueIso) < 0;
+  return { text: `${overdue ? "Overdue ·" : "Due"} ${formatDayIE(dueIso)}`, overdue };
 }
 
 export type IntervalSpec = { interval: "once" | "weekly" | "monthly" | "yearly" | "custom"; customDays: number | null; dayOfMonth: number };

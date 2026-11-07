@@ -15,7 +15,7 @@ import {
   upcomingBills,
   type Location,
 } from "@/money/banking";
-import { currentMonth, daysInMonth, dueLabel, formatEUR, formatDateIE, monthlyEquivalentCents, todayISO } from "@/money/money";
+import { currentMonth, daysInMonth, dueLabel, formatEUR, formatDateIE, formatMonthIE, monthlyEquivalentCents, todayISO } from "@/money/money";
 import type { Recurring } from "@/money/types";
 import type { MoneyApi } from "./MoneyApp";
 
@@ -42,7 +42,15 @@ export default function BillsPage({
 }) {
   const { snap, commit } = api;
   const [busy, setBusy] = useState<string | null>(null);
-  const bills = upcomingBills(snap);
+  const bills = upcomingBills(snap).slice().sort((a, b) => (a.nextDue < b.nextDue ? -1 : a.nextDue > b.nextDue ? 1 : 0));
+  // One section per month of the next due date, so the list visibly breaks when the month changes.
+  const billMonths = bills.reduce<{ month: string; items: Recurring[] }[]>((acc, bill) => {
+    const key = bill.nextDue.slice(0, 7);
+    const last = acc[acc.length - 1];
+    if (last && last.month === key) last.items.push(bill);
+    else acc.push({ month: key, items: [bill] });
+    return acc;
+  }, []);
   const pausedBills = snap.recurring.filter((r) => r.kind === "bill" && r.status === "paused");
   const incoming = scheduledIncome(snap);
   const pausedIncoming = snap.recurring.filter((r) => r.kind === "income" && r.status === "paused");
@@ -107,8 +115,11 @@ export default function BillsPage({
             Add subscriptions, rent or any recurring bill.
           </button>
         ) : (
-          <ul className="mm-bill-list">
-            {bills.map((bill) => (
+          billMonths.map((group) => (
+            <div key={group.month}>
+              <p className="mm-month-head">{formatMonthIE(group.month)}</p>
+              <ul className="mm-bill-list">
+            {group.items.map((bill) => (
               <BillRow
                 key={bill.id}
                 api={api}
@@ -130,7 +141,9 @@ export default function BillsPage({
                 }}
               />
             ))}
-          </ul>
+              </ul>
+            </div>
+          ))
         )}
         {pausedBills.length > 0 ? (
           <div className="mm-paused">

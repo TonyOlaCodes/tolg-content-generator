@@ -596,3 +596,8 @@ body:has(.mm-backdrop) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .mm-app *, .mm-app *::before, .mm-app *::after { animation: none !important; transition: none !important; }
 }
+
+/* Bills grouped by the month they fall due, so crossing into next month is visible. */
+.mm-month-head { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mm-month-head:first-child { margin-top: 2px; }
+.mm-month-head::after { content: ""; flex: 1; height: 1px; background: var(--mm-line); }
