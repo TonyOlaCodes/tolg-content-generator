@@ -12,12 +12,14 @@ export type HistoryFilter = { accountId?: string; pocketId?: string; title: stri
 
 function accountTransactions(snap: Snapshot, accountId: string): Transaction[] {
   return snap.transactions
+    .filter((t) => !t.reverses && !t.reversedBy)
     .filter((t) => t.accountId === accountId || t.toAccountId === accountId)
     .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1));
 }
 
 function pocketTransactions(snap: Snapshot, pocketId: string): Transaction[] {
   return snap.transactions
+    .filter((t) => !t.reverses && !t.reversedBy)
     .filter((t) => t.pocketId === pocketId || t.toPocketId === pocketId)
     .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1));
 }

@@ -58,7 +58,7 @@ export default function HomePage({
     .reduce((sum, loan) => sum + loanOutstandingCents(snap, loan), 0);
   const leftAfter = cash + owedToMe - billsLeft;
   const recent = snap.transactions
-    .filter((tx) => tx.status === "confirmed")
+    .filter((tx) => tx.status === "confirmed" && !tx.reverses && !tx.reversedBy)
     .sort((a, c) => (a.date === c.date ? (a.createdAt < c.createdAt ? 1 : -1) : a.date < c.date ? 1 : -1))
     .slice(0, 5);
 
