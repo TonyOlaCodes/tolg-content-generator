@@ -42,7 +42,11 @@ export default function BillsPage({
 }) {
   const { snap, commit } = api;
   const [busy, setBusy] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const bills = upcomingBills(snap).slice().sort((a, b) => (a.nextDue < b.nextDue ? -1 : a.nextDue > b.nextDue ? 1 : 0));
+  const allBills = snap.recurring
+    .filter((r) => r.kind === "bill" && r.status !== "cancelled")
+    .sort((a, b) => (a.nextDue < b.nextDue ? -1 : a.nextDue > b.nextDue ? 1 : 0));
   // One section per month of the next due date, so the list visibly breaks when the month changes.
   const billMonths = bills.reduce<{ month: string; items: Recurring[] }[]>((acc, bill) => {
     const key = bill.nextDue.slice(0, 7);
@@ -106,11 +110,37 @@ export default function BillsPage({
       <section className="mm-section">
         <div className="mm-section-head">
           <h2>Bills</h2>
-          <button type="button" className="mm-link" onClick={() => onAddBill("bill")}>
-            + Add
-          </button>
+          <div className="mm-head-actions">
+            <button type="button" className="mm-link" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "By month" : "All bills"}
+            </button>
+            <button type="button" className="mm-link" onClick={() => onAddBill("bill")}>
+              + Add
+            </button>
+          </div>
         </div>
-        {bills.length === 0 ? (
+        {showAll ? (
+          allBills.length === 0 ? (
+            <button type="button" className="mm-inline-empty" onClick={() => onAddBill("bill")}>
+              Add subscriptions, rent or any recurring bill.
+            </button>
+          ) : (
+            <ul className="mm-bill-list">
+              {allBills.map((bill) => (
+                <li key={bill.id} className="mm-mini-row">
+                  <span className="mm-mini-main">
+                    <strong>{bill.name}</strong>
+                    <em>
+                      {formatDateIE(bill.nextDue)} · {frequencyText(bill)}
+                      {bill.status === "paused" ? " · Paused" : ""}
+                    </em>
+                  </span>
+                  <span className="mm-mini-amount">{formatEUR(bill.amountCents)}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : bills.length === 0 ? (
           <button type="button" className="mm-inline-empty" onClick={() => onAddBill("bill")}>
             Add subscriptions, rent or any recurring bill.
           </button>
@@ -145,7 +175,7 @@ export default function BillsPage({
             </div>
           ))
         )}
-        {pausedBills.length > 0 ? (
+        {!showAll && pausedBills.length > 0 ? (
           <div className="mm-paused">
             <p className="mm-kicker">Paused</p>
             {pausedBills.map((bill) => (
@@ -332,6 +362,14 @@ function sourceText(api: MoneyApi, location: Location | null): string {
   const account = api.snap.accounts.find((a) => a.id === location.accountId);
   const pocket = location.pocketId ? api.snap.pockets.find((p) => p.id === location.pocketId) : null;
   return pocket ? `${account?.name ?? ""} → ${pocket.name}` : `${account?.name ?? ""} → Main`;
+}
+
+function frequencyText(item: Recurring): string {
+  if (item.interval === "once") return "One time";
+  if (item.interval === "monthly") return "Monthly";
+  if (item.interval === "yearly") return "Yearly";
+  if (item.interval === "weekly") return "Weekly";
+  return `Every ${item.customDays ?? 30} days`;
 }
 
 function periodText(item: Recurring): string {
