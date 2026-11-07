@@ -534,15 +534,56 @@ export function setAccountArchived(snap: Snapshot, id: string, archived: boolean
   return ok([{ store: "accounts", value: { ...acc, archived } }]);
 }
 
-/** Deletes an account only when nothing refers to it. Otherwise archive it, so history and totals stay correct. */
+/**
+ * Deletes an account together with everything recorded against it: its pockets and every
+ * transaction that touches it. Bills and IOUs are kept; a bill's source falls back to
+ * another account and settings that pointed here are cleared.
+ *
+ * Destructive by design, so the UI confirms it: the account's money leaves the totals.
+ */
 export function deleteAccount(snap: Snapshot, id: string): Result {
-  const used =
-    snap.transactions.some((t) => t.accountId === id || t.toAccountId === id) ||
-    snap.recurring.some((r) => r.accountId === id) ||
-    snap.pockets.some((p) => p.accountId === id) ||
-    snap.settings?.plannedSpendAccountId === id;
-  if (used) return fail("This account has transactions or schedules. Archive it instead.");
-  return ok([], [{ store: "accounts", key: id }]);
+  const acc = snap.accounts.find((a) => a.id === id);
+  if (!acc) return fail("That account no longer exists.");
+  const pockets = snap.pockets.filter((p) => p.accountId === id);
+  const pocketIds = new Set(pockets.map((p) => p.id));
+  const touches = (tx: Transaction) =>
+    tx.accountId === id ||
+    tx.toAccountId === id ||
+    (tx.pocketId !== null && pocketIds.has(tx.pocketId)) ||
+    (tx.toPocketId !== null && pocketIds.has(tx.toPocketId));
+  const transactions = snap.transactions.filter(touches);
+
+  const puts: Change["puts"] = [];
+  for (const rec of snap.recurring) {
+    if (rec.accountId === id || (rec.pocketId && pocketIds.has(rec.pocketId))) {
+      puts.push({ store: "recurring", value: { ...rec, accountId: null, pocketId: null } });
+    }
+  }
+  for (const cat of snap.categories) {
+    if (cat.defaultPocketId && pocketIds.has(cat.defaultPocketId)) {
+      puts.push({ store: "categories", value: { ...cat, defaultPocketId: null } });
+    }
+  }
+  if (snap.settings) {
+    const plannedSpendAccountId = snap.settings.plannedSpendAccountId === id ? null : snap.settings.plannedSpendAccountId;
+    const lines = snap.settings.splitTemplate;
+    let droppedLine = false;
+    const kept = lines?.filter((line) => {
+      const drop = line.accountId === id || (line.pocketId !== null && pocketIds.has(line.pocketId));
+      if (drop) droppedLine = true;
+      return !drop;
+    });
+    const splitTemplate = droppedLine ? (kept && kept.length > 0 ? kept : null) : (lines ?? null);
+    if (plannedSpendAccountId !== snap.settings.plannedSpendAccountId || droppedLine) {
+      puts.push({ store: "settings", value: { ...snap.settings, plannedSpendAccountId, splitTemplate } });
+    }
+  }
+
+  return ok(puts, [
+    { store: "accounts", key: id },
+    ...pockets.map((p) => ({ store: "pockets" as const, key: p.id })),
+    ...transactions.map((tx) => ({ store: "transactions" as const, key: tx.id })),
+  ]);
 }
 
 // ---------- Pockets ----------

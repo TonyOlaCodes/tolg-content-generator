@@ -172,7 +172,15 @@ export function AccountDetail({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${account!.name}? Only an account with no records can be deleted.`)) return;
+    const records = snap.transactions.filter((t) => t.accountId === accountId || t.toAccountId === accountId).length;
+    const pocketCount = snap.pockets.filter((p) => p.accountId === accountId).length;
+    const parts = [
+      records > 0 ? `${records} ${records === 1 ? "record" : "records"}` : "",
+      pocketCount > 0 ? `${pocketCount} ${pocketCount === 1 ? "pocket" : "pockets"}` : "",
+    ].filter(Boolean);
+    const money = (b.account[accountId] ?? 0) !== 0 ? " Its balance leaves your totals." : "";
+    const message = `Delete ${account!.name}${parts.length > 0 ? ` and its ${parts.join(" and ")}` : ""}?${money} This cannot be undone.`;
+    if (!window.confirm(message)) return;
     const err = await commit(deleteAccount(snap, accountId));
     if (err) return setError(err);
     notify("Account deleted");
