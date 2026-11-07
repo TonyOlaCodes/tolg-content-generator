@@ -28,15 +28,10 @@ export function FoodSheet({
   const [unit, setUnit] = useState<Unit>(food ? baseUnit(food) : "g");
   const [usePack, setUsePack] = useState(food?.packBase != null);
   const [packText, setPackText] = useState(food?.packBase ? String(food.packBase) : "");
-  const [priceText, setPriceText] = useState(
-    food && food.packBase ? priceFor(snap, food) : "",
-  );
-  const [shopId, setShopId] = useState(food?.shopId ?? snap.settings?.defaultShopId ?? snap.shops[0]?.id ?? "");
-  const [lowText, setLowText] = useState(food?.lowStockBase != null ? String(food.lowStockBase) : "");
-  const [warnText, setWarnText] = useState(String(food?.warnDays ?? 2));
-  const [targetText, setTargetText] = useState(food?.targetBase != null ? String(food.targetBase) : "");
+  // Prices are saved against the shop already on the food, or the app's default shop.
+  const shopId = food?.shopId ?? snap.settings?.defaultShopId ?? snap.shops[0]?.id ?? "";
+  const [priceText, setPriceText] = useState(food && food.packBase ? priceFor(snap, food) : "");
   const [dailyText, setDailyText] = useState(food?.dailyUseBase != null ? String(food.dailyUseBase) : "");
-  const [notes, setNotes] = useState(food?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -55,18 +50,11 @@ export function FoodSheet({
     // Zero stock is allowed; any other amount must fit the chosen unit.
     const stockBase = stock === 0 ? 0 : toBase(stock, unit, measure, pack);
     if (stockBase === null) return setError(`Stock does not fit ${UNIT_LABEL[unit]} for this food.`);
-    const low = lowText === "" ? null : toBase(Number(lowText), unit, measure, pack);
-    const target = targetText === "" ? null : toBase(Number(targetText), unit, measure, pack);
     const daily = dailyText === "" ? null : toBase(Number(dailyText), unit, measure, pack);
-    if (lowText !== "" && low === null) return setError("Low-stock threshold does not fit the unit.");
-    if (targetText !== "" && target === null) return setError("Target stock does not fit the unit.");
     if (dailyText !== "" && daily === null) return setError("Daily use does not fit the unit.");
-    const warn = Math.round(Number(warnText));
-    if (!Number.isFinite(warn) || warn < 0) return setError("Warning days must be zero or more.");
 
     const priceCents = priceText.trim() === "" ? null : parseEuroToCents(priceText);
     if (priceText.trim() !== "" && priceCents === null) return setError("Enter the price in euro, e.g. 1.75.");
-    if (priceCents !== null && !pack) return setError("A price needs a package size.");
 
     const record: Food = {
       id: food?.id ?? newId(),
@@ -75,13 +63,15 @@ export function FoodSheet({
       measure,
       stockBase,
       packBase: pack,
-      lowStockBase: low,
-      warnDays: warn,
-      targetBase: target,
+      // Kept from the existing food; this form no longer exposes them.
+      lowStockBase: food?.lowStockBase ?? null,
+      warnDays: food?.warnDays ?? 2,
+      targetBase: food?.targetBase ?? null,
       dailyUseBase: daily,
       shopId,
-      notes: notes.trim(),
+      notes: food?.notes ?? "",
       image: food?.image ?? null,
+      archived: food?.archived,
       version: (food?.version ?? 0) + 1,
       createdAt: food?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -110,7 +100,7 @@ export function FoodSheet({
         <div className="gr-sheet-head">
           <button className="gr-link" onClick={onClose}>Cancel</button>
           <h2 className="gr-h3">{food ? "Edit food" : "Add food"}</h2>
-          <button className="gr-link is-strong" onClick={save} disabled={saving}>Save</button>
+          <button className="gr-link is-strong" onClick={() => void save()} disabled={saving}>Save</button>
         </div>
 
         <div className="gr-form">
@@ -134,10 +124,6 @@ export function FoodSheet({
               </select>
             </label>
             <label className="gr-field">
-              <span>Stock</span>
-              <input className="gr-input" inputMode="decimal" value={stockText} onChange={(e) => setStockText(e.target.value)} placeholder="0" />
-            </label>
-            <label className="gr-field">
               <span>Unit</span>
               <select
                 className="gr-input"
@@ -155,8 +141,6 @@ export function FoodSheet({
                     return displayFromBase(base, next, pack);
                   };
                   setStockText((t) => convert(t));
-                  setLowText((t) => convert(t));
-                  setTargetText((t) => convert(t));
                   setDailyText((t) => convert(t));
                   setUnit(next);
                 }}
@@ -166,52 +150,34 @@ export function FoodSheet({
             </label>
           </div>
 
+          <div className="gr-field-row">
+            <label className="gr-field">
+              <span>Stock now</span>
+              <input className="gr-input" inputMode="decimal" value={stockText} onChange={(e) => setStockText(e.target.value)} placeholder="0" />
+            </label>
+            <label className="gr-field">
+              <span>Use per day</span>
+              <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="optional" />
+            </label>
+          </div>
+          <p className="gr-muted gr-small">Use per day is optional. It turns stock into “days left” and flags foods running low.</p>
+
           <label className="gr-toggle">
             <input type="checkbox" checked={usePack} onChange={(e) => { setUsePack(e.target.checked); if (!e.target.checked && unit === "pack") setUnit(unitsFor(measure, false)[0]); }} />
             <span>Sold in packages</span>
           </label>
           {usePack && (
-            <label className="gr-field">
-              <span>Package size ({measure === "volume" ? "ml" : measure === "count" ? "pieces" : "g"})</span>
-              <input className="gr-input" inputMode="numeric" value={packText} onChange={(e) => setPackText(e.target.value)} placeholder="e.g. 500" />
-            </label>
+            <div className="gr-field-row">
+              <label className="gr-field">
+                <span>Package size ({measure === "volume" ? "ml" : measure === "count" ? "pieces" : "g"})</span>
+                <input className="gr-input" inputMode="numeric" value={packText} onChange={(e) => setPackText(e.target.value)} placeholder="e.g. 500" />
+              </label>
+              <label className="gr-field">
+                <span>Price per package (€)</span>
+                <input className="gr-input" inputMode="decimal" value={priceText} onChange={(e) => setPriceText(e.target.value)} placeholder="optional" />
+              </label>
+            </div>
           )}
-
-          <div className="gr-field-row">
-            <label className="gr-field">
-              <span>Price per package (€)</span>
-              <input className="gr-input" inputMode="decimal" value={priceText} onChange={(e) => setPriceText(e.target.value)} placeholder="optional" disabled={!usePack} />
-            </label>
-            <label className="gr-field">
-              <span>Supermarket</span>
-              <select className="gr-input" value={shopId} onChange={(e) => setShopId(e.target.value)}>
-                {snap.shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
-          </div>
-
-          <div className="gr-field-row">
-            <label className="gr-field">
-              <span>Warn at (days)</span>
-              <input className="gr-input" inputMode="numeric" value={warnText} onChange={(e) => setWarnText(e.target.value)} />
-            </label>
-            <label className="gr-field">
-              <span>Low stock at</span>
-              <input className="gr-input" inputMode="decimal" value={lowText} onChange={(e) => setLowText(e.target.value)} placeholder="optional" />
-            </label>
-            <label className="gr-field">
-              <span>Target</span>
-              <input className="gr-input" inputMode="decimal" value={targetText} onChange={(e) => setTargetText(e.target.value)} placeholder="optional" />
-            </label>
-          </div>
-          <label className="gr-field">
-            <span>Daily use</span>
-            <input className="gr-input" inputMode="decimal" value={dailyText} onChange={(e) => setDailyText(e.target.value)} placeholder="Optional" />
-          </label>
-          <label className="gr-field">
-            <span>Notes</span>
-            <textarea className="gr-input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
 
           {error && <p className="gr-error" role="alert">{error}</p>}
 
