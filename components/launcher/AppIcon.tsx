@@ -45,6 +45,13 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
           <circle cx={16.5} cy={19} r={1.3} {...common} />
         </svg>
       );
+    case "notes":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+          <rect x={4.5} y={3.5} width={15} height={17} rx={2.2} {...common} />
+          <path d="M8.5 8h7M8.5 12h7M8.5 16h4.5" {...common} />
+        </svg>
+      );
     case "daily":
       return (
         <svg viewBox="0 0 24 24" aria-hidden focusable="false">

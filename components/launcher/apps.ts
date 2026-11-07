@@ -1,10 +1,10 @@
-export type AppId = "weather" | "fuel" | "money" | "groceries" | "daily";
+export type AppId = "weather" | "fuel" | "money" | "groceries" | "notes" | "daily";
 
 export type Category = "Productivity" | "Utilities" | "Fitness" | "Finance" | "Entertainment";
 
 export const CATEGORIES: Category[] = ["Productivity", "Utilities", "Fitness", "Finance", "Entertainment"];
 
-export type Glyph = "weather" | "fuel" | "money" | "groceries" | "daily";
+export type Glyph = "weather" | "fuel" | "money" | "groceries" | "notes" | "daily";
 
 export type AppEntry = {
   id: AppId;
@@ -54,6 +54,15 @@ export const APPS: AppEntry[] = [
     category: "Productivity",
     gradient: ["#86efac", "#15803d"],
     glyph: "groceries",
+    status: "ready",
+  },
+  {
+    id: "notes",
+    title: "Notes",
+    subtitle: "Quick notes, lockable",
+    category: "Productivity",
+    gradient: ["#e8dcc6", "#a1855a"],
+    glyph: "notes",
     status: "ready",
   },
   {
