@@ -93,7 +93,6 @@
 .mm-summary-total span { color: var(--muted); font-size: 0.88rem; }
 .mm-summary-total strong { font-size: 1.2rem; font-weight: 680; letter-spacing: -0.025em; white-space: nowrap; }
 .mm-summary-total strong.is-neg { color: #ff9aa9; }
-.mm-summary-note { margin-top: -6px; }
 
 /* actions */
 .mm-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

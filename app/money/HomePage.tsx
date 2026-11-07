@@ -56,7 +56,7 @@ export default function HomePage({
   const owedToMe = snap.loans
     .filter((loan) => loan.direction === "lent")
     .reduce((sum, loan) => sum + loanOutstandingCents(snap, loan), 0);
-  const leftAfter = total + owedToMe - billsLeft;
+  const leftAfter = cash + owedToMe - billsLeft;
   const recent = snap.transactions
     .filter((tx) => tx.status === "confirmed")
     .sort((a, c) => (a.date === c.date ? (a.createdAt < c.createdAt ? 1 : -1) : a.date < c.date ? 1 : -1))
@@ -120,7 +120,6 @@ export default function HomePage({
         <span>Left after bills &amp; IOUs</span>
         <strong className={leftAfter < 0 ? "is-neg" : undefined}>{formatEUR(leftAfter)}</strong>
       </div>
-      <p className="mm-caption mm-summary-note">Every account, including savings, once the bills are paid and money owed comes back.</p>
 
       <div className="mm-actions is-main">
         <button type="button" className="mm-action" onClick={onAdd}>
