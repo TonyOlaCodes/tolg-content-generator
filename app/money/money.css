@@ -89,6 +89,11 @@
 .mm-summary-row + .mm-summary-row { border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
 .mm-summary-row span { color: var(--muted); }
 .mm-summary-row strong { font-weight: 620; font-size: 0.95rem; }
+.mm-summary-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.mm-summary-total span { color: var(--muted); font-size: 0.88rem; }
+.mm-summary-total strong { font-size: 1.2rem; font-weight: 680; letter-spacing: -0.025em; white-space: nowrap; }
+.mm-summary-total strong.is-neg { color: #ff9aa9; }
+.mm-summary-note { margin-top: -6px; }
 
 /* actions */
 .mm-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
