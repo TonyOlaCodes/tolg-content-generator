@@ -6,7 +6,7 @@ A Next.js mini-app collection that opens from one home screen:
 - **Fuel Tracker**: car fuel records, costs and analytics.
 - **Money Tracker**: accounts, pockets, money movements, bills, scheduled income, refunds and IOUs.
 - **Groceries & Pantry**: stock, meals and shopping.
-- **Notes**: quick local notes, optionally locked with a password.
+- **Notes**: folders and subfolders, rich sections (lists, checklists, tables), colours and optional password locks.
 - **Daily Tracker**: steps, bodyweight, calories, sleep and water with goals, history
   and trends.
 
@@ -20,10 +20,14 @@ A Next.js mini-app collection that opens from one home screen:
 
 ## Notes
 
-Notes are stored only in this browser. A note can be locked with a password: its text is
-encrypted with AES-GCM before it is saved, and the title stays visible. There is no password
-recovery. Use the Data button in Notes to export a JSON backup; locked notes are included as
-encrypted text, so the password is still needed to read them.
+Notes are stored only in this browser. Folders can hold subfolders one level deep, and a note
+can mix text, bullet or numbered lists, checklists and tables. Notes and folders can take a
+colour.
+
+A note can be locked with a password: its sections are encrypted with AES-GCM before they are
+saved, while the title, folder and colour stay visible. There is no password recovery. Use the
+Data button in Notes to export a JSON backup; folders, colours and sections are included, and
+locked notes stay encrypted, so the password is still needed to read them.
 
 ## Daily Tracker
 
