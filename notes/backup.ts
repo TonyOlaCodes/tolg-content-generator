@@ -1,5 +1,4 @@
 // JSON backup export and validated import for Notes. Locked notes keep only their ciphertext.
-import type { Cipher } from "./crypto";
 import {
   isBlock,
   isCipher,
