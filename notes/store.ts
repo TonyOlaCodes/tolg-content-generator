@@ -148,10 +148,21 @@ export function folderPath(folders: Folder[], id: string | null): string {
 export function blocksToText(blocks: Block[]): string {
   const parts: string[] = [];
   for (const block of blocks) {
-    if (block.kind === "paragraph") parts.push(block.text);
-    else if (block.kind === "bullets" || block.kind === "numbers") parts.push(...block.items);
-    else if (block.kind === "checklist") parts.push(...block.items.map((item) => item.text));
-    else for (const row of block.rows) parts.push(...row);
+    switch (block.kind) {
+      case "paragraph":
+        parts.push(block.text);
+        break;
+      case "bullets":
+      case "numbers":
+        parts.push(...block.items);
+        break;
+      case "checklist":
+        parts.push(...block.items.map((item) => item.text));
+        break;
+      case "table":
+        for (const row of block.rows) parts.push(...row);
+        break;
+    }
   }
   return parts.filter((part) => part.trim()).join(" ");
 }
