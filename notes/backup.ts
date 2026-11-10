@@ -9,6 +9,7 @@ import {
   type Note,
   type NotesState,
 } from "./store";
+import { isCurrency } from "./calc";
 
 export const BACKUP_FORMAT = "detailflows-notes";
 export const BACKUP_VERSION = 2;
@@ -84,6 +85,15 @@ function parseNotes(value: unknown, folders: Folder[]): { ok: true; notes: Note[
     }
     if (ids.has(item.id)) return { ok: false, error: "The backup has duplicate note IDs." };
     ids.add(item.id);
+    if (item.pinned !== undefined && typeof item.pinned !== "boolean") {
+      return { ok: false, error: "A note in the backup has an invalid pin." };
+    }
+    if (item.order !== undefined && (typeof item.order !== "number" || !Number.isFinite(item.order))) {
+      return { ok: false, error: "A note in the backup has an invalid order." };
+    }
+    if (item.currency !== undefined && !isCurrency(item.currency)) {
+      return { ok: false, error: "A note in the backup has an unknown currency." };
+    }
     if (!isNoteColor(item.color)) return { ok: false, error: "A note in the backup has an unknown colour." };
     if (item.folderId !== null && !isStr(item.folderId)) {
       return { ok: false, error: "A note in the backup has an invalid folder." };
@@ -108,6 +118,9 @@ function parseNotes(value: unknown, folders: Folder[]): { ok: true; notes: Note[
         cipher: item.cipher,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        pinned: item.pinned === true,
+        order: typeof item.order === "number" ? item.order : Date.parse(item.updatedAt) || 0,
+        currency: isCurrency(item.currency) ? item.currency : "EUR",
       });
     } else {
       if (item.cipher !== null && item.cipher !== undefined) {
@@ -123,6 +136,9 @@ function parseNotes(value: unknown, folders: Folder[]): { ok: true; notes: Note[
         cipher: null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        pinned: item.pinned === true,
+        order: typeof item.order === "number" ? item.order : Date.parse(item.updatedAt) || 0,
+        currency: isCurrency(item.currency) ? item.currency : "EUR",
       });
     }
   }
@@ -161,6 +177,9 @@ function parseLegacyNotes(data: unknown): Parsed {
         cipher: item.cipher,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        pinned: false,
+        order: Date.parse(item.updatedAt) || 0,
+        currency: "EUR",
       });
     } else {
       if (item.cipher !== null && item.cipher !== undefined) {
@@ -176,6 +195,9 @@ function parseLegacyNotes(data: unknown): Parsed {
         cipher: null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
+        pinned: false,
+        order: Date.parse(item.updatedAt) || 0,
+        currency: "EUR",
       });
     }
   }

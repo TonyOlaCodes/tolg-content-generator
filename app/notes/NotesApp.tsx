@@ -7,18 +7,23 @@ import {
   childrenOf,
   createFolder,
   createNote,
+  duplicateNote,
   folderPath,
   loadNotes,
+  notePlainText,
+  noteTitle,
   parseLockedBlocks,
   saveNotes,
   sortFolders,
   sortNotes,
-  type Block,
+  summarizeBlocks,
   type Folder,
   type Note,
   type NoteColor,
   type NotesState,
+  type NoteSort,
 } from "@/notes/store";
+import { formatMoney } from "@/notes/calc";
 import { decryptText } from "@/notes/crypto";
 import { exportNotes, validateBackup } from "@/notes/backup";
 import NoteEditor from "./NoteEditor";
@@ -27,23 +32,40 @@ import ColorPicker from "./ColorPicker";
 
 type EditorState = { note: Note; password: string | null; fresh: boolean };
 type FolderPromptState = { parentId: string | null; editing: Folder | null };
+type ToastState = { message: string; undo?: Note };
 
 const ALL = "all";
 const UNSORTED = "unsorted";
+const SORT_KEY = "detailflows-notes-sort";
+
+function loadSort(): NoteSort {
+  if (typeof localStorage === "undefined") return "edited";
+  const value = localStorage.getItem(SORT_KEY);
+  return value === "created" || value === "title" || value === "manual" || value === "edited" ? value : "edited";
+}
 
 export default function NotesApp({ onBack }: { onBack: () => void }) {
   const [state, setState] = useState<NotesState>({ notes: [], folders: [] });
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<string>(ALL);
+  const [sort, setSortState] = useState<NoteSort>("edited");
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<Note | null>(null);
   const [backupOpen, setBackupOpen] = useState(false);
   const [folderPrompt, setFolderPrompt] = useState<FolderPromptState | null>(null);
+  const [menuNote, setMenuNote] = useState<Note | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setState(loadNotes());
+    setSortState(loadSort());
     setReady(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
 
   const update = useCallback((mutate: (prev: NotesState) => NotesState) => {
@@ -58,21 +80,26 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
     (note: Note) => {
       update((prev) => ({
         ...prev,
-        notes: sortNotes(prev.notes.some((item) => item.id === note.id) ? prev.notes.map((item) => (item.id === note.id ? note : item)) : [note, ...prev.notes]),
+        notes: prev.notes.some((item) => item.id === note.id)
+          ? prev.notes.map((item) => (item.id === note.id ? note : item))
+          : [note, ...prev.notes],
       }));
     },
     [update],
   );
 
-  const remove = useCallback(
-    (id: string) => {
-      update((prev) => ({ ...prev, notes: prev.notes.filter((note) => note.id !== id) }));
-      setEditor(null);
-    },
-    [update],
-  );
+  const flash = (message: string, undo?: Note) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, undo });
+    toastTimer.current = setTimeout(() => setToast(null), 5500);
+  };
 
-  const ordered = sortNotes(state.notes);
+  const changeSort = (next: NoteSort) => {
+    setSortState(next);
+    if (typeof localStorage !== "undefined") localStorage.setItem(SORT_KEY, next);
+  };
+
+  const ordered = sortNotes(state.notes, sort);
   const topFolders = sortFolders(state.folders.filter((folder) => !folder.parentId));
   const activeFolder = state.folders.find((folder) => folder.id === filter) ?? null;
   const activeTop = activeFolder
@@ -94,7 +121,7 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
   const filtered = ordered.filter((note) => {
     if (!matchesFolder(note)) return false;
     if (!needle) return true;
-    if (note.title.toLowerCase().includes(needle)) return true;
+    if (noteTitle(note).toLowerCase().includes(needle)) return true;
     return !note.locked && blocksToText(note.blocks).toLowerCase().includes(needle);
   });
 
@@ -107,7 +134,10 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
 
   const newNote = () => {
     const folderId = filter !== ALL && filter !== UNSORTED ? filter : null;
-    setEditor({ note: createNote(folderId), password: null, fresh: true });
+    const note = createNote(folderId);
+    // New notes sit on top when the list is manually ordered.
+    note.order = state.notes.reduce((lowest, item) => Math.min(lowest, item.order), note.order) - 1;
+    setEditor({ note, password: null, fresh: true });
   };
 
   const open = (note: Note) => {
@@ -148,6 +178,98 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
     setFilter(ALL);
   };
 
+  const togglePin = (note: Note) => {
+    update((prev) => ({
+      ...prev,
+      notes: prev.notes.map((item) => (item.id === note.id ? { ...item, pinned: !item.pinned } : item)),
+    }));
+    setMenuNote(null);
+    flash(note.pinned ? "Unpinned" : "Pinned to top");
+  };
+
+  const duplicate = (note: Note) => {
+    const copy = duplicateNote(note);
+    copy.order = state.notes.reduce((lowest, item) => Math.min(lowest, item.order), copy.order) - 1;
+    update((prev) => ({ ...prev, notes: [copy, ...prev.notes] }));
+    setMenuNote(null);
+    flash("Note duplicated");
+  };
+
+  const moveNote = (note: Note, folderId: string | null) => {
+    update((prev) => ({
+      ...prev,
+      notes: prev.notes.map((item) => (item.id === note.id ? { ...item, folderId } : item)),
+    }));
+    setMenuNote(null);
+    flash("Note moved");
+  };
+
+  const moveManual = (note: Note, direction: -1 | 1) => {
+    update((prev) => {
+      const list = sortNotes(prev.notes, "manual");
+      const index = list.findIndex((item) => item.id === note.id);
+      if (index < 0) return prev;
+      // Keep pinned and unpinned notes in their own groups.
+      let target = index + direction;
+      while (target >= 0 && target < list.length && list[target].pinned !== note.pinned) target += direction;
+      if (target < 0 || target >= list.length) return prev;
+      const reordered = [...list];
+      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+      const orders = new Map(reordered.map((item, position) => [item.id, position]));
+      return {
+        ...prev,
+        notes: prev.notes.map((item) => ({ ...item, order: orders.get(item.id) ?? item.order })),
+      };
+    });
+    setMenuNote(null);
+  };
+
+  const remove = (id: string) => {
+    const target = state.notes.find((note) => note.id === id);
+    if (!target) return;
+    update((prev) => ({ ...prev, notes: prev.notes.filter((note) => note.id !== id) }));
+    setEditor(null);
+    setMenuNote(null);
+    flash("Note deleted", target);
+  };
+
+  const undoDelete = () => {
+    if (!toast?.undo) return;
+    const note = toast.undo;
+    update((prev) => ({ ...prev, notes: [note, ...prev.notes] }));
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(null);
+  };
+
+  const copyText = async (note: Note) => {
+    if (note.locked) {
+      flash("Unlock the note to copy it");
+      return;
+    }
+    setMenuNote(null);
+    try {
+      await navigator.clipboard.writeText(notePlainText(note));
+      flash("Copied");
+    } catch {
+      flash("Could not copy");
+    }
+  };
+
+  const exportText = (note: Note) => {
+    if (note.locked) {
+      flash("Unlock the note to export it");
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([notePlainText(note)], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${noteTitle(note).replace(/[^\w\- ]+/g, "").trim() || "note"}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setMenuNote(null);
+    flash("Exported");
+  };
+
   return (
     <div className="notes">
       <header className="notes-top">
@@ -156,7 +278,7 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
         {ready ? (
           <div className="notes-head-actions">
             <button type="button" className="notes-back" onClick={() => setBackupOpen(true)}>Data</button>
-            <button type="button" className="notes-back" onClick={newNote}>+ New</button>
+            <button type="button" className="notes-new" onClick={newNote}>+ New</button>
           </div>
         ) : (
           <span />
@@ -231,7 +353,7 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
 
         {activeFolder ? (
           <div className="notes-folder-actions">
-            <span className="notes-folder-name">{activeFolder.name}</span>
+            <span className="notes-folder-name">{folderPath(state.folders, activeFolder.id)}</span>
             <button type="button" onClick={() => setFolderPrompt({ parentId: activeFolder.parentId, editing: activeFolder })}>
               Rename
             </button>
@@ -243,32 +365,40 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
           <p className="notes-muted">Opening…</p>
         ) : state.notes.length === 0 ? (
           <div className="notes-empty">
-            <p className="notes-empty-title">No notes yet</p>
-            <p className="notes-muted">Folders keep things tidy. Sections let you mix text, lists, checklists and tables.</p>
-            <button type="button" className="notes-btn is-primary" onClick={newNote}>Write a note</button>
+            <p className="notes-empty-title">A quiet place to write</p>
+            <p className="notes-muted">Type freely, add a checklist and optional prices, and let the total add itself up.</p>
+            <button type="button" className="notes-btn is-primary" onClick={newNote}>Start writing</button>
           </div>
         ) : filtered.length === 0 ? (
           <p className="notes-muted notes-center">
             {needle ? <>No notes match “{query.trim()}”.</> : "No notes in this folder yet."}
           </p>
         ) : (
-          <ul className="notes-list">
-            {filtered.map((note) => (
-              <li key={note.id}>
-                <button type="button" className="notes-card" data-color={note.color} onClick={() => open(note)}>
-                  <span className="notes-card-head">
-                    <strong>{note.title || "Untitled note"}</strong>
-                    <span className="notes-card-tags">
-                      {note.folderId ? <span className="notes-folder-tag">{folderPath(state.folders, note.folderId)}</span> : null}
-                      {note.locked ? <span className="notes-lock" aria-label="Locked">🔒</span> : null}
-                    </span>
-                  </span>
-                  <span className="notes-preview">{note.locked ? "Locked — password needed" : preview(note.blocks)}</span>
-                  <span className="notes-meta">{formatWhen(note.updatedAt)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="notes-sortbar">
+              <span className="notes-result-count">{filtered.length} note{filtered.length === 1 ? "" : "s"}</span>
+              <label className="notes-sort">
+                <span>Sort</span>
+                <select value={sort} onChange={(event) => changeSort(event.target.value as NoteSort)} aria-label="Sort notes">
+                  <option value="edited">Last edited</option>
+                  <option value="created">Date created</option>
+                  <option value="title">A–Z</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+            </div>
+            <ul className="notes-list">
+              {filtered.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  folders={state.folders}
+                  onOpen={open}
+                  onMenu={setMenuNote}
+                />
+              ))}
+            </ul>
+          </>
         )}
       </div>
 
@@ -326,6 +456,199 @@ export default function NotesApp({ onBack }: { onBack: () => void }) {
           onClose={() => setBackupOpen(false)}
         />
       ) : null}
+
+      {menuNote ? (
+        <NoteMenu
+          note={menuNote}
+          folders={state.folders}
+          manual={sort === "manual"}
+          onClose={() => setMenuNote(null)}
+          onPin={() => togglePin(menuNote)}
+          onDuplicate={() => duplicate(menuNote)}
+          onMove={(folderId) => moveNote(menuNote, folderId)}
+          onCopy={() => void copyText(menuNote)}
+          onExport={() => exportText(menuNote)}
+          onUp={() => moveManual(menuNote, -1)}
+          onDown={() => moveManual(menuNote, 1)}
+          onDelete={() => remove(menuNote.id)}
+        />
+      ) : null}
+
+      {toast ? (
+        <div className="notes-toast" role="status">
+          <span>{toast.message}</span>
+          {toast.undo ? (
+            <button type="button" onClick={undoDelete}>Undo</button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NoteCard({
+  note,
+  folders,
+  onOpen,
+  onMenu,
+}: {
+  note: Note;
+  folders: Folder[];
+  onOpen: (note: Note) => void;
+  onMenu: (note: Note) => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const summary = summarizeBlocks(note.blocks);
+  const title = noteTitle(note);
+  const preview = note.locked
+    ? "Locked — password needed"
+    : blocksToText(note.blocks).replace(/\s+/g, " ").trim();
+
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  useEffect(() => () => cancel(), []);
+
+  return (
+    <li className={`notes-card ${note.pinned ? "is-pinned" : ""}`} data-color={note.color}>
+      <button
+        type="button"
+        className="notes-card-main"
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          start.current = { x: event.clientX, y: event.clientY };
+          longPressed.current = false;
+          cancel();
+          timer.current = setTimeout(() => {
+            longPressed.current = true;
+            onMenu(note);
+          }, 450);
+        }}
+        onPointerMove={(event) => {
+          if (!start.current) return;
+          if (Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > 8) {
+            cancel();
+            start.current = null;
+          }
+        }}
+        onPointerUp={() => {
+          cancel();
+          start.current = null;
+        }}
+        onPointerCancel={() => {
+          cancel();
+          start.current = null;
+        }}
+        onPointerLeave={cancel}
+        onClick={(event) => {
+          if (longPressed.current) {
+            event.preventDefault();
+            longPressed.current = false;
+            return;
+          }
+          onOpen(note);
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          cancel();
+          onMenu(note);
+        }}
+      >
+        <span className="notes-card-title">
+          <strong>{title}</strong>
+          {note.pinned ? <span className="notes-pin" aria-label="Pinned">★</span> : null}
+          {note.locked ? <span className="notes-lock" aria-label="Locked">🔒</span> : null}
+        </span>
+        <span className="notes-preview">{preview || "Empty note"}</span>
+        <span className="notes-meta">
+          <span>{formatWhen(note.updatedAt)}</span>
+          {note.folderId ? <span className="notes-folder-tag">{folderPath(folders, note.folderId)}</span> : null}
+          {summary.count > 0 ? <span className="notes-progress">{summary.done}/{summary.count}</span> : null}
+          {summary.hasPrices ? <span className="notes-progress">{formatMoney(summary.remaining, note.currency)} left</span> : null}
+        </span>
+      </button>
+      <button type="button" className="notes-card-menu" aria-label="Note actions" onClick={() => onMenu(note)}>
+        ⋯
+      </button>
+    </li>
+  );
+}
+
+function NoteMenu({
+  note,
+  folders,
+  manual,
+  onClose,
+  onPin,
+  onDuplicate,
+  onMove,
+  onCopy,
+  onExport,
+  onUp,
+  onDown,
+  onDelete,
+}: {
+  note: Note;
+  folders: Folder[];
+  manual: boolean;
+  onClose: () => void;
+  onPin: () => void;
+  onDuplicate: () => void;
+  onMove: (folderId: string | null) => void;
+  onCopy: () => void;
+  onExport: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onDelete: () => void;
+}) {
+  const options = sortFolders(folders.filter((folder) => !folder.parentId)).flatMap((folder) => [
+    { id: folder.id, label: folder.name },
+    ...childrenOf(folders, folder.id).map((child) => ({ id: child.id, label: `— ${child.name}` })),
+  ]);
+
+  return (
+    <div className="notes-sheet-wrap" role="dialog" aria-modal="true" aria-label="Note actions">
+      <button type="button" className="notes-scrim" onClick={onClose} aria-label="Close" />
+      <div className="notes-menu">
+        <div className="notes-menu-head">
+          <span>{noteTitle(note)}</span>
+          <button type="button" className="notes-link" onClick={onClose}>Done</button>
+        </div>
+        <button type="button" className="notes-menu-row" onClick={onPin}>
+          {note.pinned ? "Unpin" : "Pin to top"}
+        </button>
+        <button type="button" className="notes-menu-row" onClick={onDuplicate}>Duplicate</button>
+        <label className="notes-menu-move">
+          <span>Move to</span>
+          <select
+            value={note.folderId ?? ""}
+            onChange={(event) => onMove(event.target.value || null)}
+            aria-label="Move note to folder"
+          >
+            <option value="">No folder</option>
+            {options.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="notes-menu-row" disabled={note.locked} onClick={onCopy}>
+          Copy as text
+        </button>
+        <button type="button" className="notes-menu-row" disabled={note.locked} onClick={onExport}>
+          Export as .txt
+        </button>
+        {manual ? (
+          <div className="notes-menu-pair">
+            <button type="button" className="notes-menu-row" onClick={onUp}>Move up</button>
+            <button type="button" className="notes-menu-row" onClick={onDown}>Move down</button>
+          </div>
+        ) : null}
+        <button type="button" className="notes-menu-row is-danger" onClick={onDelete}>Delete</button>
+      </div>
     </div>
   );
 }
@@ -478,12 +801,12 @@ function NotesBackup({
           <span className="notes-sheet-label">Backup &amp; data</span>
           <button type="button" className="notes-link" onClick={onClose}>Done</button>
         </div>
-        <div className="notes-editor">
+        <div className="notes-editor-scroll">
           <p className="notes-muted">
             Notes stay in this browser. Clearing site data removes them, so export a backup you can keep.
           </p>
           <p className="notes-muted">
-            Folders, colours and sections are included. Locked notes are included as encrypted text, so you still need their password.
+            Folders, colours, prices, pins and sections are included. Locked notes are included as encrypted text, so you still need their password.
           </p>
           <div className="notes-actions">
             <button type="button" className="notes-btn is-primary" onClick={download} disabled={busy}>Export backup</button>
@@ -508,12 +831,6 @@ function NotesBackup({
       </div>
     </div>
   );
-}
-
-function preview(blocks: Block[]): string {
-  const text = blocksToText(blocks).replace(/\s+/g, " ").trim();
-  if (!text) return "Empty note";
-  return text.length > 110 ? `${text.slice(0, 110)}…` : text;
 }
 
 function formatWhen(iso: string): string {

@@ -6,7 +6,7 @@ A Next.js mini-app collection that opens from one home screen:
 - **Fuel Tracker**: car fuel records, costs and analytics.
 - **Money Tracker**: accounts, pockets, money movements, bills, scheduled income, refunds and IOUs.
 - **Groceries & Pantry**: stock, meals and shopping.
-- **Notes**: folders and subfolders, rich sections (lists, checklists, tables), colours and optional password locks.
+- **Notes**: a fast continuous editor with folders, lists, priced checklists, inline sums, pins and optional password locks.
 - **Daily Tracker**: steps, bodyweight, calories, sleep and water with goals, history
   and trends.
 
@@ -20,14 +20,21 @@ A Next.js mini-app collection that opens from one home screen:
 
 ## Notes
 
-Notes are stored only in this browser. Folders can hold subfolders one level deep, and a note
-can mix text, bullet or numbered lists, checklists and tables. Notes and folders can take a
+Notes are stored only in this browser. Folders can hold subfolders one level deep. A note is one
+continuous page: the formatting bar adds text, headings, bullets, numbered lists, checklists and
+tables, Enter continues a list, and changes save automatically. Notes and folders can take a
 colour.
 
-A note can be locked with a password: its sections are encrypted with AES-GCM before they are
-saved, while the title, folder and colour stay visible. There is no password recovery. Use the
-Data button in Notes to export a JSON backup; folders, colours and sections are included, and
-locked notes stay encrypted, so the password is still needed to read them.
+Checklist items can carry an optional price. When a checklist has prices, it shows Total,
+Remaining and Completed automatically in euros (or another currency chosen for the note). Typing
+a line that ends in `=` finishes simple arithmetic, and tables can show a sum for numeric columns.
+
+Notes can be pinned, sorted by last edited, created date, name or manual order, duplicated, moved
+between folders, copied or exported as plain text. Deleting a note offers an undo. A note can be
+locked with a password: its content is encrypted with AES-GCM before it is saved, while the title,
+folder and colour stay visible. There is no password recovery. Use the Data button in Notes to
+export a JSON backup; folders, colours, prices, pins and content are included, and locked notes
+stay encrypted, so the password is still needed to read them.
 
 ## Daily Tracker
 
